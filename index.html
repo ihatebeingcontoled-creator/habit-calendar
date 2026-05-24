@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Habit Calendar</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: #ffffff;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Cool blue glow rising from the bottom */
+    body::before {
+      content: '';
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      height: 55%;
+      background: linear-gradient(to top,
+        rgba(59, 130, 246, 0.13) 0%,
+        rgba(96, 165, 250, 0.07) 40%,
+        transparent 100%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .app {
+      position: relative;
+      z-index: 1;
+      max-width: 1060px;
+      margin: 0 auto;
+      padding: 36px 20px 60px;
+    }
+
+    /* ── Header ── */
+    .app-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 36px;
+    }
+
+    .app-title {
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: -0.6px;
+      color: #111;
+    }
+
+    /* ── Admin badge / login button ── */
+    .admin-btn {
+      background: none;
+      border: 1.5px solid #e2e2e2;
+      border-radius: 8px;
+      padding: 7px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #666;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+    }
+    .admin-btn:hover { background: #f4f4f4; border-color: #ccc; }
+    .admin-btn.is-admin {
+      color: #16a34a;
+      border-color: #bbf7d0;
+      background: #f0fdf4;
+    }
+    .admin-btn.is-admin:hover { background: #dcfce7; }
+
+    /* ── Viewer mode (non-admin): make modal read-only ── */
+    body.viewer-mode .save-btn { display: none !important; }
+    body.viewer-mode input,
+    body.viewer-mode textarea { pointer-events: none; background: #f9f9f9 !important; }
+    body.viewer-mode .check-row { pointer-events: none; opacity: 0.85; }
+
+    /* ── Month nav ── */
+    .month-nav {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+      margin-bottom: 22px;
+    }
+
+    .nav-btn {
+      background: none;
+      border: 1.5px solid #e2e2e2;
+      border-radius: 9px;
+      width: 38px; height: 38px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      color: #444;
+      font-size: 16px;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .nav-btn:hover { background: #f4f4f4; border-color: #ccc; }
+
+    .month-label {
+      font-size: 20px;
+      font-weight: 700;
+      color: #111;
+      min-width: 200px;
+      text-align: center;
+      letter-spacing: -0.3px;
+    }
+
+    /* ── Stats bar ── */
+    .stats-bar {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 26px;
+    }
+    .stat-card {
+      background: #fafafa;
+      border: 1.5px solid #ececec;
+      border-radius: 12px;
+      padding: 13px 16px;
+    }
+    .stat-label {
+      font-size: 10.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: #aaa;
+      margin-bottom: 5px;
+    }
+    .stat-value {
+      font-size: 20px;
+      font-weight: 800;
+      color: #111;
+      letter-spacing: -0.4px;
+      line-height: 1.15;
+    }
+    .stat-value.pos { color: #16a34a; }
+    .stat-value.neg { color: #dc2626; }
+    @media (max-width: 580px) {
+      .stats-bar { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    /* ── Calendar grid ── */
+    .weekdays {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 7px;
+      margin-bottom: 7px;
+    }
+
+    .weekday {
+      text-align: center;
+      font-size: 11px;
+      font-weight: 700;
+      color: #bbb;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      padding: 4px 0;
+    }
+
+    .days-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 7px;
+    }
+
+    /* ── Day cell — blue base for all days ── */
+    .day-cell {
+      aspect-ratio: 1;
+      min-height: 78px;
+      border-radius: 13px;
+      border: 2px solid #3b82f6;
+      background: #fafafa;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 8px 6px 6px;
+      position: relative;
+      transition: transform 0.15s, box-shadow 0.2s, background 0.15s;
+      user-select: none;
+    }
+
+    .day-cell:hover:not(.empty) {
+      background: #f3f3f3;
+      transform: translateY(-2px);
+    }
+
+    .day-cell.empty {
+      cursor: default;
+      background: transparent;
+      border-color: transparent;
+    }
+
+    /* Today wins — black border */
+    .day-cell.today {
+      border-color: #111;
+      border-width: 2px;
+      background: #fff;
+    }
+
+    /* ── Glow levels by completion count ── */
+    .day-cell.lvl-0 {
+      box-shadow:
+        0 0 0 2px rgba(220, 38, 38, 0.55),
+        0 0 14px 4px rgba(220, 38, 38, 0.28),
+        0 0 28px 8px rgba(220, 38, 38, 0.12);
+      border-color: rgba(220, 38, 38, 0.4);
+    }
+    .day-cell.lvl-1 {
+      box-shadow:
+        0 0 0 2px rgba(249, 115, 22, 0.55),
+        0 0 14px 4px rgba(249, 115, 22, 0.28),
+        0 0 28px 8px rgba(249, 115, 22, 0.12);
+      border-color: rgba(249, 115, 22, 0.4);
+    }
+    .day-cell.lvl-2 {
+      box-shadow:
+        0 0 0 2px rgba(234, 179, 8, 0.6),
+        0 0 14px 4px rgba(234, 179, 8, 0.3),
+        0 0 28px 8px rgba(234, 179, 8, 0.13);
+      border-color: rgba(234, 179, 8, 0.45);
+    }
+    .day-cell.lvl-3 {
+      box-shadow:
+        0 0 0 2px rgba(21, 128, 61, 0.6),
+        0 0 14px 4px rgba(21, 128, 61, 0.3),
+        0 0 28px 8px rgba(21, 128, 61, 0.13);
+      border-color: rgba(21, 128, 61, 0.4);
+    }
+    .day-cell.lvl-4 {
+      box-shadow:
+        0 0 0 2px rgba(34, 197, 94, 0.75),
+        0 0 18px 6px rgba(34, 197, 94, 0.45),
+        0 0 36px 12px rgba(34, 197, 94, 0.22);
+      border-color: rgba(34, 197, 94, 0.5);
+    }
+
+    .day-num {
+      position: absolute;
+      top: 7px; left: 9px;
+      font-size: 11.5px;
+      font-weight: 700;
+      color: #aaa;
+    }
+
+    .day-cell.today .day-num { color: #111; }
+
+    /* Center: small dots indicating completion */
+    .day-dots {
+      display: flex;
+      gap: 3px;
+      margin-top: 6px;
+    }
+    .day-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #e0e0e0;
+    }
+    .day-dot.on { background: #111; }
+
+    .day-cell.lvl-4 .day-dot.on { background: #15803d; }
+
+    /* ── Modal overlay ── */
+    .overlay {
+      position: fixed; inset: 0;
+      background: rgba(0, 0, 0, 0.38);
+      backdrop-filter: blur(5px);
+      z-index: 200;
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.22s;
+    }
+    .overlay.open { opacity: 1; pointer-events: all; }
+
+    .modal {
+      background: #fff;
+      border-radius: 22px;
+      width: 92%;
+      max-width: 580px;
+      max-height: 92vh;
+      overflow-y: auto;
+      padding: 30px 28px 28px;
+      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.18);
+      transform: translateY(14px) scale(0.98);
+      transition: transform 0.22s;
+    }
+    .overlay.open .modal { transform: translateY(0) scale(1); }
+
+    .modal-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 22px;
+    }
+
+    .modal-title {
+      font-size: 17px;
+      font-weight: 800;
+      color: #111;
+      letter-spacing: -0.3px;
+    }
+
+    .close-btn {
+      background: #f2f2f2;
+      border: none;
+      border-radius: 8px;
+      width: 32px; height: 32px;
+      font-size: 18px;
+      cursor: pointer;
+      color: #666;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s;
+    }
+    .close-btn:hover { background: #e8e8e8; color: #222; }
+
+    /* ── Section header ── */
+    .section-head {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: #bbb;
+      margin-bottom: 12px;
+    }
+
+    /* ── Checkbox rows ── */
+    .check-list {
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+      margin-bottom: 22px;
+    }
+
+    .check-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      background: #fafafa;
+      border: 1.5px solid #ececec;
+      border-radius: 11px;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+      user-select: none;
+    }
+    .check-row:hover { background: #f3f3f3; border-color: #ddd; }
+
+    .check-row.checked {
+      background: #f0fdf4;
+      border-color: #bbf7d0;
+    }
+
+    .check-box {
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      border: 2px solid #cfcfcf;
+      background: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s, border-color 0.15s;
+      flex-shrink: 0;
+    }
+    .check-row.checked .check-box {
+      background: #16a34a;
+      border-color: #16a34a;
+    }
+    .check-box svg {
+      width: 14px;
+      height: 14px;
+      stroke: #fff;
+      stroke-width: 3.5;
+      fill: none;
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+    .check-row.checked .check-box svg { opacity: 1; }
+
+    .check-label {
+      font-size: 14.5px;
+      font-weight: 600;
+      color: #222;
+    }
+
+    /* ── Notes ── */
+    .notes-wrap { display: flex; flex-direction: column; gap: 13px; }
+
+    .note-field { display: flex; flex-direction: column; gap: 5px; }
+
+    .note-field label {
+      font-size: 10.5px;
+      font-weight: 700;
+      color: #aaa;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+    }
+
+    .note-field textarea {
+      border: 1.5px solid #ebebeb;
+      border-radius: 9px;
+      padding: 10px 12px;
+      font-size: 13.5px;
+      color: #111;
+      font-family: inherit;
+      outline: none;
+      resize: vertical;
+      min-height: 80px;
+      line-height: 1.5;
+      transition: border-color 0.15s;
+      background: #fff;
+    }
+    .note-field textarea:focus { border-color: #555; }
+
+    /* ── Save button ── */
+    .save-btn {
+      width: 100%;
+      background: #111;
+      color: #fff;
+      border: none;
+      border-radius: 11px;
+      padding: 14px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+      margin-top: 20px;
+      transition: background 0.15s, transform 0.1s;
+      letter-spacing: 0.2px;
+    }
+    .save-btn:hover { background: #2a2a2a; }
+    .save-btn:active { transform: scale(0.99); }
+    .save-btn:disabled { background: #ccc; cursor: not-allowed; transform: none; }
+
+    /* ── Toast ── */
+    .toast {
+      position: fixed;
+      bottom: 28px; left: 50%;
+      transform: translateX(-50%) translateY(16px);
+      background: #111;
+      color: #fff;
+      padding: 11px 22px;
+      border-radius: 9px;
+      font-size: 13px;
+      font-weight: 600;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s, transform 0.25s;
+      z-index: 999;
+      white-space: nowrap;
+    }
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+    .toast.err { background: #dc2626; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="app-header">
+      <span class="app-title">Habit Calendar</span>
+      <button class="admin-btn" id="adminBtn" title="Admin login">
+        <span id="adminBtnIcon">🔒</span>
+        <span id="adminBtnLabel">Admin</span>
+      </button>
+    </div>
+
+    <div class="month-nav">
+      <button class="nav-btn" id="prevMonth">&#8592;</button>
+      <span class="month-label" id="monthLabel"></span>
+      <button class="nav-btn" id="nextMonth">&#8594;</button>
+    </div>
+
+    <div class="stats-bar">
+      <div class="stat-card">
+        <div class="stat-label">Current Streak</div>
+        <div class="stat-value" id="statStreak">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Perfect Days</div>
+        <div class="stat-value" id="statPerfect">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Pushup Days</div>
+        <div class="stat-value" id="statPushups">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Reading Days</div>
+        <div class="stat-value" id="statReading">0</div>
+      </div>
+    </div>
+
+    <!-- Week starts MONDAY -->
+    <div class="weekdays">
+      <div class="weekday">Mon</div>
+      <div class="weekday">Tue</div>
+      <div class="weekday">Wed</div>
+      <div class="weekday">Thu</div>
+      <div class="weekday">Fri</div>
+      <div class="weekday">Sat</div>
+      <div class="weekday">Sun</div>
+    </div>
+    <div class="days-grid" id="daysGrid"></div>
+  </div>
+
+  <!-- Day detail modal -->
+  <div class="overlay" id="overlay">
+    <div class="modal">
+      <div class="modal-head">
+        <span class="modal-title" id="modalTitle">Day</span>
+        <button class="close-btn" id="closeBtn">&times;</button>
+      </div>
+
+      <!-- Checkboxes -->
+      <div class="section-head">Habits</div>
+      <div class="check-list">
+        <div class="check-row" id="rowPushups" data-target="pushups">
+          <div class="check-box">
+            <svg viewBox="0 0 24 24"><polyline points="4 12 10 18 20 6"/></svg>
+          </div>
+          <div class="check-label">Pushups</div>
+        </div>
+        <div class="check-row" id="rowRead" data-target="readPages">
+          <div class="check-box">
+            <svg viewBox="0 0 24 24"><polyline points="4 12 10 18 20 6"/></svg>
+          </div>
+          <div class="check-label">Read 20 pages</div>
+        </div>
+      </div>
+
+      <!-- Notes -->
+      <div class="section-head">Notes</div>
+      <div class="notes-wrap">
+        <div class="note-field">
+          <label>What I did today</label>
+          <textarea id="nDay" placeholder="What did you get done today?"></textarea>
+        </div>
+        <div class="note-field">
+          <label>What I read about</label>
+          <textarea id="nRead" placeholder="What was today's reading about?"></textarea>
+        </div>
+      </div>
+
+      <button class="save-btn" id="saveBtn">Save Day</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    /* ── State ── */
+    const MONTHS = ['January','February','March','April','May','June',
+                    'July','August','September','October','November','December'];
+    let now        = new Date();
+    let viewYear   = now.getFullYear();
+    let viewMonth  = now.getMonth();
+    let habitsData = {};       // { 'YYYY-MM-DD': {pushups, readPages, nDay, nRead} }
+    let activeDate = null;
+    let formState  = { pushups: false, readPages: false };
+
+    /* ── Helpers ── */
+    function pad(n) { return String(n).padStart(2, '0'); }
+
+    /* Monday-first index: Mon=0, Tue=1, ..., Sun=6 */
+    function mondayIdx(dow) { return (dow + 6) % 7; }
+
+    /* Completion count: pushups + readPages + non-empty nDay + non-empty nRead */
+    function completionCount(t) {
+      if (!t) return -1;        // -1 means "no record" — no glow
+      let c = 0;
+      if (t.pushups)             c++;
+      if (t.readPages)           c++;
+      if (t.nDay  && t.nDay.trim())  c++;
+      if (t.nRead && t.nRead.trim()) c++;
+      return c;
+    }
+
+    /* ── Stats — year-to-date (from Jan 1 of the viewed year) ── */
+    function computeMonthStats() {
+      const yearPrefix = viewYear + '-';
+      let perfect = 0, pushDays = 0, readDays = 0;
+
+      for (const date in habitsData) {
+        if (!date.startsWith(yearPrefix)) continue;
+        const t = habitsData[date];
+        const c = completionCount(t);
+        if (c === 4) perfect++;
+        if (t.pushups)   pushDays++;
+        if (t.readPages) readDays++;
+      }
+
+      /* Current streak — backwards from today, days with count >= 1.
+         If today isn't filled in yet, start counting from yesterday so the
+         streak doesn't reset just because the day isn't over. */
+      let streak = 0;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayKey = today.getFullYear() + '-' + pad(today.getMonth() + 1) + '-' + pad(today.getDate());
+      let startOffset = completionCount(habitsData[todayKey]) >= 1 ? 0 : 1;
+      for (let i = startOffset; i < 366; i++) {
+        const d = new Date(today);
+        d.setDate(today.getDate() - i);
+        const key = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+        const c = completionCount(habitsData[key]);
+        if (c >= 1) streak++;
+        else break;
+      }
+
+      document.getElementById('statStreak').textContent  = streak;
+      document.getElementById('statPerfect').textContent = perfect;
+      document.getElementById('statPushups').textContent = pushDays;
+      document.getElementById('statReading').textContent = readDays;
+    }
+
+    /* ── Toast ── */
+    let toastTimer;
+    function toast(msg, isErr = false) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.className = 'toast show' + (isErr ? ' err' : '');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
+    }
+
+    /* ── Storage: Cloudflare D1 via Pages Functions ── */
+    const CACHE_KEY = 'habitcal_cache';
+    const PW_KEY    = 'habitcal_admin_pw';
+
+    function adminPw()      { return sessionStorage.getItem(PW_KEY) || ''; }
+    function isAdmin()      { return !!adminPw(); }
+    function setAdminPw(pw) { sessionStorage.setItem(PW_KEY, pw); }
+    function clearAdminPw() { sessionStorage.removeItem(PW_KEY); }
+
+    async function verifyAdminPw(pw) {
+      try {
+        const r = await fetch('/api/auth', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: pw }),
+        });
+        return r.ok;
+      } catch { return false; }
+    }
+
+    async function loadAllHabits() {
+      const cached = localStorage.getItem(CACHE_KEY);
+      if (cached) {
+        try { habitsData = JSON.parse(cached); } catch { habitsData = {}; }
+      }
+      try {
+        const r = await fetch('/api/habits', { cache: 'no-store' });
+        if (r.ok) {
+          const txt = await r.text();
+          habitsData = JSON.parse(txt);
+          localStorage.setItem(CACHE_KEY, txt);
+        }
+      } catch { /* offline → use cache */ }
+    }
+
+    async function saveHabitData(dateStr, payload) {
+      const pw = adminPw();
+      if (!pw) throw new Error('Not admin');
+      const r = await fetch('/api/habits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Password': pw },
+        body: JSON.stringify(payload),
+      });
+      if (!r.ok) throw new Error('Save failed: ' + r.status);
+      habitsData[dateStr] = payload;
+      localStorage.setItem(CACHE_KEY, JSON.stringify(habitsData));
+    }
+
+    /* ── Admin UI ── */
+    function refreshAdminUI() {
+      const btn   = document.getElementById('adminBtn');
+      const icon  = document.getElementById('adminBtnIcon');
+      const label = document.getElementById('adminBtnLabel');
+      if (isAdmin()) {
+        btn.classList.add('is-admin');
+        icon.textContent  = '🔓';
+        label.textContent = 'Admin · Logout';
+        document.body.classList.remove('viewer-mode');
+      } else {
+        btn.classList.remove('is-admin');
+        icon.textContent  = '🔒';
+        label.textContent = 'Admin';
+        document.body.classList.add('viewer-mode');
+      }
+    }
+
+    document.getElementById('adminBtn').addEventListener('click', async () => {
+      if (isAdmin()) {
+        if (confirm('Log out of admin?')) {
+          clearAdminPw();
+          refreshAdminUI();
+          toast('Logged out.');
+        }
+        return;
+      }
+      const pw = prompt('Admin password:');
+      if (!pw) return;
+      toast('Checking…');
+      const ok = await verifyAdminPw(pw);
+      if (ok) {
+        setAdminPw(pw);
+        refreshAdminUI();
+        toast('Welcome back.');
+      } else {
+        toast('Wrong password.', true);
+      }
+    });
+
+    /* ── Calendar — Monday-first ── */
+    function renderCalendar() {
+      document.getElementById('monthLabel').textContent = MONTHS[viewMonth] + ' ' + viewYear;
+      const grid    = document.getElementById('daysGrid');
+      const today   = new Date();
+      const firstDow      = new Date(viewYear, viewMonth, 1).getDay();
+      const firstMonIdx   = mondayIdx(firstDow);
+      const daysInMonth   = new Date(viewYear, viewMonth + 1, 0).getDate();
+
+      grid.innerHTML = '';
+
+      /* Leading blanks (so day 1 sits under its Mon-first column) */
+      for (let i = 0; i < firstMonIdx; i++) {
+        const blank = document.createElement('div');
+        blank.className = 'day-cell empty';
+        grid.appendChild(blank);
+      }
+
+      for (let d = 1; d <= daysInMonth; d++) {
+        const dateStr = viewYear + '-' + pad(viewMonth + 1) + '-' + pad(d);
+        const entry   = habitsData[dateStr];
+        const isToday = today.getFullYear() === viewYear &&
+                        today.getMonth()    === viewMonth &&
+                        today.getDate()     === d;
+
+        const cell = document.createElement('div');
+        cell.className = 'day-cell' + (isToday ? ' today' : '');
+
+        const count = completionCount(entry);
+        if (count >= 0) {
+          cell.classList.add('lvl-' + count);
+        }
+
+        /* day number top-left */
+        const num = document.createElement('div');
+        num.className = 'day-num';
+        num.textContent = d;
+        cell.appendChild(num);
+
+        /* center dots showing completion */
+        if (count >= 0) {
+          const dots = document.createElement('div');
+          dots.className = 'day-dots';
+          for (let i = 0; i < 4; i++) {
+            const dot = document.createElement('div');
+            dot.className = 'day-dot' + (i < count ? ' on' : '');
+            dots.appendChild(dot);
+          }
+          cell.appendChild(dots);
+        }
+
+        cell.addEventListener('click', () => openModal(dateStr));
+        grid.appendChild(cell);
+      }
+
+      computeMonthStats();
+    }
+
+    /* ── Modal ── */
+    function setCheck(target, on) {
+      formState[target] = on;
+      const row = document.querySelector('.check-row[data-target="' + target + '"]');
+      row.classList.toggle('checked', on);
+    }
+
+    function openModal(dateStr) {
+      activeDate = dateStr;
+
+      const [y, m, d] = dateStr.split('-');
+      document.getElementById('modalTitle').textContent =
+        MONTHS[parseInt(m) - 1] + ' ' + parseInt(d) + ', ' + y;
+
+      /* Reset form */
+      setCheck('pushups',   false);
+      setCheck('readPages', false);
+      document.getElementById('nDay').value  = '';
+      document.getElementById('nRead').value = '';
+
+      /* Fill from saved data */
+      const t = habitsData[dateStr];
+      if (t) {
+        setCheck('pushups',   !!t.pushups);
+        setCheck('readPages', !!t.readPages);
+        if (t.nDay  !== undefined) document.getElementById('nDay').value  = t.nDay;
+        if (t.nRead !== undefined) document.getElementById('nRead').value = t.nRead;
+      }
+
+      document.getElementById('overlay').classList.add('open');
+    }
+
+    function closeModal() {
+      document.getElementById('overlay').classList.remove('open');
+      activeDate = null;
+    }
+
+    /* Wire up checkbox rows */
+    document.querySelectorAll('.check-row').forEach(row => {
+      row.addEventListener('click', () => {
+        if (!isAdmin()) return;        // viewer mode: no toggling
+        const target = row.dataset.target;
+        setCheck(target, !formState[target]);
+      });
+    });
+
+    /* ── Save ── */
+    document.getElementById('saveBtn').addEventListener('click', async () => {
+      const btn = document.getElementById('saveBtn');
+      btn.disabled = true;
+      btn.textContent = 'Saving…';
+
+      const dateStr = activeDate;
+      const payload = {
+        date:      dateStr,
+        pushups:   formState.pushups,
+        readPages: formState.readPages,
+        nDay:      document.getElementById('nDay').value,
+        nRead:     document.getElementById('nRead').value,
+      };
+
+      try {
+        await saveHabitData(dateStr, payload);
+        habitsData[dateStr] = payload;
+        renderCalendar();
+        toast('Saved!');
+        setTimeout(closeModal, 600);
+      } catch {
+        toast('Failed to save — please try again.', true);
+      }
+
+      btn.disabled = false;
+      btn.textContent = 'Save Day';
+    });
+
+    /* ── Navigation ── */
+    document.getElementById('prevMonth').addEventListener('click', () => {
+      viewMonth--;
+      if (viewMonth < 0)  { viewMonth = 11; viewYear--; }
+      renderCalendar();
+    });
+
+    document.getElementById('nextMonth').addEventListener('click', () => {
+      viewMonth++;
+      if (viewMonth > 11) { viewMonth = 0;  viewYear++; }
+      renderCalendar();
+    });
+
+    document.getElementById('closeBtn').addEventListener('click', closeModal);
+    document.getElementById('overlay').addEventListener('click', (e) => {
+      if (e.target === document.getElementById('overlay')) closeModal();
+    });
+
+    /* ── Init ── */
+    (async () => {
+      refreshAdminUI();
+      await loadAllHabits();
+      renderCalendar();
+    })();
+  </script>
+</body>
+</html>
