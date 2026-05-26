@@ -181,10 +181,11 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 8px 6px 6px;
+      padding: 22px 6px 8px;
       position: relative;
       transition: transform 0.15s, box-shadow 0.2s, background 0.15s;
       user-select: none;
+      overflow: hidden;
     }
 
     .day-cell:hover:not(.empty) {
@@ -252,21 +253,23 @@
 
     .day-cell.today .day-num { color: #111; }
 
-    /* Center: small dots indicating completion */
-    .day-dots {
-      display: flex;
-      gap: 3px;
-      margin-top: 6px;
+    /* ── Day title — shown inside the square (replaces the old dots) ── */
+    .day-title {
+      font-size: 10.5px;
+      font-weight: 600;
+      color: #333;
+      text-align: center;
+      line-height: 1.25;
+      padding: 0 2px;
+      width: 100%;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      word-break: break-word;
     }
-    .day-dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: #e0e0e0;
-    }
-    .day-dot.on { background: #111; }
-
-    .day-cell.lvl-4 .day-dot.on { background: #15803d; }
+    .day-cell.lvl-4 .day-title { color: #14532d; }
+    .day-cell.lvl-0 .day-title { color: #7f1d1d; }
 
     /* ── Modal overlay ── */
     .overlay {
@@ -330,6 +333,25 @@
       color: #bbb;
       margin-bottom: 12px;
     }
+
+    /* ── Day title input (new — the dedicated "extra section") ── */
+    .title-wrap { margin-bottom: 22px; }
+    .title-input {
+      width: 100%;
+      border: 1.5px solid #ebebeb;
+      border-radius: 11px;
+      padding: 13px 14px;
+      font-size: 16px;
+      font-weight: 700;
+      color: #111;
+      font-family: inherit;
+      outline: none;
+      background: #fff;
+      letter-spacing: -0.2px;
+      transition: border-color 0.15s;
+    }
+    .title-input:focus { border-color: #555; }
+    .title-input::placeholder { color: #c0c0c0; font-weight: 600; }
 
     /* ── Checkbox rows ── */
     .check-list {
@@ -404,6 +426,7 @@
       letter-spacing: 0.6px;
     }
 
+    /* Auto-grow textareas: no manual resize, no scrollbar, grow with content */
     .note-field textarea {
       border: 1.5px solid #ebebeb;
       border-radius: 9px;
@@ -412,11 +435,13 @@
       color: #111;
       font-family: inherit;
       outline: none;
-      resize: vertical;
+      resize: none;
+      overflow: hidden;
       min-height: 80px;
       line-height: 1.5;
       transition: border-color 0.15s;
       background: #fff;
+      width: 100%;
     }
     .note-field textarea:focus { border-color: #555; }
 
@@ -520,6 +545,13 @@
         <button class="close-btn" id="closeBtn">&times;</button>
       </div>
 
+      <!-- Title (NEW: dedicated section for the day's title) -->
+      <div class="section-head">Title</div>
+      <div class="title-wrap">
+        <input type="text" id="dayTitle" class="title-input" maxlength="60"
+               placeholder="Give this day a title…" />
+      </div>
+
       <!-- Checkboxes -->
       <div class="section-head">Habits</div>
       <div class="check-list">
@@ -542,11 +574,11 @@
       <div class="notes-wrap">
         <div class="note-field">
           <label>What I did today</label>
-          <textarea id="nDay" placeholder="What did you get done today?"></textarea>
+          <textarea id="nDay" class="auto-grow" placeholder="What did you get done today?"></textarea>
         </div>
         <div class="note-field">
           <label>What I read about</label>
-          <textarea id="nRead" placeholder="What was today's reading about?"></textarea>
+          <textarea id="nRead" class="auto-grow" placeholder="What was today's reading about?"></textarea>
         </div>
       </div>
 
@@ -563,7 +595,7 @@
     let now        = new Date();
     let viewYear   = now.getFullYear();
     let viewMonth  = now.getMonth();
-    let habitsData = {};       // { 'YYYY-MM-DD': {pushups, readPages, nDay, nRead} }
+    let habitsData = {};       // { 'YYYY-MM-DD': {title, pushups, readPages, nDay, nRead} }
     let activeDate = null;
     let formState  = { pushups: false, readPages: false };
 
@@ -573,7 +605,8 @@
     /* Monday-first index: Mon=0, Tue=1, ..., Sun=6 */
     function mondayIdx(dow) { return (dow + 6) % 7; }
 
-    /* Completion count: pushups + readPages + non-empty nDay + non-empty nRead */
+    /* Completion count: pushups + readPages + non-empty nDay + non-empty nRead.
+       The new `title` field is NOT counted — it's just a label. */
     function completionCount(t) {
       if (!t) return -1;        // -1 means "no record" — no glow
       let c = 0;
@@ -758,16 +791,13 @@
         num.textContent = d;
         cell.appendChild(num);
 
-        /* center dots showing completion */
-        if (count >= 0) {
-          const dots = document.createElement('div');
-          dots.className = 'day-dots';
-          for (let i = 0; i < 4; i++) {
-            const dot = document.createElement('div');
-            dot.className = 'day-dot' + (i < count ? ' on' : '');
-            dots.appendChild(dot);
-          }
-          cell.appendChild(dots);
+        /* Title text shown inside the square (replaces the old dots) */
+        const titleText = entry && entry.title ? String(entry.title).trim() : '';
+        if (titleText) {
+          const tEl = document.createElement('div');
+          tEl.className = 'day-title';
+          tEl.textContent = titleText;
+          cell.appendChild(tEl);
         }
 
         cell.addEventListener('click', () => openModal(dateStr));
@@ -776,6 +806,15 @@
 
       computeMonthStats();
     }
+
+    /* ── Auto-grow textareas ── */
+    function autoSize(el) {
+      el.style.height = 'auto';
+      el.style.height = el.scrollHeight + 'px';
+    }
+    document.querySelectorAll('.auto-grow').forEach(ta => {
+      ta.addEventListener('input', () => autoSize(ta));
+    });
 
     /* ── Modal ── */
     function setCheck(target, on) {
@@ -794,6 +833,7 @@
       /* Reset form */
       setCheck('pushups',   false);
       setCheck('readPages', false);
+      document.getElementById('dayTitle').value = '';
       document.getElementById('nDay').value  = '';
       document.getElementById('nRead').value = '';
 
@@ -802,11 +842,17 @@
       if (t) {
         setCheck('pushups',   !!t.pushups);
         setCheck('readPages', !!t.readPages);
+        if (t.title !== undefined) document.getElementById('dayTitle').value = t.title;
         if (t.nDay  !== undefined) document.getElementById('nDay').value  = t.nDay;
         if (t.nRead !== undefined) document.getElementById('nRead').value = t.nRead;
       }
 
       document.getElementById('overlay').classList.add('open');
+
+      /* Resize textareas to fit their initial content (after they're visible) */
+      requestAnimationFrame(() => {
+        document.querySelectorAll('.auto-grow').forEach(autoSize);
+      });
     }
 
     function closeModal() {
@@ -832,6 +878,7 @@
       const dateStr = activeDate;
       const payload = {
         date:      dateStr,
+        title:     document.getElementById('dayTitle').value.trim(),
         pushups:   formState.pushups,
         readPages: formState.readPages,
         nDay:      document.getElementById('nDay').value,
