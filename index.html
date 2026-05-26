@@ -79,6 +79,8 @@
     body.viewer-mode input,
     body.viewer-mode textarea { pointer-events: none; background: #f9f9f9 !important; }
     body.viewer-mode .check-row { pointer-events: none; opacity: 0.85; }
+    body.viewer-mode .file-add-btn { display: none; }
+    body.viewer-mode .file-delete { display: none !important; }
 
     /* ── Month nav ── */
     .month-nav {
@@ -253,7 +255,7 @@
 
     .day-cell.today .day-num { color: #111; }
 
-    /* ── Day title — shown inside the square (replaces the old dots) ── */
+    /* ── Day title — shown inside the square ── */
     .day-title {
       font-size: 10.5px;
       font-weight: 600;
@@ -271,6 +273,23 @@
     .day-cell.lvl-4 .day-title { color: #14532d; }
     .day-cell.lvl-0 .day-title { color: #7f1d1d; }
 
+    /* ── Paperclip badge: indicates attached files ── */
+    .attach-badge {
+      position: absolute;
+      top: 6px; right: 7px;
+      font-size: 9.5px;
+      font-weight: 700;
+      color: #444;
+      background: rgba(255, 255, 255, 0.85);
+      border-radius: 7px;
+      padding: 1px 5px 1px 3px;
+      line-height: 1.35;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      pointer-events: none;
+    }
+
     /* ── Modal overlay ── */
     .overlay {
       position: fixed; inset: 0;
@@ -286,8 +305,8 @@
     .modal {
       background: #fff;
       border-radius: 22px;
-      width: 92%;
-      max-width: 580px;
+      width: 94%;
+      max-width: 900px;
       max-height: 92vh;
       overflow-y: auto;
       padding: 30px 28px 28px;
@@ -334,7 +353,7 @@
       margin-bottom: 12px;
     }
 
-    /* ── Day title input (new — the dedicated "extra section") ── */
+    /* ── Day title input ── */
     .title-wrap { margin-bottom: 22px; }
     .title-input {
       width: 100%;
@@ -355,8 +374,8 @@
 
     /* ── Checkbox rows ── */
     .check-list {
-      display: flex;
-      flex-direction: column;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
       gap: 9px;
       margin-bottom: 22px;
     }
@@ -414,7 +433,13 @@
     }
 
     /* ── Notes ── */
-    .notes-wrap { display: flex; flex-direction: column; gap: 13px; }
+    .notes-wrap {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 13px;
+      align-items: start;
+      margin-bottom: 22px;
+    }
 
     .note-field { display: flex; flex-direction: column; gap: 5px; }
 
@@ -426,7 +451,7 @@
       letter-spacing: 0.6px;
     }
 
-    /* Auto-grow textareas: no manual resize, no scrollbar, grow with content */
+    /* Auto-grow textareas */
     .note-field textarea {
       border: 1.5px solid #ebebeb;
       border-radius: 9px;
@@ -444,6 +469,118 @@
       width: 100%;
     }
     .note-field textarea:focus { border-color: #555; }
+
+    /* ── Files section ── */
+    .files-wrap { display: flex; flex-direction: column; gap: 10px; }
+
+    .file-add-btn {
+      width: 100%;
+      background: #f7f7f7;
+      border: 1.5px dashed #ccc;
+      border-radius: 11px;
+      padding: 12px 14px;
+      font-size: 13px;
+      font-weight: 700;
+      color: #555;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+    }
+    .file-add-btn:hover { background: #efefef; border-color: #999; color: #222; }
+    .file-add-btn:disabled { opacity: 0.5; cursor: progress; }
+
+    .files-hint {
+      font-size: 11px;
+      color: #aaa;
+      text-align: center;
+      margin-top: -2px;
+    }
+
+    .files-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(95px, 1fr));
+      gap: 8px;
+      margin-top: 2px;
+    }
+
+    .file-card {
+      position: relative;
+      aspect-ratio: 1;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #f4f4f4;
+      border: 1.5px solid #ececec;
+      cursor: pointer;
+      transition: transform 0.12s, border-color 0.15s;
+    }
+    .file-card:hover { transform: translateY(-2px); border-color: #bbb; }
+
+    .file-card img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .file-card .file-icon {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 800;
+      color: #777;
+      letter-spacing: 0.5px;
+      background: linear-gradient(135deg, #fafafa, #ececec);
+    }
+
+    .file-card .file-name {
+      position: absolute;
+      left: 0; right: 0; bottom: 0;
+      background: linear-gradient(transparent, rgba(0,0,0,0.78) 80%);
+      color: #fff;
+      font-size: 9.5px;
+      font-weight: 600;
+      padding: 14px 5px 5px;
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      pointer-events: none;
+    }
+
+    .file-card.other .file-name {
+      background: rgba(0,0,0,0.05);
+      color: #444;
+      padding: 4px 5px 5px;
+    }
+
+    .file-card .file-delete {
+      position: absolute;
+      top: 4px; right: 4px;
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      border: none;
+      background: rgba(220, 38, 38, 0.92);
+      color: #fff;
+      font-size: 14px;
+      line-height: 1;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.15s, transform 0.1s;
+      padding: 0;
+      font-family: inherit;
+    }
+    .file-card:hover .file-delete { opacity: 1; }
+    .file-card .file-delete:hover { transform: scale(1.1); }
+
+    .files-empty {
+      font-size: 12.5px;
+      color: #bbb;
+      font-style: italic;
+      padding: 6px 2px;
+    }
 
     /* ── Save button ── */
     .save-btn {
@@ -464,6 +601,12 @@
     .save-btn:hover { background: #2a2a2a; }
     .save-btn:active { transform: scale(0.99); }
     .save-btn:disabled { background: #ccc; cursor: not-allowed; transform: none; }
+
+    /* ── Mobile: fall back to single column inside the modal ── */
+    @media (max-width: 640px) {
+      .check-list,
+      .notes-wrap { grid-template-columns: 1fr; }
+    }
 
     /* ── Toast ── */
     .toast {
@@ -545,7 +688,7 @@
         <button class="close-btn" id="closeBtn">&times;</button>
       </div>
 
-      <!-- Title (NEW: dedicated section for the day's title) -->
+      <!-- Title -->
       <div class="section-head">Title</div>
       <div class="title-wrap">
         <input type="text" id="dayTitle" class="title-input" maxlength="60"
@@ -582,6 +725,15 @@
         </div>
       </div>
 
+      <!-- Files (NEW) -->
+      <div class="section-head">Files</div>
+      <div class="files-wrap">
+        <input type="file" id="fileInput" multiple style="display:none" />
+        <button type="button" class="file-add-btn" id="fileAddBtn">+ Add files</button>
+        <div class="files-hint">Max 500KB per file</div>
+        <div class="files-list" id="filesList"></div>
+      </div>
+
       <button class="save-btn" id="saveBtn">Save Day</button>
     </div>
   </div>
@@ -596,19 +748,18 @@
     let viewYear   = now.getFullYear();
     let viewMonth  = now.getMonth();
     let habitsData = {};       // { 'YYYY-MM-DD': {title, pushups, readPages, nDay, nRead} }
+    let allFiles   = {};       // { 'YYYY-MM-DD': [ {id, name, type, size, uploaded}, ... ] }
     let activeDate = null;
     let formState  = { pushups: false, readPages: false };
 
+    const MAX_FILE_BYTES = 500 * 1024;
+
     /* ── Helpers ── */
     function pad(n) { return String(n).padStart(2, '0'); }
-
-    /* Monday-first index: Mon=0, Tue=1, ..., Sun=6 */
     function mondayIdx(dow) { return (dow + 6) % 7; }
 
-    /* Completion count: pushups + readPages + non-empty nDay + non-empty nRead.
-       The new `title` field is NOT counted — it's just a label. */
     function completionCount(t) {
-      if (!t) return -1;        // -1 means "no record" — no glow
+      if (!t) return -1;
       let c = 0;
       if (t.pushups)             c++;
       if (t.readPages)           c++;
@@ -617,7 +768,22 @@
       return c;
     }
 
-    /* ── Stats — year-to-date (from Jan 1 of the viewed year) ── */
+    function isImageFile(name, type) {
+      if (type && type.startsWith('image/')) return true;
+      return /\.(jpe?g|png|gif|webp|svg|bmp|avif)$/i.test(name);
+    }
+
+    function getExt(name) {
+      const m = String(name).match(/\.([a-z0-9]+)$/i);
+      return m ? m[1].toUpperCase().slice(0, 5) : 'FILE';
+    }
+
+    function fmtKB(bytes) {
+      if (bytes < 1024) return bytes + 'B';
+      return Math.round(bytes / 1024) + 'KB';
+    }
+
+    /* ── Stats — year-to-date ── */
     function computeMonthStats() {
       const yearPrefix = viewYear + '-';
       let perfect = 0, pushDays = 0, readDays = 0;
@@ -631,9 +797,6 @@
         if (t.readPages) readDays++;
       }
 
-      /* Current streak — backwards from today, days with count >= 1.
-         If today isn't filled in yet, start counting from yesterday so the
-         streak doesn't reset just because the day isn't over. */
       let streak = 0;
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -664,7 +827,7 @@
       toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
     }
 
-    /* ── Storage: Cloudflare D1 via Pages Functions ── */
+    /* ── Auth ── */
     const CACHE_KEY = 'habitcal_cache';
     const PW_KEY    = 'habitcal_admin_pw';
 
@@ -684,6 +847,7 @@
       } catch { return false; }
     }
 
+    /* ── Habits storage ── */
     async function loadAllHabits() {
       const cached = localStorage.getItem(CACHE_KEY);
       if (cached) {
@@ -712,6 +876,62 @@
       localStorage.setItem(CACHE_KEY, JSON.stringify(habitsData));
     }
 
+    /* ── Files storage (D1 base64) ── */
+    async function loadAllFiles() {
+      try {
+        const r = await fetch('/api/files', { cache: 'no-store' });
+        if (r.ok) allFiles = await r.json();
+      } catch { /* ignore */ }
+    }
+
+    function fileToBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const s = reader.result;
+          const comma = s.indexOf(',');
+          resolve(comma >= 0 ? s.slice(comma + 1) : s);
+        };
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(file);
+      });
+    }
+
+    async function uploadFile(file, dateStr) {
+      if (file.size > MAX_FILE_BYTES) {
+        toast(file.name + ': too big (' + fmtKB(file.size) + ', max 500KB)', true);
+        return null;
+      }
+      const data = await fileToBase64(file);
+      const r = await fetch('/api/files', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin-Password': adminPw(),
+        },
+        body: JSON.stringify({
+          date: dateStr,
+          name: file.name,
+          type: file.type || 'application/octet-stream',
+          data,
+        }),
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        toast('Upload failed: ' + (err.error || file.name), true);
+        return null;
+      }
+      return await r.json();
+    }
+
+    async function deleteFile(id) {
+      const r = await fetch('/api/files?id=' + encodeURIComponent(id), {
+        method: 'DELETE',
+        headers: { 'X-Admin-Password': adminPw() },
+      });
+      return r.ok;
+    }
+
     /* ── Admin UI ── */
     function refreshAdminUI() {
       const btn   = document.getElementById('adminBtn');
@@ -735,6 +955,8 @@
         if (confirm('Log out of admin?')) {
           clearAdminPw();
           refreshAdminUI();
+          /* Re-render files list if modal is open, so delete buttons disappear */
+          if (activeDate) renderFilesList(activeDate);
           toast('Logged out.');
         }
         return;
@@ -746,13 +968,14 @@
       if (ok) {
         setAdminPw(pw);
         refreshAdminUI();
+        if (activeDate) renderFilesList(activeDate);
         toast('Welcome back.');
       } else {
         toast('Wrong password.', true);
       }
     });
 
-    /* ── Calendar — Monday-first ── */
+    /* ── Calendar ── */
     function renderCalendar() {
       document.getElementById('monthLabel').textContent = MONTHS[viewMonth] + ' ' + viewYear;
       const grid    = document.getElementById('daysGrid');
@@ -763,7 +986,6 @@
 
       grid.innerHTML = '';
 
-      /* Leading blanks (so day 1 sits under its Mon-first column) */
       for (let i = 0; i < firstMonIdx; i++) {
         const blank = document.createElement('div');
         blank.className = 'day-cell empty';
@@ -781,17 +1003,24 @@
         cell.className = 'day-cell' + (isToday ? ' today' : '');
 
         const count = completionCount(entry);
-        if (count >= 0) {
-          cell.classList.add('lvl-' + count);
-        }
+        if (count >= 0) cell.classList.add('lvl-' + count);
 
-        /* day number top-left */
+        /* day number */
         const num = document.createElement('div');
         num.className = 'day-num';
         num.textContent = d;
         cell.appendChild(num);
 
-        /* Title text shown inside the square (replaces the old dots) */
+        /* paperclip badge if files attached */
+        const filesForDay = allFiles[dateStr] || [];
+        if (filesForDay.length > 0) {
+          const badge = document.createElement('div');
+          badge.className = 'attach-badge';
+          badge.innerHTML = '📎' + filesForDay.length;
+          cell.appendChild(badge);
+        }
+
+        /* title text */
         const titleText = entry && entry.title ? String(entry.title).trim() : '';
         if (titleText) {
           const tEl = document.createElement('div');
@@ -816,6 +1045,121 @@
       ta.addEventListener('input', () => autoSize(ta));
     });
 
+    /* ── Files list rendering ── */
+    function renderFilesList(dateStr) {
+      const wrap = document.getElementById('filesList');
+      wrap.innerHTML = '';
+      const files = (allFiles[dateStr] || []).slice().sort(
+        (a, b) => new Date(b.uploaded) - new Date(a.uploaded)
+      );
+
+      if (files.length === 0) {
+        if (!isAdmin()) {
+          const empty = document.createElement('div');
+          empty.className = 'files-empty';
+          empty.textContent = 'No files for this day.';
+          wrap.appendChild(empty);
+        }
+        return;
+      }
+
+      for (const f of files) {
+        const card = document.createElement('div');
+        const isImg = isImageFile(f.name, f.type);
+        card.className = 'file-card ' + (isImg ? 'image' : 'other');
+        card.title = f.name + ' (' + fmtKB(f.size) + ')';
+
+        const fileUrl = '/api/files?id=' + encodeURIComponent(f.id);
+
+        if (isImg) {
+          const img = document.createElement('img');
+          img.src = fileUrl;
+          img.alt = f.name;
+          img.loading = 'lazy';
+          card.appendChild(img);
+        } else {
+          const icon = document.createElement('div');
+          icon.className = 'file-icon';
+          icon.textContent = getExt(f.name);
+          card.appendChild(icon);
+        }
+
+        const nameEl = document.createElement('div');
+        nameEl.className = 'file-name';
+        nameEl.textContent = f.name;
+        card.appendChild(nameEl);
+
+        if (isAdmin()) {
+          const del = document.createElement('button');
+          del.className = 'file-delete';
+          del.type = 'button';
+          del.textContent = '×';
+          del.title = 'Delete this file';
+          del.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            if (!confirm('Delete "' + f.name + '"?')) return;
+            del.disabled = true;
+            const ok = await deleteFile(f.id);
+            if (ok) {
+              allFiles[dateStr] = (allFiles[dateStr] || []).filter(x => x.id !== f.id);
+              renderFilesList(dateStr);
+              renderCalendar();
+              toast('Deleted.');
+            } else {
+              del.disabled = false;
+              toast('Delete failed.', true);
+            }
+          });
+          card.appendChild(del);
+        }
+
+        card.addEventListener('click', () => window.open(fileUrl, '_blank'));
+        wrap.appendChild(card);
+      }
+    }
+
+    /* ── File upload wire-up ── */
+    document.getElementById('fileAddBtn').addEventListener('click', () => {
+      if (!isAdmin()) { toast('Log in as admin first.', true); return; }
+      document.getElementById('fileInput').click();
+    });
+
+    document.getElementById('fileInput').addEventListener('change', async (e) => {
+      const files = Array.from(e.target.files || []);
+      e.target.value = '';
+      if (!files.length || !activeDate) return;
+      if (!isAdmin()) { toast('Log in as admin first.', true); return; }
+
+      const btn = document.getElementById('fileAddBtn');
+      btn.disabled = true;
+      let uploadedCount = 0;
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        btn.textContent = 'Uploading ' + (i + 1) + '/' + files.length + ': ' + file.name;
+        const res = await uploadFile(file, activeDate);
+        if (res && res.ok) {
+          if (!allFiles[activeDate]) allFiles[activeDate] = [];
+          allFiles[activeDate].push({
+            id:       res.id,
+            name:     res.name,
+            type:     res.type,
+            size:     res.size,
+            uploaded: res.uploaded,
+          });
+          uploadedCount++;
+        }
+      }
+
+      btn.disabled = false;
+      btn.textContent = '+ Add files';
+      renderFilesList(activeDate);
+      renderCalendar();
+      if (uploadedCount > 0) {
+        toast(uploadedCount === 1 ? 'Uploaded.' : uploadedCount + ' files uploaded.');
+      }
+    });
+
     /* ── Modal ── */
     function setCheck(target, on) {
       formState[target] = on;
@@ -830,14 +1174,12 @@
       document.getElementById('modalTitle').textContent =
         MONTHS[parseInt(m) - 1] + ' ' + parseInt(d) + ', ' + y;
 
-      /* Reset form */
       setCheck('pushups',   false);
       setCheck('readPages', false);
       document.getElementById('dayTitle').value = '';
       document.getElementById('nDay').value  = '';
       document.getElementById('nRead').value = '';
 
-      /* Fill from saved data */
       const t = habitsData[dateStr];
       if (t) {
         setCheck('pushups',   !!t.pushups);
@@ -847,9 +1189,10 @@
         if (t.nRead !== undefined) document.getElementById('nRead').value = t.nRead;
       }
 
+      renderFilesList(dateStr);
+
       document.getElementById('overlay').classList.add('open');
 
-      /* Resize textareas to fit their initial content (after they're visible) */
       requestAnimationFrame(() => {
         document.querySelectorAll('.auto-grow').forEach(autoSize);
       });
@@ -860,10 +1203,9 @@
       activeDate = null;
     }
 
-    /* Wire up checkbox rows */
     document.querySelectorAll('.check-row').forEach(row => {
       row.addEventListener('click', () => {
-        if (!isAdmin()) return;        // viewer mode: no toggling
+        if (!isAdmin()) return;
         const target = row.dataset.target;
         setCheck(target, !formState[target]);
       });
@@ -920,7 +1262,7 @@
     /* ── Init ── */
     (async () => {
       refreshAdminUI();
-      await loadAllHabits();
+      await Promise.all([loadAllHabits(), loadAllFiles()]);
       renderCalendar();
     })();
   </script>
