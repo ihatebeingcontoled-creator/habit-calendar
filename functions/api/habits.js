@@ -8,11 +8,15 @@
  * D1 schema (run once via Cloudflare dashboard or wrangler):
  *   CREATE TABLE IF NOT EXISTS habits (
  *     date      TEXT PRIMARY KEY,
+ *     title     TEXT DEFAULT '',
  *     pushups   INTEGER DEFAULT 0,
  *     readPages INTEGER DEFAULT 0,
  *     nDay      TEXT,
  *     nRead     TEXT
  *   );
+ *
+ *   -- If your table already exists, add the new column:
+ *   ALTER TABLE habits ADD COLUMN title TEXT DEFAULT '';
  */
 
 const CORS = {
@@ -40,6 +44,7 @@ export async function onRequestGet({ env }) {
     for (const row of results) {
       out[row.date] = {
         date:      row.date,
+        title:     row.title ?? '',
         pushups:   !!row.pushups,
         readPages: !!row.readPages,
         nDay:      row.nDay  ?? '',
@@ -62,15 +67,17 @@ export async function onRequestPost({ request, env }) {
     if (!t.date) return json({ error: 'Missing date' }, 400);
 
     await env.DB.prepare(`
-      INSERT INTO habits (date, pushups, readPages, nDay, nRead)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO habits (date, title, pushups, readPages, nDay, nRead)
+      VALUES (?, ?, ?, ?, ?, ?)
       ON CONFLICT(date) DO UPDATE SET
+        title     = excluded.title,
         pushups   = excluded.pushups,
         readPages = excluded.readPages,
         nDay      = excluded.nDay,
         nRead     = excluded.nRead
     `).bind(
       t.date,
+      t.title ?? '',
       t.pushups   ? 1 : 0,
       t.readPages ? 1 : 0,
       t.nDay  ?? '',
