@@ -14,7 +14,6 @@
       overflow-x: hidden;
     }
 
-    /* Cool blue glow rising from the bottom */
     body::before {
       content: '';
       position: fixed;
@@ -51,7 +50,6 @@
       color: #111;
     }
 
-    /* ── Admin badge / login button ── */
     .admin-btn {
       background: none;
       border: 1.5px solid #e2e2e2;
@@ -74,13 +72,14 @@
     }
     .admin-btn.is-admin:hover { background: #dcfce7; }
 
-    /* ── Viewer mode (non-admin): make modal read-only ── */
+    /* ── Viewer mode ── */
     body.viewer-mode .save-btn { display: none !important; }
     body.viewer-mode input,
     body.viewer-mode textarea { pointer-events: none; background: #f9f9f9 !important; }
     body.viewer-mode .check-row { pointer-events: none; opacity: 0.85; }
     body.viewer-mode .file-add-btn { display: none; }
     body.viewer-mode .file-delete { display: none !important; }
+    body.viewer-mode .max-green-btn { display: none !important; }
 
     /* ── Month nav ── */
     .month-nav {
@@ -171,7 +170,7 @@
       gap: 7px;
     }
 
-    /* ── Day cell — blue base for all days ── */
+    /* ── Day cell ── */
     .day-cell {
       aspect-ratio: 1;
       min-height: 78px;
@@ -201,48 +200,70 @@
       border-color: transparent;
     }
 
-    /* Today wins — black border */
     .day-cell.today {
       border-color: #111;
       border-width: 2px;
       background: #fff;
     }
 
-    /* ── Glow levels by completion count ── */
+    /* ── 11-level glow system ──
+       0  = hellish red
+       1  = red
+       2  = dark purple
+       3  = purple
+       4  = dark blue
+       5  = blue
+       6  = bright blue
+       7  = cyan
+       8  = yellow
+       9  = bright yellow
+       10 = green (MAX)
+    ── */
     .day-cell.lvl-0 {
-      box-shadow:
-        0 0 0 2px rgba(220, 38, 38, 0.55),
-        0 0 14px 4px rgba(220, 38, 38, 0.28),
-        0 0 28px 8px rgba(220, 38, 38, 0.12);
-      border-color: rgba(220, 38, 38, 0.4);
+      box-shadow: 0 0 0 2px rgba(180,0,0,0.7), 0 0 18px 6px rgba(180,0,0,0.4), 0 0 36px 12px rgba(180,0,0,0.18);
+      border-color: rgba(180,0,0,0.55);
+      background: rgba(255,230,230,0.35);
     }
     .day-cell.lvl-1 {
-      box-shadow:
-        0 0 0 2px rgba(249, 115, 22, 0.55),
-        0 0 14px 4px rgba(249, 115, 22, 0.28),
-        0 0 28px 8px rgba(249, 115, 22, 0.12);
-      border-color: rgba(249, 115, 22, 0.4);
+      box-shadow: 0 0 0 2px rgba(220,38,38,0.65), 0 0 16px 5px rgba(220,38,38,0.32), 0 0 30px 9px rgba(220,38,38,0.14);
+      border-color: rgba(220,38,38,0.45);
     }
     .day-cell.lvl-2 {
-      box-shadow:
-        0 0 0 2px rgba(234, 179, 8, 0.6),
-        0 0 14px 4px rgba(234, 179, 8, 0.3),
-        0 0 28px 8px rgba(234, 179, 8, 0.13);
-      border-color: rgba(234, 179, 8, 0.45);
+      box-shadow: 0 0 0 2px rgba(88,28,135,0.65), 0 0 16px 5px rgba(88,28,135,0.35), 0 0 30px 9px rgba(88,28,135,0.16);
+      border-color: rgba(88,28,135,0.48);
     }
     .day-cell.lvl-3 {
-      box-shadow:
-        0 0 0 2px rgba(21, 128, 61, 0.6),
-        0 0 14px 4px rgba(21, 128, 61, 0.3),
-        0 0 28px 8px rgba(21, 128, 61, 0.13);
-      border-color: rgba(21, 128, 61, 0.4);
+      box-shadow: 0 0 0 2px rgba(147,51,234,0.65), 0 0 16px 5px rgba(147,51,234,0.35), 0 0 30px 9px rgba(147,51,234,0.16);
+      border-color: rgba(147,51,234,0.48);
     }
     .day-cell.lvl-4 {
-      box-shadow:
-        0 0 0 2px rgba(34, 197, 94, 0.75),
-        0 0 18px 6px rgba(34, 197, 94, 0.45),
-        0 0 36px 12px rgba(34, 197, 94, 0.22);
-      border-color: rgba(34, 197, 94, 0.5);
+      box-shadow: 0 0 0 2px rgba(30,58,138,0.65), 0 0 16px 5px rgba(30,58,138,0.32), 0 0 30px 9px rgba(30,58,138,0.14);
+      border-color: rgba(30,58,138,0.45);
+    }
+    .day-cell.lvl-5 {
+      box-shadow: 0 0 0 2px rgba(59,130,246,0.65), 0 0 16px 5px rgba(59,130,246,0.34), 0 0 30px 9px rgba(59,130,246,0.15);
+      border-color: rgba(59,130,246,0.48);
+    }
+    .day-cell.lvl-6 {
+      box-shadow: 0 0 0 2px rgba(56,189,248,0.7), 0 0 18px 6px rgba(56,189,248,0.38), 0 0 34px 11px rgba(56,189,248,0.17);
+      border-color: rgba(56,189,248,0.52);
+    }
+    .day-cell.lvl-7 {
+      box-shadow: 0 0 0 2px rgba(6,182,212,0.72), 0 0 18px 6px rgba(6,182,212,0.4), 0 0 34px 11px rgba(6,182,212,0.18);
+      border-color: rgba(6,182,212,0.55);
+    }
+    .day-cell.lvl-8 {
+      box-shadow: 0 0 0 2px rgba(234,179,8,0.72), 0 0 18px 6px rgba(234,179,8,0.38), 0 0 34px 11px rgba(234,179,8,0.17);
+      border-color: rgba(234,179,8,0.52);
+    }
+    .day-cell.lvl-9 {
+      box-shadow: 0 0 0 2px rgba(250,204,21,0.78), 0 0 20px 7px rgba(250,204,21,0.42), 0 0 38px 13px rgba(250,204,21,0.2);
+      border-color: rgba(250,204,21,0.58);
+    }
+    .day-cell.lvl-10 {
+      box-shadow: 0 0 0 2px rgba(34,197,94,0.82), 0 0 22px 8px rgba(34,197,94,0.52), 0 0 44px 16px rgba(34,197,94,0.26);
+      border-color: rgba(34,197,94,0.6);
+      background: rgba(220,252,231,0.4);
     }
 
     .day-num {
@@ -255,7 +276,33 @@
 
     .day-cell.today .day-num { color: #111; }
 
-    /* ── Day title — shown inside the square ── */
+    /* ── Max-green override button in cell ── */
+    .max-green-dot {
+      position: absolute;
+      bottom: 5px;
+      right: 6px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #16a34a;
+      border: 2px solid #fff;
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      font-size: 9px;
+      color: #fff;
+      font-weight: 800;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.18);
+      transition: transform 0.15s, background 0.15s;
+      z-index: 2;
+      line-height: 1;
+    }
+    body:not(.viewer-mode) .day-cell:not(.empty):hover .max-green-dot { display: flex; }
+    .day-cell.lvl-10 .max-green-dot { background: #dc2626; display: flex; }
+    .max-green-dot:hover { transform: scale(1.2); }
+
+    /* ── Day title ── */
     .day-title {
       font-size: 10.5px;
       font-weight: 600;
@@ -270,17 +317,17 @@
       overflow: hidden;
       word-break: break-word;
     }
-    .day-cell.lvl-4 .day-title { color: #14532d; }
-    .day-cell.lvl-0 .day-title { color: #7f1d1d; }
+    .day-cell.lvl-10 .day-title { color: #14532d; }
+    .day-cell.lvl-0  .day-title { color: #7f1d1d; }
 
-    /* ── Paperclip badge: indicates attached files ── */
+    /* ── Paperclip badge ── */
     .attach-badge {
       position: absolute;
       top: 6px; right: 7px;
       font-size: 9.5px;
       font-weight: 700;
       color: #444;
-      background: rgba(255, 255, 255, 0.85);
+      background: rgba(255,255,255,0.85);
       border-radius: 7px;
       padding: 1px 5px 1px 3px;
       line-height: 1.35;
@@ -293,7 +340,7 @@
     /* ── Modal overlay ── */
     .overlay {
       position: fixed; inset: 0;
-      background: rgba(0, 0, 0, 0.38);
+      background: rgba(0,0,0,0.38);
       backdrop-filter: blur(5px);
       z-index: 200;
       display: flex; align-items: center; justify-content: center;
@@ -310,7 +357,7 @@
       max-height: 92vh;
       overflow-y: auto;
       padding: 30px 28px 28px;
-      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.18);
+      box-shadow: 0 24px 70px rgba(0,0,0,0.18);
       transform: translateY(14px) scale(0.98);
       transition: transform 0.22s;
     }
@@ -343,14 +390,41 @@
     }
     .close-btn:hover { background: #e8e8e8; color: #222; }
 
-    /* ── Section header ── */
+    /* ── Section header — centered, bold, visible ── */
     .section-head {
-      font-size: 11px;
-      font-weight: 700;
+      font-size: 12px;
+      font-weight: 800;
       text-transform: uppercase;
-      letter-spacing: 0.6px;
-      color: #bbb;
+      letter-spacing: 1px;
+      color: #555;
       margin-bottom: 12px;
+      text-align: center;
+      padding: 6px 0 4px;
+      border-bottom: 2px solid #ececec;
+    }
+
+    /* ── Max-green override button in modal ── */
+    .max-green-btn {
+      display: block;
+      width: 100%;
+      margin-bottom: 18px;
+      padding: 10px 14px;
+      background: #f0fdf4;
+      border: 2px solid #86efac;
+      border-radius: 11px;
+      font-size: 13px;
+      font-weight: 700;
+      color: #166534;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.15s, border-color 0.15s;
+      text-align: center;
+    }
+    .max-green-btn:hover { background: #dcfce7; border-color: #4ade80; }
+    .max-green-btn.active {
+      background: #dc2626;
+      border-color: #f87171;
+      color: #fff;
     }
 
     /* ── Day title input ── */
@@ -378,6 +452,16 @@
       grid-template-columns: 1fr 1fr;
       gap: 9px;
       margin-bottom: 22px;
+    }
+
+    /* Skills section uses black-themed checks */
+    .check-list.skills .check-row.checked {
+      background: #f3f3f3;
+      border-color: #555;
+    }
+    .check-list.skills .check-row.checked .check-box {
+      background: #111;
+      border-color: #111;
     }
 
     .check-row {
@@ -427,7 +511,7 @@
     .check-row.checked .check-box svg { opacity: 1; }
 
     .check-label {
-      font-size: 14.5px;
+      font-size: 14px;
       font-weight: 600;
       color: #222;
     }
@@ -451,7 +535,6 @@
       letter-spacing: 0.6px;
     }
 
-    /* Auto-grow textareas */
     .note-field textarea {
       border: 1.5px solid #ebebeb;
       border-radius: 9px;
@@ -562,7 +645,7 @@
       width: 22px; height: 22px;
       border-radius: 50%;
       border: none;
-      background: rgba(220, 38, 38, 0.92);
+      background: rgba(220,38,38,0.92);
       color: #fff;
       font-size: 14px;
       line-height: 1;
@@ -602,7 +685,7 @@
     .save-btn:active { transform: scale(0.99); }
     .save-btn:disabled { background: #ccc; cursor: not-allowed; transform: none; }
 
-    /* ── Mobile: fall back to single column inside the modal ── */
+    /* ── Mobile ── */
     @media (max-width: 640px) {
       .check-list,
       .notes-wrap { grid-template-columns: 1fr; }
@@ -667,7 +750,6 @@
       </div>
     </div>
 
-    <!-- Week starts MONDAY -->
     <div class="weekdays">
       <div class="weekday">Mon</div>
       <div class="weekday">Tue</div>
@@ -688,6 +770,11 @@
         <button class="close-btn" id="closeBtn">&times;</button>
       </div>
 
+      <!-- Max Green override -->
+      <button type="button" class="max-green-btn" id="maxGreenBtn">
+        ✦ Force Max Green for this day
+      </button>
+
       <!-- Title -->
       <div class="section-head">Title</div>
       <div class="title-wrap">
@@ -695,20 +782,61 @@
                placeholder="Give this day a title…" />
       </div>
 
-      <!-- Checkboxes -->
+      <!-- Habits -->
       <div class="section-head">Habits</div>
       <div class="check-list">
-        <div class="check-row" id="rowPushups" data-target="pushups">
+        <div class="check-row" data-target="pushups">
           <div class="check-box">
             <svg viewBox="0 0 24 24"><polyline points="4 12 10 18 20 6"/></svg>
           </div>
-          <div class="check-label">Pushups</div>
+          <div class="check-label">Do 20 pushups</div>
         </div>
-        <div class="check-row" id="rowRead" data-target="readPages">
+        <div class="check-row" data-target="pullups">
+          <div class="check-box">
+            <svg viewBox="0 0 24 24"><polyline points="4 12 10 18 20 6"/></svg>
+          </div>
+          <div class="check-label">Do 10 pullups</div>
+        </div>
+        <div class="check-row" data-target="readPages">
           <div class="check-box">
             <svg viewBox="0 0 24 24"><polyline points="4 12 10 18 20 6"/></svg>
           </div>
           <div class="check-label">Read 20 pages</div>
+        </div>
+      </div>
+
+      <!-- Skills -->
+      <div class="section-head">Skills</div>
+      <div class="check-list skills">
+        <div class="check-row" data-target="skillCardTrick">
+          <div class="check-box">
+            <svg viewBox="0 0 24 24"><polyline points="4 12 10 18 20 6"/></svg>
+          </div>
+          <div class="check-label">Practise 1 card trick</div>
+        </div>
+        <div class="check-row" data-target="skillStretch">
+          <div class="check-box">
+            <svg viewBox="0 0 24 24"><polyline points="4 12 10 18 20 6"/></svg>
+          </div>
+          <div class="check-label">Stretch</div>
+        </div>
+        <div class="check-row" data-target="skillLSit">
+          <div class="check-box">
+            <svg viewBox="0 0 24 24"><polyline points="4 12 10 18 20 6"/></svg>
+          </div>
+          <div class="check-label">Practise the L-sit</div>
+        </div>
+        <div class="check-row" data-target="skillOneHandPushups">
+          <div class="check-box">
+            <svg viewBox="0 0 24 24"><polyline points="4 12 10 18 20 6"/></svg>
+          </div>
+          <div class="check-label">20 one-hand pushups</div>
+        </div>
+        <div class="check-row" data-target="skillProductive">
+          <div class="check-box">
+            <svg viewBox="0 0 24 24"><polyline points="4 12 10 18 20 6"/></svg>
+          </div>
+          <div class="check-label">Do something productive</div>
         </div>
       </div>
 
@@ -725,7 +853,7 @@
         </div>
       </div>
 
-      <!-- Files (NEW) -->
+      <!-- Files -->
       <div class="section-head">Files</div>
       <div class="files-wrap">
         <input type="file" id="fileInput" multiple style="display:none" />
@@ -744,28 +872,74 @@
     /* ── State ── */
     const MONTHS = ['January','February','March','April','May','June',
                     'July','August','September','October','November','December'];
-    let now        = new Date();
-    let viewYear   = now.getFullYear();
-    let viewMonth  = now.getMonth();
-    let habitsData = {};       // { 'YYYY-MM-DD': {title, pushups, readPages, nDay, nRead} }
-    let allFiles   = {};       // { 'YYYY-MM-DD': [ {id, name, type, size, uploaded}, ... ] }
+    let now       = new Date();
+    let viewYear  = now.getFullYear();
+    let viewMonth = now.getMonth();
+    let habitsData = {};
+    let allFiles   = {};
     let activeDate = null;
-    let formState  = { pushups: false, readPages: false };
+
+    /* All trackable fields and their initial values */
+    const FIELD_DEFAULTS = {
+      pushups:             false,
+      pullups:             false,
+      readPages:           false,
+      skillCardTrick:      false,
+      skillStretch:        false,
+      skillLSit:           false,
+      skillOneHandPushups: false,
+      skillProductive:     false,
+      maxGreen:            false,
+    };
+    let formState = { ...FIELD_DEFAULTS };
 
     const MAX_FILE_BYTES = 500 * 1024;
+    const CACHE_KEY = 'habitcal_cache';
+    const PW_KEY    = 'habitcal_admin_pw';
 
     /* ── Helpers ── */
     function pad(n) { return String(n).padStart(2, '0'); }
     function mondayIdx(dow) { return (dow + 6) % 7; }
 
-    function completionCount(t) {
-      if (!t) return -1;
+    /* 
+      11 levels (0–10):
+      0  = hellish red   (nothing done, not maxGreen)
+      1  = red
+      2  = dark purple
+      3  = purple
+      4  = dark blue
+      5  = blue
+      6  = bright blue
+      7  = cyan
+      8  = yellow
+      9  = bright yellow
+      10 = green (max)
+
+      Total scoreable items:
+        Habits:  pushups, pullups, readPages          = 3
+        Skills:  cardTrick, stretch, lSit, ohPushups, productive = 5
+        Notes:   nDay, nRead                          = 2
+        Title:                                        = 1
+      Total = 11 items  → maps cleanly to levels 0–10
+      maxGreen override always forces lvl-10.
+    */
+    function completionLevel(t) {
+      if (!t) return null; // day not in DB → no glow
+      if (t.maxGreen) return 10;
       let c = 0;
       if (t.pushups)             c++;
+      if (t.pullups)             c++;
       if (t.readPages)           c++;
+      if (t.skillCardTrick)      c++;
+      if (t.skillStretch)        c++;
+      if (t.skillLSit)           c++;
+      if (t.skillOneHandPushups) c++;
+      if (t.skillProductive)     c++;
       if (t.nDay  && t.nDay.trim())  c++;
       if (t.nRead && t.nRead.trim()) c++;
-      return c;
+      if (t.title && t.title.trim()) c++;
+      // c ranges 0–11, clamp to 0–10
+      return Math.min(c, 10);
     }
 
     function isImageFile(name, type) {
@@ -783,7 +957,7 @@
       return Math.round(bytes / 1024) + 'KB';
     }
 
-    /* ── Stats — year-to-date ── */
+    /* ── Stats ── */
     function computeMonthStats() {
       const yearPrefix = viewYear + '-';
       let perfect = 0, pushDays = 0, readDays = 0;
@@ -791,8 +965,8 @@
       for (const date in habitsData) {
         if (!date.startsWith(yearPrefix)) continue;
         const t = habitsData[date];
-        const c = completionCount(t);
-        if (c === 4) perfect++;
+        const lvl = completionLevel(t);
+        if (lvl === 10) perfect++;
         if (t.pushups)   pushDays++;
         if (t.readPages) readDays++;
       }
@@ -801,13 +975,13 @@
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const todayKey = today.getFullYear() + '-' + pad(today.getMonth() + 1) + '-' + pad(today.getDate());
-      let startOffset = completionCount(habitsData[todayKey]) >= 1 ? 0 : 1;
+      let startOffset = (completionLevel(habitsData[todayKey]) || 0) >= 1 ? 0 : 1;
       for (let i = startOffset; i < 366; i++) {
         const d = new Date(today);
         d.setDate(today.getDate() - i);
         const key = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
-        const c = completionCount(habitsData[key]);
-        if (c >= 1) streak++;
+        const lvl = completionLevel(habitsData[key]);
+        if (lvl !== null && lvl >= 1) streak++;
         else break;
       }
 
@@ -828,9 +1002,6 @@
     }
 
     /* ── Auth ── */
-    const CACHE_KEY = 'habitcal_cache';
-    const PW_KEY    = 'habitcal_admin_pw';
-
     function adminPw()      { return sessionStorage.getItem(PW_KEY) || ''; }
     function isAdmin()      { return !!adminPw(); }
     function setAdminPw(pw) { sessionStorage.setItem(PW_KEY, pw); }
@@ -876,7 +1047,7 @@
       localStorage.setItem(CACHE_KEY, JSON.stringify(habitsData));
     }
 
-    /* ── Files storage (D1 base64) ── */
+    /* ── Files storage ── */
     async function loadAllFiles() {
       try {
         const r = await fetch('/api/files', { cache: 'no-store' });
@@ -909,12 +1080,7 @@
           'Content-Type': 'application/json',
           'X-Admin-Password': adminPw(),
         },
-        body: JSON.stringify({
-          date: dateStr,
-          name: file.name,
-          type: file.type || 'application/octet-stream',
-          data,
-        }),
+        body: JSON.stringify({ date: dateStr, name: file.name, type: file.type || 'application/octet-stream', data }),
       });
       if (!r.ok) {
         const err = await r.json().catch(() => ({}));
@@ -955,7 +1121,6 @@
         if (confirm('Log out of admin?')) {
           clearAdminPw();
           refreshAdminUI();
-          /* Re-render files list if modal is open, so delete buttons disappear */
           if (activeDate) renderFilesList(activeDate);
           toast('Logged out.');
         }
@@ -978,11 +1143,11 @@
     /* ── Calendar ── */
     function renderCalendar() {
       document.getElementById('monthLabel').textContent = MONTHS[viewMonth] + ' ' + viewYear;
-      const grid    = document.getElementById('daysGrid');
-      const today   = new Date();
-      const firstDow      = new Date(viewYear, viewMonth, 1).getDay();
-      const firstMonIdx   = mondayIdx(firstDow);
-      const daysInMonth   = new Date(viewYear, viewMonth + 1, 0).getDate();
+      const grid         = document.getElementById('daysGrid');
+      const today        = new Date();
+      const firstDow     = new Date(viewYear, viewMonth, 1).getDay();
+      const firstMonIdx  = mondayIdx(firstDow);
+      const daysInMonth  = new Date(viewYear, viewMonth + 1, 0).getDate();
 
       grid.innerHTML = '';
 
@@ -1002,8 +1167,8 @@
         const cell = document.createElement('div');
         cell.className = 'day-cell' + (isToday ? ' today' : '');
 
-        const count = completionCount(entry);
-        if (count >= 0) cell.classList.add('lvl-' + count);
+        const lvl = completionLevel(entry);
+        if (lvl !== null) cell.classList.add('lvl-' + lvl);
 
         /* day number */
         const num = document.createElement('div');
@@ -1011,7 +1176,7 @@
         num.textContent = d;
         cell.appendChild(num);
 
-        /* paperclip badge if files attached */
+        /* paperclip badge */
         const filesForDay = allFiles[dateStr] || [];
         if (filesForDay.length > 0) {
           const badge = document.createElement('div');
@@ -1028,6 +1193,29 @@
           tEl.textContent = titleText;
           cell.appendChild(tEl);
         }
+
+        /* max-green override dot */
+        const dot = document.createElement('div');
+        dot.className = 'max-green-dot';
+        dot.title = entry && entry.maxGreen ? 'Remove max green' : 'Force max green';
+        dot.textContent = entry && entry.maxGreen ? '✕' : '✦';
+        dot.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          if (!isAdmin()) { toast('Log in as admin first.', true); return; }
+          const current = habitsData[dateStr] || { date: dateStr };
+          const newVal = !current.maxGreen;
+          const payload = { ...FIELD_DEFAULTS, ...current, date: dateStr, maxGreen: newVal };
+          // booleans only
+          for (const k of Object.keys(FIELD_DEFAULTS)) payload[k] = !!payload[k];
+          try {
+            await saveHabitData(dateStr, payload);
+            renderCalendar();
+            toast(newVal ? 'Max green set!' : 'Max green removed.');
+          } catch {
+            toast('Failed to save.', true);
+          }
+        });
+        cell.appendChild(dot);
 
         cell.addEventListener('click', () => openModal(dateStr));
         grid.appendChild(cell);
@@ -1118,7 +1306,7 @@
       }
     }
 
-    /* ── File upload wire-up ── */
+    /* ── File upload ── */
     document.getElementById('fileAddBtn').addEventListener('click', () => {
       if (!isAdmin()) { toast('Log in as admin first.', true); return; }
       document.getElementById('fileInput').click();
@@ -1140,13 +1328,7 @@
         const res = await uploadFile(file, activeDate);
         if (res && res.ok) {
           if (!allFiles[activeDate]) allFiles[activeDate] = [];
-          allFiles[activeDate].push({
-            id:       res.id,
-            name:     res.name,
-            type:     res.type,
-            size:     res.size,
-            uploaded: res.uploaded,
-          });
+          allFiles[activeDate].push({ id: res.id, name: res.name, type: res.type, size: res.size, uploaded: res.uploaded });
           uploadedCount++;
         }
       }
@@ -1155,17 +1337,32 @@
       btn.textContent = '+ Add files';
       renderFilesList(activeDate);
       renderCalendar();
-      if (uploadedCount > 0) {
-        toast(uploadedCount === 1 ? 'Uploaded.' : uploadedCount + ' files uploaded.');
-      }
+      if (uploadedCount > 0) toast(uploadedCount === 1 ? 'Uploaded.' : uploadedCount + ' files uploaded.');
     });
 
-    /* ── Modal ── */
+    /* ── Modal check rows ── */
     function setCheck(target, on) {
       formState[target] = on;
       const row = document.querySelector('.check-row[data-target="' + target + '"]');
-      row.classList.toggle('checked', on);
+      if (row) row.classList.toggle('checked', on);
     }
+
+    function updateMaxGreenBtn() {
+      const btn = document.getElementById('maxGreenBtn');
+      if (formState.maxGreen) {
+        btn.textContent = '✕ Remove Max Green override';
+        btn.classList.add('active');
+      } else {
+        btn.textContent = '✦ Force Max Green for this day';
+        btn.classList.remove('active');
+      }
+    }
+
+    document.getElementById('maxGreenBtn').addEventListener('click', () => {
+      if (!isAdmin()) { toast('Log in as admin first.', true); return; }
+      formState.maxGreen = !formState.maxGreen;
+      updateMaxGreenBtn();
+    });
 
     function openModal(dateStr) {
       activeDate = dateStr;
@@ -1174,25 +1371,25 @@
       document.getElementById('modalTitle').textContent =
         MONTHS[parseInt(m) - 1] + ' ' + parseInt(d) + ', ' + y;
 
-      setCheck('pushups',   false);
-      setCheck('readPages', false);
+      // Reset all
+      for (const k of Object.keys(FIELD_DEFAULTS)) setCheck(k, false);
       document.getElementById('dayTitle').value = '';
       document.getElementById('nDay').value  = '';
       document.getElementById('nRead').value = '';
 
       const t = habitsData[dateStr];
       if (t) {
-        setCheck('pushups',   !!t.pushups);
-        setCheck('readPages', !!t.readPages);
+        for (const k of Object.keys(FIELD_DEFAULTS)) {
+          if (t[k] !== undefined) setCheck(k, !!t[k]);
+        }
         if (t.title !== undefined) document.getElementById('dayTitle').value = t.title;
         if (t.nDay  !== undefined) document.getElementById('nDay').value  = t.nDay;
         if (t.nRead !== undefined) document.getElementById('nRead').value = t.nRead;
       }
 
+      updateMaxGreenBtn();
       renderFilesList(dateStr);
-
       document.getElementById('overlay').classList.add('open');
-
       requestAnimationFrame(() => {
         document.querySelectorAll('.auto-grow').forEach(autoSize);
       });
@@ -1219,17 +1416,23 @@
 
       const dateStr = activeDate;
       const payload = {
-        date:      dateStr,
-        title:     document.getElementById('dayTitle').value.trim(),
-        pushups:   formState.pushups,
-        readPages: formState.readPages,
-        nDay:      document.getElementById('nDay').value,
-        nRead:     document.getElementById('nRead').value,
+        date:                dateStr,
+        title:               document.getElementById('dayTitle').value.trim(),
+        pushups:             formState.pushups,
+        pullups:             formState.pullups,
+        readPages:           formState.readPages,
+        skillCardTrick:      formState.skillCardTrick,
+        skillStretch:        formState.skillStretch,
+        skillLSit:           formState.skillLSit,
+        skillOneHandPushups: formState.skillOneHandPushups,
+        skillProductive:     formState.skillProductive,
+        maxGreen:            formState.maxGreen,
+        nDay:                document.getElementById('nDay').value,
+        nRead:               document.getElementById('nRead').value,
       };
 
       try {
         await saveHabitData(dateStr, payload);
-        habitsData[dateStr] = payload;
         renderCalendar();
         toast('Saved!');
         setTimeout(closeModal, 600);
