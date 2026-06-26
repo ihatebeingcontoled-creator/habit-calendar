@@ -4,19 +4,6 @@
  *
  * D1 binding name: DB
  * Expected env var: ADMIN_PASSWORD
- *
- * D1 schema (run once via Cloudflare dashboard or wrangler):
- *   CREATE TABLE IF NOT EXISTS habits (
- *     date      TEXT PRIMARY KEY,
- *     title     TEXT DEFAULT '',
- *     pushups   INTEGER DEFAULT 0,
- *     readPages INTEGER DEFAULT 0,
- *     nDay      TEXT,
- *     nRead     TEXT
- *   );
- *
- *   -- If your table already exists, add the new column:
- *   ALTER TABLE habits ADD COLUMN title TEXT DEFAULT '';
  */
 
 const CORS = {
@@ -36,19 +23,25 @@ function isAuthed(request, env) {
   return request.headers.get('X-Admin-Password') === env.ADMIN_PASSWORD;
 }
 
-/* ── GET: return all entries as { 'YYYY-MM-DD': {...}, ... } ── */
 export async function onRequestGet({ env }) {
   try {
     const { results } = await env.DB.prepare('SELECT * FROM habits').all();
     const out = {};
     for (const row of results) {
       out[row.date] = {
-        date:      row.date,
-        title:     row.title ?? '',
-        pushups:   !!row.pushups,
-        readPages: !!row.readPages,
-        nDay:      row.nDay  ?? '',
-        nRead:     row.nRead ?? '',
+        date:                row.date,
+        title:               row.title               ?? '',
+        pushups:             !!row.pushups,
+        pullups:             !!row.pullups,
+        readPages:           !!row.readPages,
+        skillCardTrick:      !!row.skillCardTrick,
+        skillStretch:        !!row.skillStretch,
+        skillLSit:           !!row.skillLSit,
+        skillOneHandPushups: !!row.skillOneHandPushups,
+        skillProductive:     !!row.skillProductive,
+        maxGreen:            !!row.maxGreen,
+        nDay:                row.nDay  ?? '',
+        nRead:               row.nRead ?? '',
       };
     }
     return json(out);
@@ -57,7 +50,6 @@ export async function onRequestGet({ env }) {
   }
 }
 
-/* ── POST: upsert an entry (admin only) ── */
 export async function onRequestPost({ request, env }) {
   if (!isAuthed(request, env)) {
     return json({ error: 'Unauthorized' }, 401);
@@ -67,21 +59,41 @@ export async function onRequestPost({ request, env }) {
     if (!t.date) return json({ error: 'Missing date' }, 400);
 
     await env.DB.prepare(`
-      INSERT INTO habits (date, title, pushups, readPages, nDay, nRead)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO habits (
+        date, title,
+        pushups, pullups, readPages,
+        skillCardTrick, skillStretch, skillLSit, skillOneHandPushups, skillProductive,
+        maxGreen,
+        nDay, nRead
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(date) DO UPDATE SET
-        title     = excluded.title,
-        pushups   = excluded.pushups,
-        readPages = excluded.readPages,
-        nDay      = excluded.nDay,
-        nRead     = excluded.nRead
+        title               = excluded.title,
+        pushups             = excluded.pushups,
+        pullups             = excluded.pullups,
+        readPages           = excluded.readPages,
+        skillCardTrick      = excluded.skillCardTrick,
+        skillStretch        = excluded.skillStretch,
+        skillLSit           = excluded.skillLSit,
+        skillOneHandPushups = excluded.skillOneHandPushups,
+        skillProductive     = excluded.skillProductive,
+        maxGreen            = excluded.maxGreen,
+        nDay                = excluded.nDay,
+        nRead               = excluded.nRead
     `).bind(
       t.date,
-      t.title ?? '',
-      t.pushups   ? 1 : 0,
-      t.readPages ? 1 : 0,
-      t.nDay  ?? '',
-      t.nRead ?? '',
+      t.title               ?? '',
+      t.pushups             ? 1 : 0,
+      t.pullups             ? 1 : 0,
+      t.readPages           ? 1 : 0,
+      t.skillCardTrick      ? 1 : 0,
+      t.skillStretch        ? 1 : 0,
+      t.skillLSit           ? 1 : 0,
+      t.skillOneHandPushups ? 1 : 0,
+      t.skillProductive     ? 1 : 0,
+      t.maxGreen            ? 1 : 0,
+      t.nDay                ?? '',
+      t.nRead               ?? '',
     ).run();
 
     return json({ ok: true });
