@@ -1,15 +1,21 @@
 /**
  * GET  /api/habits  → returns all habit entries as JSON (public, no auth)
- * POST /api/habits  → upserts an entry (requires X-Admin-Password header)
+ * POST /api/habits  → upserts an entry (open — anyone can edit, no auth)
  *
  * D1 binding name: DB
- * Expected env var: ADMIN_PASSWORD
+ *
+ * D1 schema — run migrations in order via the D1 Console:
+ *   1-create-table.sql      → base table
+ *   2-seed-data.sql         → seed rows
+ *   3-add-title-column.sql  → adds title
+ *   4-create-files-table.sql→ files table
+ *   5-add-new-columns.sql   → adds pullups + all skill columns + maxGreen
  */
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, X-Admin-Password',
+  'Access-Control-Allow-Headers': 'Content-Type',
 };
 
 function json(data, status = 200) {
@@ -19,10 +25,7 @@ function json(data, status = 200) {
   });
 }
 
-function isAuthed(request, env) {
-  return request.headers.get('X-Admin-Password') === env.ADMIN_PASSWORD;
-}
-
+/* ── GET: return all entries as { 'YYYY-MM-DD': {...}, ... } ── */
 export async function onRequestGet({ env }) {
   try {
     const { results } = await env.DB.prepare('SELECT * FROM habits').all();
@@ -50,10 +53,8 @@ export async function onRequestGet({ env }) {
   }
 }
 
+/* ── POST: upsert an entry (open — no auth) ── */
 export async function onRequestPost({ request, env }) {
-  if (!isAuthed(request, env)) {
-    return json({ error: 'Unauthorized' }, 401);
-  }
   try {
     const t = await request.json();
     if (!t.date) return json({ error: 'Missing date' }, 400);
