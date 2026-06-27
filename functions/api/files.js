@@ -4,13 +4,12 @@
  *  GET    /api/files              → all files grouped by date (metadata only, no `data` column)
  *                                    returns { 'YYYY-MM-DD': [ {id, name, type, size, uploaded}, ... ] }
  *  GET    /api/files?id=N         → downloads that single file with the correct Content-Type
- *  POST   /api/files              → upload (admin only)
+ *  POST   /api/files              → upload (open — anyone can upload)
  *                                    Body JSON: { date, name, type, data (base64) }
- *  DELETE /api/files?id=N         → delete (admin only)
+ *  DELETE /api/files?id=N         → delete (open — anyone can delete)
  *
  *  Requires:
  *    DB              → D1 binding (same one used by habits.js)
- *    ADMIN_PASSWORD  → secret env var (already configured)
  *    Run 4-create-files-table.sql in the D1 console once before using this.
  *
  *  Files are capped at 500KB raw on upload — server enforces it.
@@ -19,7 +18,7 @@
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, X-Admin-Password',
+  'Access-Control-Allow-Headers': 'Content-Type',
 };
 
 const MAX_RAW_BYTES = 500 * 1024;          // 500 KB
@@ -30,10 +29,6 @@ function json(data, status = 200) {
     status,
     headers: { 'Content-Type': 'application/json', ...CORS },
   });
-}
-
-function isAuthed(request, env) {
-  return request.headers.get('X-Admin-Password') === env.ADMIN_PASSWORD;
 }
 
 function sanitizeName(name) {
@@ -106,9 +101,8 @@ export async function onRequestGet({ request, env }) {
   }
 }
 
-/* ───────── POST: upload (admin) ───────── */
+/* ───────── POST: upload (open to anyone) ───────── */
 export async function onRequestPost({ request, env }) {
-  if (!isAuthed(request, env)) return json({ error: 'Unauthorized' }, 401);
   try {
     const body = await request.json();
     const { date, name, type, data } = body || {};
@@ -139,9 +133,8 @@ export async function onRequestPost({ request, env }) {
   }
 }
 
-/* ───────── DELETE (admin) ───────── */
+/* ───────── DELETE (open to anyone) ───────── */
 export async function onRequestDelete({ request, env }) {
-  if (!isAuthed(request, env)) return json({ error: 'Unauthorized' }, 401);
   try {
     const url = new URL(request.url);
     const id  = parseInt(url.searchParams.get('id'), 10);
