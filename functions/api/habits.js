@@ -10,6 +10,7 @@
  *   3-add-title-column.sql  → adds title
  *   4-create-files-table.sql→ files table
  *   5-add-new-columns.sql   → adds pullups + all skill columns + maxGreen
+ *   6-add-breath-hold.sql   → adds breathHold column
  */
 
 const CORS = {
@@ -42,6 +43,7 @@ export async function onRequestGet({ env }) {
         skillLSit:           !!row.skillLSit,
         skillOneHandPushups: !!row.skillOneHandPushups,
         skillProductive:     !!row.skillProductive,
+        breathHold:          !!row.breathHold,
         maxGreen:            !!row.maxGreen,
         nDay:                row.nDay  ?? '',
         nRead:               row.nRead ?? '',
@@ -64,10 +66,11 @@ export async function onRequestPost({ request, env }) {
         date, title,
         pushups, pullups, readPages,
         skillCardTrick, skillStretch, skillLSit, skillOneHandPushups, skillProductive,
+        breathHold,
         maxGreen,
         nDay, nRead
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(date) DO UPDATE SET
         title               = excluded.title,
         pushups             = excluded.pushups,
@@ -78,6 +81,7 @@ export async function onRequestPost({ request, env }) {
         skillLSit           = excluded.skillLSit,
         skillOneHandPushups = excluded.skillOneHandPushups,
         skillProductive     = excluded.skillProductive,
+        breathHold          = excluded.breathHold,
         maxGreen            = excluded.maxGreen,
         nDay                = excluded.nDay,
         nRead               = excluded.nRead
@@ -92,6 +96,7 @@ export async function onRequestPost({ request, env }) {
       t.skillLSit           ? 1 : 0,
       t.skillOneHandPushups ? 1 : 0,
       t.skillProductive     ? 1 : 0,
+      t.breathHold          ? 1 : 0,
       t.maxGreen            ? 1 : 0,
       t.nDay                ?? '',
       t.nRead               ?? '',
