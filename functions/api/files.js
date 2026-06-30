@@ -13,6 +13,9 @@
  *    Run 4-create-files-table.sql in the D1 console once before using this.
  *
  *  Files are capped at 500KB raw on upload — server enforces it.
+ *
+ *  NOTE: unchanged by the Habit Calendar layout/swipe rework — files are
+ *  independent of the habit counter/pip restructure.
  */
 
 const CORS = {
