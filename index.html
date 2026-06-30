@@ -242,6 +242,7 @@
       width: 100%; border: 1.5px solid #ebebeb; border-radius: 11px; padding: 13px 14px;
       font-size: 16px; font-weight: 700; color: #111; font-family: inherit; outline: none;
       background: #fff; letter-spacing: -0.2px; transition: border-color 0.15s;
+      resize: none; overflow: hidden; line-height: 1.4; display: block;
     }
     .title-input:focus { border-color: #555; }
     .title-input::placeholder { color: #c0c0c0; font-weight: 600; }
@@ -511,8 +512,8 @@
 
       <div class="section-head">Title</div>
       <div class="title-wrap">
-        <input type="text" id="dayTitle" class="title-input" maxlength="200"
-               placeholder="Give this day a title…" />
+        <textarea id="dayTitle" class="title-input auto-grow" maxlength="200" rows="1"
+               placeholder="Give this day a title…"></textarea>
       </div>
 
       <div class="section-head">Non-Negotiables</div>
