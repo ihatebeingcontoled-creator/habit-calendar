@@ -1,17 +1,21 @@
 /**
- * GET  /api/habits  → returns all habit entries as JSON (public, no auth)
- * POST /api/habits  → upserts an entry (open — anyone can edit, no auth)
+ * GET    /api/habits                       → returns all habit entries as JSON
+ * POST   /api/habits                       → upserts an entry
+ * GET    /api/habits?resource=targets      → returns all target history rows
+ * POST   /api/habits?resource=targets      → adds/updates a target ({field, value, effectiveFrom})
+ * DELETE /api/habits?resource=targets&id=  → removes one target history row
  *
  * D1 binding name: DB
  *
  * D1 schema — run migrations in order via the D1 Console:
- *   1-create-table.sql      → base table
- *   2-seed-data.sql         → seed rows
- *   3-add-title-column.sql  → adds title
- *   4-create-files-table.sql→ files table
- *   5-add-new-columns.sql   → adds pullups + all skill columns + maxGreen
- *   6-add-breath-hold.sql   → adds breathHold column
+ *   1-create-table.sql        → base table
+ *   2-seed-data.sql           → seed rows
+ *   3-add-title-column.sql    → adds title
+ *   4-create-files-table.sql  → files table
+ *   5-add-new-columns.sql     → adds pullups + all skill columns + maxGreen
+ *   6-add-breath-hold.sql     → adds breathHold column
  *   7-convert-to-counters.sql → converts booleans to numeric counters + pips
+ *   8-create-targets-table.sql→ adds habit_targets table (see bottom of this file's notes)
  *
  * Field model (post-migration 7):
  *   Counters (uncapped, no minimum below 0):
@@ -21,11 +25,18 @@
  *     stretchPips, lSitPips, productivePips, cardTrickPips
  *   Plain fields:
  *     title, nDay, nRead, maxGreen
+ *
+ * Targets (post-migration 8), table habit_targets:
+ *   id INTEGER PK, field TEXT, value INTEGER, effectiveFrom TEXT (YYYY-MM-DD)
+ *   One row per "change" — the value in effect for a given date is the
+ *   most recent row with effectiveFrom <= that date (see index.html
+ *   getTargetForDate). UNIQUE(field, effectiveFrom) so re-saving the
+ *   same field+date overwrites instead of duplicating.
  */
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
@@ -48,9 +59,47 @@ function clampPip(n) {
   return Math.max(0, Math.min(PIP_MAX, n));
 }
 
-/* ── GET: return all entries as { 'YYYY-MM-DD': {...}, ... } ── */
-export async function onRequestGet({ env }) {
+/* ── targets sub-handlers ── */
+
+async function getTargets(env) {
+  const { results } = await env.DB.prepare(
+    'SELECT id, field, value, effectiveFrom FROM habit_targets ORDER BY effectiveFrom ASC'
+  ).all();
+  return json(results);
+}
+
+async function postTarget(request, env) {
+  const t = await request.json();
+  if (!t.field || typeof t.value === 'undefined' || !t.effectiveFrom) {
+    return json({ error: 'Missing field, value, or effectiveFrom' }, 400);
+  }
+  const value = clampCounter(t.value);
+
+  await env.DB.prepare(`
+    INSERT INTO habit_targets (field, value, effectiveFrom)
+    VALUES (?, ?, ?)
+    ON CONFLICT(field, effectiveFrom) DO UPDATE SET
+      value = excluded.value
+  `).bind(t.field, value, t.effectiveFrom).run();
+
+  return json({ ok: true });
+}
+
+async function deleteTarget(url, env) {
+  const id = url.searchParams.get('id');
+  if (!id) return json({ error: 'Missing id' }, 400);
+  await env.DB.prepare('DELETE FROM habit_targets WHERE id = ?').bind(id).run();
+  return json({ ok: true });
+}
+
+/* ── GET: habits, or targets if ?resource=targets ── */
+export async function onRequestGet({ request, env }) {
   try {
+    const url = new URL(request.url);
+    if (url.searchParams.get('resource') === 'targets') {
+      return await getTargets(env);
+    }
+
     const { results } = await env.DB.prepare('SELECT * FROM habits').all();
     const out = {};
     for (const row of results) {
@@ -80,9 +129,14 @@ export async function onRequestGet({ env }) {
   }
 }
 
-/* ── POST: upsert an entry (open — no auth) ── */
+/* ── POST: upsert a habit entry, or a target if ?resource=targets ── */
 export async function onRequestPost({ request, env }) {
   try {
+    const url = new URL(request.url);
+    if (url.searchParams.get('resource') === 'targets') {
+      return await postTarget(request, env);
+    }
+
     const t = await request.json();
     if (!t.date) return json({ error: 'Missing date' }, 400);
 
@@ -137,6 +191,19 @@ export async function onRequestPost({ request, env }) {
       t.nRead ?? '',
     ).run();
     return json({ ok: true });
+  } catch (e) {
+    return json({ error: e.message }, 500);
+  }
+}
+
+/* ── DELETE: only used for ?resource=targets&id=... ── */
+export async function onRequestDelete({ request, env }) {
+  try {
+    const url = new URL(request.url);
+    if (url.searchParams.get('resource') === 'targets') {
+      return await deleteTarget(url, env);
+    }
+    return json({ error: 'Not supported' }, 400);
   } catch (e) {
     return json({ error: e.message }, 500);
   }
