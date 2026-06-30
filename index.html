@@ -35,20 +35,9 @@
       padding: 36px 20px 60px;
     }
 
-    /* ── Layout: calendar + legend side-by-side on desktop ── */
-    .app-layout {
-      display: flex;
-      align-items: flex-start;
-      gap: 24px;
-    }
-    .calendar-main {
-      flex: 1;
-      min-width: 0;
-    }
+    .app-layout { display: flex; align-items: flex-start; gap: 24px; }
+    .calendar-main { flex: 1; min-width: 0; }
 
-    /* ── Color legend panel ──
-       Desktop: fixed-width column on the left.
-       Mobile: full-width strip pinned below the calendar. ── */
     .legend-panel {
       flex-shrink: 0;
       width: 168px;
@@ -56,218 +45,59 @@
       border: 1.5px solid #ececec;
       border-radius: 14px;
       padding: 16px 14px;
-      order: -1; /* left of calendar on desktop */
+      order: -1;
     }
     .legend-title {
-      font-size: 10.5px;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: 0.6px;
-      color: #aaa;
-      margin-bottom: 10px;
-      text-align: center;
+      font-size: 10.5px; font-weight: 800; text-transform: uppercase;
+      letter-spacing: 0.6px; color: #aaa; margin-bottom: 10px; text-align: center;
     }
-    .legend-list {
-      display: flex;
-      flex-direction: column;
-      gap: 7px;
-    }
-    .legend-row {
-      display: flex;
-      align-items: center;
-      gap: 9px;
-      font-size: 11.5px;
-      font-weight: 600;
-      color: #444;
-    }
-    .legend-swatch {
-      width: 16px;
-      height: 16px;
-      border-radius: 6px;
-      flex-shrink: 0;
-      border: 3px solid transparent;
-    }
-    .legend-swatch-perfect {
-      border: 2px solid #16a34a;
-      box-shadow: 0 0 0 2px #fff, 0 0 0 4px #22d3ee;
-    }
+    .legend-list { display: flex; flex-direction: column; gap: 7px; }
+    .legend-row { display: flex; align-items: center; gap: 9px; font-size: 11.5px; font-weight: 600; color: #444; }
+    .legend-swatch { width: 16px; height: 16px; border-radius: 6px; flex-shrink: 0; border: 3px solid transparent; }
+    .legend-swatch-perfect { border: 2px solid #16a34a; box-shadow: 0 0 0 2px #fff, 0 0 0 4px #22d3ee; }
 
     @media (max-width: 760px) {
-      .app-layout {
-        flex-direction: column;
-      }
-      .legend-panel {
-        order: 1; /* below calendar on mobile */
-        width: 100%;
-      }
-      .legend-list {
-        flex-direction: row;
-        flex-wrap: wrap;
-        justify-content: center;
-        gap: 8px 12px;
-      }
-      .legend-row {
-        font-size: 10.5px;
-      }
+      .app-layout { flex-direction: column; }
+      .legend-panel { order: 1; width: 100%; }
+      .legend-list { flex-direction: row; flex-wrap: wrap; justify-content: center; gap: 8px 12px; }
+      .legend-row { font-size: 10.5px; }
     }
 
-    /* ── Header ── */
-    .app-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 36px;
-    }
+    .app-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 36px; }
+    .app-title { font-size: 22px; font-weight: 800; letter-spacing: -0.6px; color: #111; }
 
-    .app-title {
-      font-size: 22px;
-      font-weight: 800;
-      letter-spacing: -0.6px;
-      color: #111;
-    }
-
-    /* ── Month nav ── */
-    .month-nav {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 18px;
-      margin-bottom: 22px;
-    }
-
+    .month-nav { display: flex; align-items: center; justify-content: center; gap: 18px; margin-bottom: 22px; }
     .nav-btn {
-      background: none;
-      border: 1.5px solid #e2e2e2;
-      border-radius: 9px;
-      width: 38px; height: 38px;
-      display: flex; align-items: center; justify-content: center;
-      cursor: pointer;
-      color: #444;
-      font-size: 16px;
-      transition: background 0.15s, border-color 0.15s;
+      background: none; border: 1.5px solid #e2e2e2; border-radius: 9px;
+      width: 38px; height: 38px; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: #444; font-size: 16px; transition: background 0.15s, border-color 0.15s;
     }
     .nav-btn:hover { background: #f4f4f4; border-color: #ccc; }
+    .month-label { font-size: 20px; font-weight: 700; color: #111; min-width: 200px; text-align: center; letter-spacing: -0.3px; }
 
-    .month-label {
-      font-size: 20px;
-      font-weight: 700;
-      color: #111;
-      min-width: 200px;
-      text-align: center;
-      letter-spacing: -0.3px;
-    }
+    .stats-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 26px; }
+    .stat-card { background: #fafafa; border: 1.5px solid #ececec; border-radius: 12px; padding: 13px 16px; }
+    .stat-label { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: #aaa; margin-bottom: 5px; }
+    .stat-value { font-size: 20px; font-weight: 800; color: #111; letter-spacing: -0.4px; line-height: 1.15; }
+    @media (max-width: 580px) { .stats-bar { grid-template-columns: repeat(2, 1fr); } }
 
-    /* ── Stats bar ── */
-    .stats-bar {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 12px;
-      margin-bottom: 26px;
-    }
-    .stat-card {
-      background: #fafafa;
-      border: 1.5px solid #ececec;
-      border-radius: 12px;
-      padding: 13px 16px;
-    }
-    .stat-label {
-      font-size: 10.5px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.6px;
-      color: #aaa;
-      margin-bottom: 5px;
-    }
-    .stat-value {
-      font-size: 20px;
-      font-weight: 800;
-      color: #111;
-      letter-spacing: -0.4px;
-      line-height: 1.15;
-    }
-    .stat-value.pos { color: #16a34a; }
-    .stat-value.neg { color: #dc2626; }
-    @media (max-width: 580px) {
-      .stats-bar { grid-template-columns: repeat(2, 1fr); }
-    }
+    .weekdays { display: grid; grid-template-columns: repeat(7, 1fr); gap: 7px; margin-bottom: 7px; }
+    .weekday { text-align: center; font-size: 11px; font-weight: 700; color: #bbb; text-transform: uppercase; letter-spacing: 0.6px; padding: 4px 0; }
+    .days-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 7px; }
 
-    /* ── Calendar grid ── */
-    .weekdays {
-      display: grid;
-      grid-template-columns: repeat(7, 1fr);
-      gap: 7px;
-      margin-bottom: 7px;
-    }
-
-    .weekday {
-      text-align: center;
-      font-size: 11px;
-      font-weight: 700;
-      color: #bbb;
-      text-transform: uppercase;
-      letter-spacing: 0.6px;
-      padding: 4px 0;
-    }
-
-    .days-grid {
-      display: grid;
-      grid-template-columns: repeat(7, 1fr);
-      gap: 7px;
-    }
-
-    /* ── Day cell ── */
     .day-cell {
-      aspect-ratio: 1;
-      min-height: 78px;
-      border-radius: 13px;
-      border: 2px solid #3b82f6;
-      background: #fafafa;
-      cursor: pointer;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 22px 6px 8px;
-      position: relative;
-      transition: transform 0.15s, box-shadow 0.2s, background 0.15s;
-      user-select: none;
-      overflow: hidden;
+      aspect-ratio: 1; min-height: 78px; border-radius: 13px; border: 2px solid #3b82f6;
+      background: #fafafa; cursor: pointer; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; padding: 22px 6px 8px; position: relative;
+      transition: transform 0.15s, box-shadow 0.2s, background 0.15s; user-select: none; overflow: hidden;
     }
+    .day-cell:hover:not(.empty) { background: #f3f3f3; transform: translateY(-2px); }
+    .day-cell.empty { cursor: default; background: transparent; border-color: transparent; }
+    .day-cell.today { border-color: #111; border-width: 2px; background: #fff; }
 
-    .day-cell:hover:not(.empty) {
-      background: #f3f3f3;
-      transform: translateY(-2px);
-    }
-
-    .day-cell.empty {
-      cursor: default;
-      background: transparent;
-      border-color: transparent;
-    }
-
-    .day-cell.today {
-      border-color: #111;
-      border-width: 2px;
-      background: #fff;
-    }
-
-    /* ── 11-level glow system ──
-       0  = hellish red
-       1  = red
-       2  = dark purple
-       3  = purple
-       4  = dark blue
-       5  = blue
-       6  = bright blue
-       7  = cyan
-       8  = yellow
-       9  = bright yellow
-       10 = green (MAX)
-    ── */
     .day-cell.lvl-0 {
       box-shadow: 0 0 0 2px rgba(180,0,0,0.7), 0 0 18px 6px rgba(180,0,0,0.4), 0 0 36px 12px rgba(180,0,0,0.18);
-      border-color: rgba(180,0,0,0.55);
-      background: #ffe6e6;
+      border-color: rgba(180,0,0,0.55); background: #ffe6e6;
     }
     .day-cell.lvl-1 {
       box-shadow: 0 0 0 2px rgba(220,38,38,0.65), 0 0 16px 5px rgba(220,38,38,0.32), 0 0 30px 9px rgba(220,38,38,0.14);
@@ -307,14 +137,9 @@
     }
     .day-cell.lvl-10 {
       box-shadow: 0 0 0 2px rgba(34,197,94,0.82), 0 0 22px 8px rgba(34,197,94,0.52), 0 0 44px 16px rgba(34,197,94,0.26);
-      border-color: rgba(34,197,94,0.6);
-      background: #dcfce7;
+      border-color: rgba(34,197,94,0.6); background: #dcfce7;
     }
 
-    /* ── Fully-complete cyan ring (item 8) ──
-       Drawn with INSET shadows only, so the ring lives entirely
-       inside the cell's own border-radius and never spills onto
-       neighboring day cells. Layered on top of the green lvl-10 glow. */
     .day-cell.fully-complete {
       box-shadow:
         0 0 0 2px rgba(34,197,94,0.82),
@@ -342,498 +167,215 @@
           inset 0 0 14px 3px rgba(34,211,238,0.85);
       }
     }
-    @media (prefers-reduced-motion: reduce) {
-      .day-cell.fully-complete { animation: none; }
-    }
+    @media (prefers-reduced-motion: reduce) { .day-cell.fully-complete { animation: none; } }
 
-    .day-num {
-      position: absolute;
-      top: 7px; left: 9px;
-      font-size: 11.5px;
-      font-weight: 700;
-      color: #aaa;
-    }
-
+    .day-num { position: absolute; top: 7px; left: 9px; font-size: 11.5px; font-weight: 700; color: #aaa; }
     .day-cell.today .day-num { color: #111; }
 
-    /* ── Max-green override button in cell ── */
     .max-green-dot {
-      position: absolute;
-      bottom: 5px;
-      right: 6px;
-      width: 16px;
-      height: 16px;
-      border-radius: 50%;
-      background: #16a34a;
-      border: 2px solid #fff;
-      cursor: pointer;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      font-size: 9px;
-      color: #fff;
-      font-weight: 800;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.18);
-      transition: transform 0.15s, background 0.15s;
-      z-index: 2;
-      line-height: 1;
+      position: absolute; bottom: 5px; right: 6px; width: 16px; height: 16px; border-radius: 50%;
+      background: #16a34a; border: 2px solid #fff; cursor: pointer;
+      display: none; align-items: center; justify-content: center;
+      font-size: 9px; color: #fff; font-weight: 800;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.18); transition: transform 0.15s, background 0.15s;
+      z-index: 2; line-height: 1;
     }
     .day-cell:not(.empty):hover .max-green-dot { display: flex; }
     .day-cell.lvl-10 .max-green-dot { background: #dc2626; display: flex; }
     .max-green-dot:hover { transform: scale(1.2); }
 
-    /* ── Day title ── */
     .day-title {
-      font-size: 10.5px;
-      font-weight: 600;
-      color: #333;
-      text-align: center;
-      line-height: 1.25;
-      padding: 0 2px;
-      width: 100%;
-      display: -webkit-box;
-      -webkit-line-clamp: 3;
-      -webkit-box-orient: vertical;
-      overflow: hidden;
-      word-break: break-word;
+      font-size: 10.5px; font-weight: 600; color: #333; text-align: center; line-height: 1.25;
+      padding: 0 2px; width: 100%; display: -webkit-box; -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical; overflow: hidden; word-break: break-word;
     }
     .day-cell.lvl-10 .day-title { color: #14532d; }
     .day-cell.lvl-0  .day-title { color: #7f1d1d; }
 
-    /* ── Paperclip badge ── */
     .attach-badge {
-      position: absolute;
-      top: 6px; right: 7px;
-      font-size: 9.5px;
-      font-weight: 700;
-      color: #444;
-      background: rgba(255,255,255,0.85);
-      border-radius: 7px;
-      padding: 1px 5px 1px 3px;
-      line-height: 1.35;
-      display: flex;
-      align-items: center;
-      gap: 2px;
-      pointer-events: none;
+      position: absolute; top: 6px; right: 7px; font-size: 9.5px; font-weight: 700; color: #444;
+      background: rgba(255,255,255,0.85); border-radius: 7px; padding: 1px 5px 1px 3px; line-height: 1.35;
+      display: flex; align-items: center; gap: 2px; pointer-events: none;
     }
 
-    /* ── Modal overlay ── */
     .overlay {
-      position: fixed; inset: 0;
-      background: rgba(0,0,0,0.38);
-      backdrop-filter: blur(5px);
-      z-index: 200;
-      display: flex; align-items: center; justify-content: center;
-      opacity: 0; pointer-events: none;
-      transition: opacity 0.22s;
+      position: fixed; inset: 0; background: rgba(0,0,0,0.38); backdrop-filter: blur(5px);
+      z-index: 200; display: flex; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none; transition: opacity 0.22s;
     }
     .overlay.open { opacity: 1; pointer-events: all; }
 
     .modal {
-      background: #fff;
-      border-radius: 22px;
-      width: 94%;
-      max-width: 900px;
-      max-height: 92vh;
-      overflow-y: auto;
-      padding: 30px 28px 28px;
-      box-shadow: 0 24px 70px rgba(0,0,0,0.18);
-      transform: translateY(14px) scale(0.98);
-      transition: transform 0.22s;
+      background: #fff; border-radius: 22px; width: 94%; max-width: 900px; max-height: 92vh;
+      overflow-y: auto; padding: 30px 28px 28px; box-shadow: 0 24px 70px rgba(0,0,0,0.18);
+      transform: translateY(14px) scale(0.98); transition: transform 0.22s;
     }
     .overlay.open .modal { transform: translateY(0) scale(1); }
 
-    .modal-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 22px;
-    }
-
-    .modal-title {
-      font-size: 17px;
-      font-weight: 800;
-      color: #111;
-      letter-spacing: -0.3px;
-    }
-
+    .modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; }
+    .modal-title { font-size: 17px; font-weight: 800; color: #111; letter-spacing: -0.3px; }
     .close-btn {
-      background: #f2f2f2;
-      border: none;
-      border-radius: 8px;
-      width: 32px; height: 32px;
-      font-size: 18px;
-      cursor: pointer;
-      color: #666;
-      display: flex; align-items: center; justify-content: center;
-      transition: background 0.15s;
+      background: #f2f2f2; border: none; border-radius: 8px; width: 32px; height: 32px;
+      font-size: 18px; cursor: pointer; color: #666; display: flex; align-items: center;
+      justify-content: center; transition: background 0.15s;
     }
     .close-btn:hover { background: #e8e8e8; color: #222; }
 
-    /* ── Section header — centered, bold, visible ── */
     .section-head {
-      font-size: 12px;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      color: #555;
-      margin-bottom: 12px;
-      text-align: center;
-      padding: 6px 0 4px;
-      border-bottom: 2px solid #ececec;
+      font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: #555;
+      margin-bottom: 12px; text-align: center; padding: 6px 0 4px; border-bottom: 2px solid #ececec;
     }
+    .section-block { margin-bottom: 22px; }
 
-    /* ── Max-green override button in modal ── */
     .max-green-btn {
-      display: block;
-      width: 100%;
-      margin-bottom: 18px;
-      padding: 10px 14px;
-      background: #f0fdf4;
-      border: 2px solid #86efac;
-      border-radius: 11px;
-      font-size: 13px;
-      font-weight: 700;
-      color: #166534;
-      cursor: pointer;
-      font-family: inherit;
-      transition: background 0.15s, border-color 0.15s;
-      text-align: center;
+      display: block; width: 100%; margin-bottom: 18px; padding: 10px 14px; background: #f0fdf4;
+      border: 2px solid #86efac; border-radius: 11px; font-size: 13px; font-weight: 700; color: #166534;
+      cursor: pointer; font-family: inherit; transition: background 0.15s, border-color 0.15s; text-align: center;
     }
     .max-green-btn:hover { background: #dcfce7; border-color: #4ade80; }
-    .max-green-btn.active {
-      background: #dc2626;
-      border-color: #f87171;
-      color: #fff;
-    }
+    .max-green-btn.active { background: #dc2626; border-color: #f87171; color: #fff; }
 
-    /* ── Day title input ── */
     .title-wrap { margin-bottom: 22px; }
     .title-input {
-      width: 100%;
-      border: 1.5px solid #ebebeb;
-      border-radius: 11px;
-      padding: 13px 14px;
-      font-size: 16px;
-      font-weight: 700;
-      color: #111;
-      font-family: inherit;
-      outline: none;
-      background: #fff;
-      letter-spacing: -0.2px;
-      transition: border-color 0.15s;
+      width: 100%; border: 1.5px solid #ebebeb; border-radius: 11px; padding: 13px 14px;
+      font-size: 16px; font-weight: 700; color: #111; font-family: inherit; outline: none;
+      background: #fff; letter-spacing: -0.2px; transition: border-color 0.15s;
     }
     .title-input:focus { border-color: #555; }
     .title-input::placeholder { color: #c0c0c0; font-weight: 600; }
 
-    /* ── Checkbox rows ── */
-    .check-list {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 9px;
-      margin-bottom: 22px;
+    .swipe-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    @media (max-width: 640px) { .swipe-grid { grid-template-columns: 1fr; } }
+
+    .swipe-card {
+      position: relative; background: #fafafa; border: 1.5px solid #ececec; border-radius: 13px;
+      padding: 14px 16px; overflow: hidden; touch-action: pan-y; cursor: grab;
+      transition: background 0.18s, border-color 0.18s;
+      will-change: transform;
+    }
+    .swipe-card:active { cursor: grabbing; }
+    /* Zero-lag 1:1 finger tracking while actively dragging */
+    .swipe-card.is-dragging { transition: none; }
+    /* Smooth ease-out spring back to center on release */
+    .swipe-card.settling { transition: transform 0.32s cubic-bezier(0.16, 1, 0.3, 1); }
+    .swipe-card.at-zero { background: #f1f1f1; border-color: #e4e4e4; }
+    .swipe-card.at-zero .swipe-count { color: #b8b8b8; }
+    .swipe-card.has-progress { background: #f0fdf4; border-color: #bbf7d0; }
+    .swipe-card.shake { animation: shake-card 0.32s ease; }
+
+    @keyframes shake-card {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-5px); }
+      50% { transform: translateX(4px); }
+      75% { transform: translateX(-3px); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .swipe-card.shake { animation: none; }
+      .swipe-card.settling { transition: transform 0.12s ease-out; }
+      .pip-card.settling { transition: transform 0.12s ease-out; }
     }
 
-    /* Skills section uses black-themed checks */
-    .check-list.skills .check-row.checked {
-      background: #f3f3f3;
-      border-color: #555;
-    }
-    .check-list.skills .check-row.checked .check-box {
-      background: #111;
-      border-color: #111;
-    }
+    .swipe-card-inner { display: flex; align-items: center; justify-content: space-between; gap: 10px; position: relative; z-index: 1; }
+    .swipe-label-wrap { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .swipe-label { font-size: 13.5px; font-weight: 700; color: #222; }
+    .swipe-count { font-size: 19px; font-weight: 800; color: #16a34a; letter-spacing: -0.3px; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+    .swipe-unit { font-size: 13px; font-weight: 700; margin-left: 1px; }
+    .swipe-card.ticking .swipe-count { transform: scale(1.06); }
+    .swipe-count { transition: transform 0.08s ease-out; }
 
-    .check-row {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 12px 14px;
-      background: #fafafa;
-      border: 1.5px solid #ececec;
-      border-radius: 11px;
-      cursor: pointer;
-      transition: background 0.15s, border-color 0.15s;
-      user-select: none;
-    }
-    .check-row:hover { background: #f3f3f3; border-color: #ddd; }
-
-    .check-row.checked {
-      background: #f0fdf4;
-      border-color: #bbf7d0;
-    }
-
-    .check-box {
-      width: 22px;
-      height: 22px;
-      border-radius: 6px;
-      border: 2px solid #cfcfcf;
-      background: #fff;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: background 0.15s, border-color 0.15s;
-      flex-shrink: 0;
-    }
-    .check-row.checked .check-box {
-      background: #16a34a;
-      border-color: #16a34a;
-    }
-    .check-box svg {
-      width: 14px;
-      height: 14px;
-      stroke: #fff;
-      stroke-width: 3.5;
-      fill: none;
-      opacity: 0;
-      transition: opacity 0.15s;
-    }
-    .check-row.checked .check-box svg { opacity: 1; }
-
-    .check-label {
-      font-size: 14px;
-      font-weight: 600;
-      color: #222;
-    }
-
-    /* ── Notes ── */
-    .notes-wrap {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 13px;
-      align-items: start;
-      margin-bottom: 22px;
-    }
-
-    .note-field { display: flex; flex-direction: column; gap: 5px; }
-
-    .note-field label {
-      font-size: 10.5px;
-      font-weight: 700;
-      color: #aaa;
-      text-transform: uppercase;
-      letter-spacing: 0.6px;
-    }
-
-    .note-field textarea {
-      border: 1.5px solid #ebebeb;
-      border-radius: 9px;
-      padding: 10px 12px;
-      font-size: 13.5px;
-      color: #111;
-      font-family: inherit;
-      outline: none;
-      resize: none;
+    .pip-card {
+      position: relative; background: #fafafa; border: 1.5px solid #ececec; border-radius: 13px;
+      padding: 14px 16px; touch-action: pan-y; cursor: grab; transition: background 0.18s, border-color 0.18s;
       overflow: hidden;
-      min-height: 80px;
-      line-height: 1.5;
-      transition: border-color 0.15s;
-      background: #fff;
-      width: 100%;
+      will-change: transform;
+    }
+    .pip-card:active { cursor: grabbing; }
+    .pip-card.is-dragging { transition: none; }
+    .pip-card.settling { transition: transform 0.32s cubic-bezier(0.16, 1, 0.3, 1); }
+    .pip-card.has-progress { background: #f0fdf4; border-color: #bbf7d0; }
+    .pip-card.shake { animation: shake-card 0.32s ease; }
+
+    .pip-card-inner { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .pip-label { font-size: 13.5px; font-weight: 700; color: #222; }
+    .pip-dots { display: flex; gap: 5px; flex-shrink: 0; }
+    .pip-dot { width: 13px; height: 13px; border-radius: 50%; border: 2px solid #d4d4d4; background: #fff; transition: background 0.15s, border-color 0.15s; }
+    .pip-dot.filled { background: #16a34a; border-color: #16a34a; }
+
+    .check-list.skills .pip-card.has-progress { background: #f3f3f3; border-color: #555; }
+    .check-list.skills .pip-dot.filled { background: #111; border-color: #111; }
+
+    .notes-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 13px; align-items: start; margin-bottom: 22px; }
+    @media (max-width: 640px) { .notes-wrap { grid-template-columns: 1fr; } }
+    .note-field { display: flex; flex-direction: column; gap: 5px; }
+    .note-field label { font-size: 10.5px; font-weight: 700; color: #aaa; text-transform: uppercase; letter-spacing: 0.6px; }
+    .note-field textarea {
+      border: 1.5px solid #ebebeb; border-radius: 9px; padding: 10px 12px; font-size: 13.5px; color: #111;
+      font-family: inherit; outline: none; resize: none; overflow: hidden; min-height: 80px; line-height: 1.5;
+      transition: border-color 0.15s; background: #fff; width: 100%;
     }
     .note-field textarea:focus { border-color: #555; }
 
-    /* ── Files section ── */
     .files-wrap { display: flex; flex-direction: column; gap: 10px; }
-
     .file-add-btn {
-      width: 100%;
-      background: #f7f7f7;
-      border: 1.5px dashed #ccc;
-      border-radius: 11px;
-      padding: 12px 14px;
-      font-size: 13px;
-      font-weight: 700;
-      color: #555;
-      cursor: pointer;
-      font-family: inherit;
+      width: 100%; background: #f7f7f7; border: 1.5px dashed #ccc; border-radius: 11px; padding: 12px 14px;
+      font-size: 13px; font-weight: 700; color: #555; cursor: pointer; font-family: inherit;
       transition: background 0.15s, border-color 0.15s, color 0.15s;
     }
     .file-add-btn:hover { background: #efefef; border-color: #999; color: #222; }
     .file-add-btn:disabled { opacity: 0.5; cursor: progress; }
-
-    .files-hint {
-      font-size: 11px;
-      color: #aaa;
-      text-align: center;
-      margin-top: -2px;
-    }
-
-    .files-list {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(95px, 1fr));
-      gap: 8px;
-      margin-top: 2px;
-    }
-
+    .files-hint { font-size: 11px; color: #aaa; text-align: center; margin-top: -2px; }
+    .files-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(95px, 1fr)); gap: 8px; margin-top: 2px; }
     .file-card {
-      position: relative;
-      aspect-ratio: 1;
-      border-radius: 10px;
-      overflow: hidden;
-      background: #f4f4f4;
-      border: 1.5px solid #ececec;
-      cursor: pointer;
-      transition: transform 0.12s, border-color 0.15s;
+      position: relative; aspect-ratio: 1; border-radius: 10px; overflow: hidden; background: #f4f4f4;
+      border: 1.5px solid #ececec; cursor: pointer; transition: transform 0.12s, border-color 0.15s;
     }
     .file-card:hover { transform: translateY(-2px); border-color: #bbb; }
-
-    .file-card img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
-    }
-
+    .file-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
     .file-card .file-icon {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 13px;
-      font-weight: 800;
-      color: #777;
-      letter-spacing: 0.5px;
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 800; color: #777; letter-spacing: 0.5px;
       background: linear-gradient(135deg, #fafafa, #ececec);
     }
-
     .file-card .file-name {
-      position: absolute;
-      left: 0; right: 0; bottom: 0;
-      background: linear-gradient(transparent, rgba(0,0,0,0.78) 80%);
-      color: #fff;
-      font-size: 9.5px;
-      font-weight: 600;
-      padding: 14px 5px 5px;
-      text-align: center;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      pointer-events: none;
+      position: absolute; left: 0; right: 0; bottom: 0; background: linear-gradient(transparent, rgba(0,0,0,0.78) 80%);
+      color: #fff; font-size: 9.5px; font-weight: 600; padding: 14px 5px 5px; text-align: center;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none;
     }
-
-    .file-card.other .file-name {
-      background: rgba(0,0,0,0.05);
-      color: #444;
-      padding: 4px 5px 5px;
-    }
-
+    .file-card.other .file-name { background: rgba(0,0,0,0.05); color: #444; padding: 4px 5px 5px; }
     .file-card .file-delete {
-      position: absolute;
-      top: 4px; right: 4px;
-      width: 22px; height: 22px;
-      border-radius: 50%;
-      border: none;
-      background: rgba(220,38,38,0.92);
-      color: #fff;
-      font-size: 14px;
-      line-height: 1;
-      cursor: pointer;
-      opacity: 0;
-      transition: opacity 0.15s, transform 0.1s;
-      padding: 0;
-      font-family: inherit;
+      position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; border-radius: 50%; border: none;
+      background: rgba(220,38,38,0.92); color: #fff; font-size: 14px; line-height: 1; cursor: pointer;
+      opacity: 0; transition: opacity 0.15s, transform 0.1s; padding: 0; font-family: inherit;
     }
     .file-card:hover .file-delete { opacity: 1; }
     .file-card .file-delete:hover { transform: scale(1.1); }
+    .files-empty { font-size: 12.5px; color: #bbb; font-style: italic; padding: 6px 2px; }
 
-    .files-empty {
-      font-size: 12.5px;
-      color: #bbb;
-      font-style: italic;
-      padding: 6px 2px;
-    }
-
-    /* ── Save button ── */
     .save-btn {
-      width: 100%;
-      background: #111;
-      color: #fff;
-      border: none;
-      border-radius: 11px;
-      padding: 14px;
-      font-size: 14px;
-      font-weight: 700;
-      cursor: pointer;
-      font-family: inherit;
-      margin-top: 20px;
-      transition: background 0.15s, transform 0.1s;
-      letter-spacing: 0.2px;
+      width: 100%; background: #111; color: #fff; border: none; border-radius: 11px; padding: 14px;
+      font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; margin-top: 20px;
+      transition: background 0.15s, transform 0.1s; letter-spacing: 0.2px;
     }
     .save-btn:hover { background: #2a2a2a; }
     .save-btn:active { transform: scale(0.99); }
     .save-btn:disabled { background: #ccc; cursor: not-allowed; transform: none; }
 
-    /* ── Mobile ── */
     @media (max-width: 640px) {
-      .check-list,
-      .notes-wrap { grid-template-columns: 1fr; }
+      .weekdays, .days-grid { gap: 4px; }
+      .day-cell { aspect-ratio: auto; min-height: 78px; height: 78px; padding: 18px 3px 6px; border-radius: 9px; }
+      .day-num { top: 5px; left: 6px; font-size: 10px; }
+      .attach-badge { top: 4px; right: 4px; font-size: 8.5px; padding: 1px 4px 1px 2px; }
+      .max-green-dot { width: 13px; height: 13px; bottom: 3px; right: 4px; font-size: 7.5px; }
+      .day-title { font-size: 9px; line-height: 1.15; -webkit-line-clamp: 2; padding: 0 1px; }
     }
 
-    /* ── Mobile calendar: rectangles instead of squares ──
-       Keep the same cell height (y-axis) but shrink the
-       horizontal footprint so nothing overlaps on phones. */
-    @media (max-width: 640px) {
-      .weekdays,
-      .days-grid {
-        gap: 4px;
-      }
-      .day-cell {
-        aspect-ratio: auto;
-        min-height: 78px;
-        height: 78px;
-        padding: 18px 3px 6px;
-        border-radius: 9px;
-      }
-      .day-num {
-        top: 5px;
-        left: 6px;
-        font-size: 10px;
-      }
-      .attach-badge {
-        top: 4px;
-        right: 4px;
-        font-size: 8.5px;
-        padding: 1px 4px 1px 2px;
-      }
-      .max-green-dot {
-        width: 13px;
-        height: 13px;
-        bottom: 3px;
-        right: 4px;
-        font-size: 7.5px;
-      }
-      /* Title: single line, hard-truncated to 12 chars in JS (with …) */
-      .day-title {
-        font-size: 9px;
-        line-height: 1.15;
-        -webkit-line-clamp: 2;
-        padding: 0 1px;
-      }
-    }
-
-    /* ── Toast ── */
     .toast {
-      position: fixed;
-      bottom: 28px; left: 50%;
-      transform: translateX(-50%) translateY(16px);
-      background: #111;
-      color: #fff;
-      padding: 11px 22px;
-      border-radius: 9px;
-      font-size: 13px;
-      font-weight: 600;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.25s, transform 0.25s;
-      z-index: 999;
-      white-space: nowrap;
+      position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(16px);
+      background: #111; color: #fff; padding: 11px 22px; border-radius: 9px; font-size: 13px;
+      font-weight: 600; opacity: 0; pointer-events: none; transition: opacity 0.25s, transform 0.25s;
+      z-index: 999; white-space: nowrap;
     }
-    .toast.show {
-      opacity: 1;
-      transform: translateX(-50%) translateY(0);
-    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
     .toast.err { background: #dc2626; }
   </style>
 </head>
@@ -910,83 +452,31 @@
         <button class="close-btn" id="closeBtn">&times;</button>
       </div>
 
-      <!-- Max Green override -->
       <button type="button" class="max-green-btn" id="maxGreenBtn">
         ✦ Force Max Green for this day
       </button>
 
-      <!-- Title -->
       <div class="section-head">Title</div>
       <div class="title-wrap">
         <input type="text" id="dayTitle" class="title-input" maxlength="200"
                placeholder="Give this day a title…" />
       </div>
 
-      <!-- Habits -->
-      <div class="section-head">Habits</div>
-      <div class="check-list">
-        <div class="check-row" data-target="pushups">
-          <div class="check-box">
-            <svg viewBox="0 0 24 24"><polyline points="4 12 10 18 20 6"/></svg>
-          </div>
-          <div class="check-label">Do 40 pushups</div>
-        </div>
-        <div class="check-row" data-target="readPages">
-          <div class="check-box">
-            <svg viewBox="0 0 24 24"><polyline points="4 12 10 18 20 6"/></svg>
-          </div>
-          <div class="check-label">Read 20 pages</div>
-        </div>
+      <div class="section-head">Non-Negotiables</div>
+      <div class="section-block">
+        <div class="swipe-grid" id="nonNegotiablesGrid"></div>
       </div>
 
-      <!-- Skills -->
+      <div class="section-head">Fitness</div>
+      <div class="section-block">
+        <div class="swipe-grid" id="fitnessGrid"></div>
+      </div>
+
       <div class="section-head">Skills</div>
-      <div class="check-list skills">
-        <div class="check-row" data-target="pullups">
-          <div class="check-box">
-            <svg viewBox="0 0 24 24"><polyline points="4 12 10 18 20 6"/></svg>
-          </div>
-          <div class="check-label">Do 10 pullups</div>
-        </div>
-        <div class="check-row" data-target="skillCardTrick">
-          <div class="check-box">
-            <svg viewBox="0 0 24 24"><polyline points="4 12 10 18 20 6"/></svg>
-          </div>
-          <div class="check-label">Practise 1 card trick</div>
-        </div>
-        <div class="check-row" data-target="skillStretch">
-          <div class="check-box">
-            <svg viewBox="0 0 24 24"><polyline points="4 12 10 18 20 6"/></svg>
-          </div>
-          <div class="check-label">Stretch</div>
-        </div>
-        <div class="check-row" data-target="skillLSit">
-          <div class="check-box">
-            <svg viewBox="0 0 24 24"><polyline points="4 12 10 18 20 6"/></svg>
-          </div>
-          <div class="check-label">Practise the L-sit</div>
-        </div>
-        <div class="check-row" data-target="skillOneHandPushups">
-          <div class="check-box">
-            <svg viewBox="0 0 24 24"><polyline points="4 12 10 18 20 6"/></svg>
-          </div>
-          <div class="check-label">20 one-hand pushups</div>
-        </div>
-        <div class="check-row" data-target="skillProductive">
-          <div class="check-box">
-            <svg viewBox="0 0 24 24"><polyline points="4 12 10 18 20 6"/></svg>
-          </div>
-          <div class="check-label">Do something productive</div>
-        </div>
-        <div class="check-row" data-target="breathHold">
-          <div class="check-box">
-            <svg viewBox="0 0 24 24"><polyline points="4 12 10 18 20 6"/></svg>
-          </div>
-          <div class="check-label">Hold your breath for 1+ min</div>
-        </div>
+      <div class="section-block">
+        <div class="swipe-grid" id="skillsGrid"></div>
       </div>
 
-      <!-- Notes -->
       <div class="section-head">Notes</div>
       <div class="notes-wrap">
         <div class="note-field">
@@ -999,7 +489,6 @@
         </div>
       </div>
 
-      <!-- Files -->
       <div class="section-head">Files</div>
       <div class="files-wrap">
         <input type="file" id="fileInput" multiple style="display:none" />
@@ -1015,7 +504,34 @@
   <div class="toast" id="toast"></div>
 
   <script>
-    /* ── State ── */
+    /* ══════════════════════════════════════════════════════════
+       FIELD CONFIG
+       Two field kinds:
+        - "counter": uncapped, no minimum below 0, swipe right = +step,
+          swipe left = -step (clamped at 0, shake if already at 0)
+        - "pip": capped 0-PIP_MAX, swipe right = +1 pip, swipe left = -1 pip
+       Each field lives in its own section (nonNeg / fitness / skills)
+       and is rendered + wired generically from this config.
+    ══════════════════════════════════════════════════════════ */
+    const PIP_MAX = 3;
+
+    const FIELD_CONFIG = [
+      // Non-negotiables
+      { key: 'pushupsCount',        kind: 'counter', step: 10, section: 'nonNeg',  label: 'Pushups' },
+      { key: 'readPagesCount',      kind: 'counter', step: 10, section: 'nonNeg',  label: 'Pages' },
+
+      // Fitness
+      { key: 'stretchPips',         kind: 'pip',                section: 'fitness', label: 'Stretch' },
+      { key: 'lSitPips',            kind: 'pip',                section: 'fitness', label: 'L-sit' },
+      { key: 'oneHandPushupsCount', kind: 'counter', step: 10, section: 'fitness', label: 'One-hand pushups' },
+      { key: 'pullupsCount',        kind: 'counter', step: 5,  section: 'fitness', label: 'Pull-ups' },
+      { key: 'breathHoldSeconds',   kind: 'counter', step: 10, section: 'fitness', label: 'Hold your breath for', unit: 's' },
+
+      // Skills
+      { key: 'productivePips',      kind: 'pip',                section: 'skills',  label: 'Do something productive' },
+      { key: 'cardTrickPips',       kind: 'pip',                section: 'skills',  label: 'Practice a card trick' },
+    ];
+
     const MONTHS = ['January','February','March','April','May','June',
                     'July','August','September','October','November','December'];
     let now       = new Date();
@@ -1025,109 +541,61 @@
     let allFiles   = {};
     let activeDate = null;
 
-    /* All trackable fields and their initial values */
-    const FIELD_DEFAULTS = {
-      pushups:             false,
-      pullups:             false,
-      readPages:           false,
-      skillCardTrick:      false,
-      skillStretch:        false,
-      skillLSit:           false,
-      skillOneHandPushups: false,
-      skillProductive:     false,
-      breathHold:          false,
-      maxGreen:            false,
-    };
-    let formState = { ...FIELD_DEFAULTS };
+    function defaultEntry(date) {
+      const e = { date, title: '', maxGreen: false, nDay: '', nRead: '' };
+      for (const f of FIELD_CONFIG) e[f.key] = 0;
+      return e;
+    }
+
+    let formState = defaultEntry(null);
 
     const MAX_FILE_BYTES = 500 * 1024;
     const CACHE_KEY = 'habitcal_cache';
 
-    /* ── Helpers ── */
     function pad(n) { return String(n).padStart(2, '0'); }
     function mondayIdx(dow) { return (dow + 6) % 7; }
 
-    /* 
-      11 levels (0–10):
-      0  = hellish red   (nothing done, not maxGreen)
-      1  = red
-      2  = dark purple
-      3  = purple
-      4  = dark blue
-      5  = blue
-      6  = bright blue
-      7  = cyan
-      8  = yellow
-      9  = bright yellow
-      10 = green (max)
+    function fieldIsActive(value) {
+      return (value || 0) > 0;
+    }
 
-      Total scoreable items:
-        Habits:  pushups, readPages                                            = 2
-        Skills:  pullups, cardTrick, stretch, lSit, ohPushups, productive,
-                 breathHold                                                    = 7
-        Notes:   nDay, nRead                                                   = 2
-        Title:                                                                = 1
-      Total = 12 items → clamped to levels 0–10 (capped once "complete" items
-      exceed 10; this is intentional headroom, not a bug)
-      maxGreen override always forces lvl-10.
-    */
     function completionLevel(t) {
-      if (!t) return null; // day not in DB → no glow
+      if (!t) return null;
       if (t.maxGreen) return 10;
       let c = 0;
-      if (t.pushups)             c++;
-      if (t.pullups)             c++;
-      if (t.readPages)           c++;
-      if (t.skillCardTrick)      c++;
-      if (t.skillStretch)        c++;
-      if (t.skillLSit)           c++;
-      if (t.skillOneHandPushups) c++;
-      if (t.skillProductive)     c++;
-      if (t.breathHold)          c++;
+      for (const f of FIELD_CONFIG) {
+        if (fieldIsActive(t[f.key])) c++;
+      }
       if (t.nDay  && t.nDay.trim())  c++;
       if (t.nRead && t.nRead.trim()) c++;
       if (t.title && t.title.trim()) c++;
-      // c ranges 0–12, clamp to 0–10
       return Math.min(c, 10);
     }
 
-    /* ── "Fully complete" check for the cyan ring (item 8) ──
-       Every habit + every skill + BOTH notes must be filled.
-       Title and file attachments do NOT count toward this. */
     function isFullyComplete(t) {
       if (!t) return false;
-      const allChecksOn =
-        !!t.pushups &&
-        !!t.pullups &&
-        !!t.readPages &&
-        !!t.skillCardTrick &&
-        !!t.skillStretch &&
-        !!t.skillLSit &&
-        !!t.skillOneHandPushups &&
-        !!t.skillProductive &&
-        !!t.breathHold;
+      for (const f of FIELD_CONFIG) {
+        if (!fieldIsActive(t[f.key])) return false;
+      }
       const notesFilled =
         !!(t.nDay  && t.nDay.trim())  &&
         !!(t.nRead && t.nRead.trim());
-      return allChecksOn && notesFilled;
+      return notesFilled;
     }
 
     function isImageFile(name, type) {
       if (type && type.startsWith('image/')) return true;
       return /\.(jpe?g|png|gif|webp|svg|bmp|avif)$/i.test(name);
     }
-
     function getExt(name) {
       const m = String(name).match(/\.([a-z0-9]+)$/i);
       return m ? m[1].toUpperCase().slice(0, 5) : 'FILE';
     }
-
     function fmtKB(bytes) {
       if (bytes < 1024) return bytes + 'B';
       return Math.round(bytes / 1024) + 'KB';
     }
 
-    /* ── Stats ── */
     function computeMonthStats() {
       const yearPrefix = viewYear + '-';
       let perfect = 0, pushDays = 0, readDays = 0;
@@ -1137,8 +605,8 @@
         const t = habitsData[date];
         const lvl = completionLevel(t);
         if (lvl === 10) perfect++;
-        if (t.pushups)   pushDays++;
-        if (t.readPages) readDays++;
+        if (t.pushupsCount > 0)   pushDays++;
+        if (t.readPagesCount > 0) readDays++;
       }
 
       let streak = 0;
@@ -1161,7 +629,6 @@
       document.getElementById('statReading').textContent = readDays;
     }
 
-    /* ── Toast ── */
     let toastTimer;
     function toast(msg, isErr = false) {
       const el = document.getElementById('toast');
@@ -1171,7 +638,6 @@
       toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
     }
 
-    /* ── Habits storage ── */
     async function loadAllHabits() {
       const cached = localStorage.getItem(CACHE_KEY);
       if (cached) {
@@ -1198,7 +664,6 @@
       localStorage.setItem(CACHE_KEY, JSON.stringify(habitsData));
     }
 
-    /* ── Files storage ── */
     async function loadAllFiles() {
       try {
         const r = await fetch('/api/files', { cache: 'no-store' });
@@ -1239,13 +704,10 @@
     }
 
     async function deleteFile(id) {
-      const r = await fetch('/api/files?id=' + encodeURIComponent(id), {
-        method: 'DELETE',
-      });
+      const r = await fetch('/api/files?id=' + encodeURIComponent(id), { method: 'DELETE' });
       return r.ok;
     }
 
-    /* ── Calendar ── */
     function renderCalendar() {
       document.getElementById('monthLabel').textContent = MONTHS[viewMonth] + ' ' + viewYear;
       const grid         = document.getElementById('daysGrid');
@@ -1276,13 +738,11 @@
         if (lvl !== null) cell.classList.add('lvl-' + lvl);
         if (isFullyComplete(entry)) cell.classList.add('fully-complete');
 
-        /* day number */
         const num = document.createElement('div');
         num.className = 'day-num';
         num.textContent = d;
         cell.appendChild(num);
 
-        /* paperclip badge */
         const filesForDay = allFiles[dateStr] || [];
         if (filesForDay.length > 0) {
           const badge = document.createElement('div');
@@ -1291,7 +751,6 @@
           cell.appendChild(badge);
         }
 
-        /* title text — on phone, hard-cap to 12 characters + "…" */
         const rawTitle = entry && entry.title ? String(entry.title).trim() : '';
         const isMobileView = window.matchMedia('(max-width: 640px)').matches;
         const titleText = (isMobileView && rawTitle.length > 12)
@@ -1304,18 +763,15 @@
           cell.appendChild(tEl);
         }
 
-        /* max-green override dot */
         const dot = document.createElement('div');
         dot.className = 'max-green-dot';
         dot.title = entry && entry.maxGreen ? 'Remove max green' : 'Force max green';
         dot.textContent = entry && entry.maxGreen ? '✕' : '✦';
         dot.addEventListener('click', async (e) => {
           e.stopPropagation();
-          const current = habitsData[dateStr] || { date: dateStr };
+          const current = habitsData[dateStr] || defaultEntry(dateStr);
           const newVal = !current.maxGreen;
-          const payload = { ...FIELD_DEFAULTS, ...current, date: dateStr, maxGreen: newVal };
-          // booleans only
-          for (const k of Object.keys(FIELD_DEFAULTS)) payload[k] = !!payload[k];
+          const payload = { ...defaultEntry(dateStr), ...current, date: dateStr, maxGreen: newVal };
           try {
             await saveHabitData(dateStr, payload);
             renderCalendar();
@@ -1333,7 +789,6 @@
       computeMonthStats();
     }
 
-    /* ── Auto-grow textareas ── */
     function autoSize(el) {
       el.style.height = 'auto';
       el.style.height = el.scrollHeight + 'px';
@@ -1342,7 +797,6 @@
       ta.addEventListener('input', () => autoSize(ta));
     });
 
-    /* ── Files list rendering ── */
     function renderFilesList(dateStr) {
       const wrap = document.getElementById('filesList');
       wrap.innerHTML = '';
@@ -1411,7 +865,6 @@
       }
     }
 
-    /* ── File upload ── */
     document.getElementById('fileAddBtn').addEventListener('click', () => {
       document.getElementById('fileInput').click();
     });
@@ -1443,11 +896,270 @@
       if (uploadedCount > 0) toast(uploadedCount === 1 ? 'Uploaded.' : uploadedCount + ' files uploaded.');
     });
 
-    /* ── Modal check rows ── */
-    function setCheck(target, on) {
-      formState[target] = on;
-      const row = document.querySelector('.check-row[data-target="' + target + '"]');
-      if (row) row.classList.toggle('checked', on);
+    function buildCounterCard(field) {
+      const card = document.createElement('div');
+      card.className = 'swipe-card';
+      card.dataset.key = field.key;
+
+      const inner = document.createElement('div');
+      inner.className = 'swipe-card-inner';
+      inner.innerHTML =
+        '<div class="swipe-label-wrap">' +
+          '<div class="swipe-label">' + field.label + '</div>' +
+        '</div>' +
+        '<div class="swipe-count"><span data-count></span>' + (field.unit ? '<span class="swipe-unit">' + field.unit + '</span>' : '') + '</div>';
+      card.appendChild(inner);
+
+      wireGesture(card, field);
+      return card;
+    }
+
+    function buildPipCard(field) {
+      const card = document.createElement('div');
+      card.className = 'pip-card';
+      card.dataset.key = field.key;
+
+      const inner = document.createElement('div');
+      inner.className = 'pip-card-inner';
+      let dotsHtml = '<div class="pip-dots" data-dots>';
+      for (let i = 0; i < PIP_MAX; i++) dotsHtml += '<div class="pip-dot"></div>';
+      dotsHtml += '</div>';
+      inner.innerHTML = '<div class="pip-label">' + field.label + '</div>' + dotsHtml;
+      card.appendChild(inner);
+
+      wireGesture(card, field);
+      return card;
+    }
+
+    function renderSwipeSections() {
+      const grids = {
+        nonNeg:  document.getElementById('nonNegotiablesGrid'),
+        fitness: document.getElementById('fitnessGrid'),
+        skills:  document.getElementById('skillsGrid'),
+      };
+      for (const k in grids) grids[k].innerHTML = '';
+
+      for (const field of FIELD_CONFIG) {
+        const card = field.kind === 'pip' ? buildPipCard(field) : buildCounterCard(field);
+        grids[field.section].appendChild(card);
+      }
+    }
+
+    function refreshCardVisual(field) {
+      const card = document.querySelector('.swipe-card[data-key="' + field.key + '"], .pip-card[data-key="' + field.key + '"]');
+      if (!card) return;
+      const value = formState[field.key] || 0;
+
+      if (field.kind === 'counter') {
+        const countEl = card.querySelector('[data-count]');
+        countEl.textContent = value;
+        card.classList.toggle('at-zero', value <= 0);
+        card.classList.toggle('has-progress', value > 0);
+      } else {
+        const dots = card.querySelectorAll('[data-dots] .pip-dot');
+        dots.forEach((dot, i) => dot.classList.toggle('filled', i < value));
+        card.classList.toggle('has-progress', value > 0);
+      }
+    }
+
+    function refreshAllCards() {
+      for (const field of FIELD_CONFIG) refreshCardVisual(field);
+    }
+
+    function shakeCard(card) {
+      card.classList.remove('shake');
+      void card.offsetWidth;
+      card.classList.add('shake');
+      setTimeout(() => card.classList.remove('shake'), 340);
+    }
+
+    /*
+      Odometer-style tick animation: steps the displayed number from
+      `from` to `to` one unit at a time (both directions), independent of
+      how big the actual step size is (10, 5, etc.) — fires on release of
+      a tap or swipe, never on initial load/openModal (those snap instantly
+      via refreshCardVisual).
+    */
+    const TICK_TOTAL_MS = 260; // total duration regardless of distance, so a +10 and +5 feel equally snappy
+
+    function animateCounterTick(card, from, to) {
+      const countEl = card.querySelector('[data-count]');
+      if (!countEl) return;
+
+      // cancel any in-flight tick on this card so rapid repeat swipes don't collide
+      if (card._tickTimer) { clearInterval(card._tickTimer); card._tickTimer = null; }
+
+      const distance = Math.abs(to - from);
+      if (distance === 0) { countEl.textContent = to; card.classList.remove('ticking'); return; }
+
+      const dir = to > from ? 1 : -1;
+      const stepMs = Math.max(14, Math.min(45, TICK_TOTAL_MS / distance));
+      let current = from;
+
+      card.classList.add('ticking');
+      card._tickTimer = setInterval(() => {
+        current += dir;
+        countEl.textContent = current;
+        if (current === to) {
+          clearInterval(card._tickTimer);
+          card._tickTimer = null;
+          card.classList.remove('ticking');
+        }
+      }, stepMs);
+    }
+
+    function animatePipTick(card, from, to) {
+      const dots = card.querySelectorAll('[data-dots] .pip-dot');
+      if (!dots.length) return;
+
+      if (card._pipTickTimer) { clearInterval(card._pipTickTimer); card._pipTickTimer = null; }
+
+      const distance = Math.abs(to - from);
+      if (distance === 0) return;
+
+      const dir = to > from ? 1 : -1;
+      let current = from;
+      const stepMs = 70;
+
+      card._pipTickTimer = setInterval(() => {
+        current += dir;
+        dots.forEach((dot, i) => dot.classList.toggle('filled', i < current));
+        if (current === to) { clearInterval(card._pipTickTimer); card._pipTickTimer = null; }
+      }, stepMs);
+    }
+
+    function applyDelta(field, direction) {
+      const card = document.querySelector('.swipe-card[data-key="' + field.key + '"], .pip-card[data-key="' + field.key + '"]');
+      const current = formState[field.key] || 0;
+
+      if (field.kind === 'counter') {
+        if (direction < 0 && current <= 0) {
+          if (card) shakeCard(card);
+          return;
+        }
+        let next = current + direction * field.step;
+        next = Math.max(0, next);
+        formState[field.key] = next;
+        if (card) {
+          const countEl = card.querySelector('[data-count]');
+          const displayedFrom = countEl ? (parseInt(countEl.textContent, 10) || 0) : current;
+          animateCounterTick(card, displayedFrom, next);
+          card.classList.toggle('at-zero', next <= 0);
+          card.classList.toggle('has-progress', next > 0);
+        }
+        return;
+      } else {
+        if (direction < 0 && current <= 0) {
+          if (card) shakeCard(card);
+          return;
+        }
+        if (direction > 0 && current >= PIP_MAX) {
+          if (card) shakeCard(card);
+          return;
+        }
+        const next = Math.max(0, Math.min(PIP_MAX, current + direction));
+        formState[field.key] = next;
+        if (card) {
+          const filledDots = card.querySelectorAll('[data-dots] .pip-dot.filled').length;
+          animatePipTick(card, filledDots, next);
+          card.classList.toggle('has-progress', next > 0);
+        }
+        return;
+      }
+    }
+
+    /*
+      Gesture model:
+      - A press that never moves past TAP_TOLERANCE px counts as a tap on
+        release → adds one step (same as a single swipe-right).
+      - A press that moves past TAP_TOLERANCE becomes a drag: the card
+        follows the finger 1:1 (no resistance, no commit threshold).
+        Whatever side of center the card is on at release is what commits —
+        even 1px past center counts. No fake "swipe far enough" requirement.
+      - On release, the card always animates back to center with a quick
+        ease-out spring, regardless of whether a value changed.
+      - A drag in progress never fires the tap-to-add action.
+    */
+    const TAP_TOLERANCE = 6; // px of movement still considered "just a tap"
+
+    function wireGesture(card, field) {
+      let startX = 0;
+      let dx = 0;
+      let dragging = false;   // true once we've moved past TAP_TOLERANCE
+      let pressed = false;
+      let pointerId = null;
+
+      function setTransform(x) {
+        card.style.transform = x ? 'translateX(' + x + 'px)' : '';
+      }
+
+      function onDown(e) {
+        pressed = true;
+        dragging = false;
+        pointerId = e.pointerId;
+        startX = e.clientX;
+        dx = 0;
+        card.classList.add('is-dragging');
+        card.setPointerCapture && card.setPointerCapture(pointerId);
+      }
+
+      function onMove(e) {
+        if (!pressed) return;
+        dx = e.clientX - startX;
+        if (!dragging && Math.abs(dx) > TAP_TOLERANCE) {
+          dragging = true;
+        }
+        if (dragging) {
+          setTransform(dx);
+        }
+      }
+
+      function settle(wasDragging) {
+        card.classList.remove('is-dragging');
+        if (!wasDragging) return; // plain tap never moved the card, nothing to spring back
+        card.classList.add('settling');
+        setTransform(0);
+        card.addEventListener('transitionend', function onEnd() {
+          card.classList.remove('settling');
+          card.removeEventListener('transitionend', onEnd);
+        }, { once: true });
+        // fallback in case transitionend doesn't fire (e.g. transform was already 0)
+        setTimeout(() => card.classList.remove('settling'), 400);
+      }
+
+      function onUp() {
+        if (!pressed) return;
+        pressed = false;
+
+        if (dragging) {
+          // committed by whichever side of center we released on,
+          // any non-zero offset counts
+          if (dx !== 0) {
+            applyDelta(field, dx > 0 ? 1 : -1);
+          }
+        } else {
+          // plain tap/click → add one step
+          applyDelta(field, 1);
+        }
+
+        settle(dragging);
+        dragging = false;
+        dx = 0;
+      }
+
+      function onCancel() {
+        if (!pressed) return;
+        pressed = false;
+        const wasDragging = dragging;
+        dragging = false;
+        dx = 0;
+        settle(wasDragging);
+      }
+
+      card.addEventListener('pointerdown', onDown);
+      card.addEventListener('pointermove', onMove);
+      card.addEventListener('pointerup', onUp);
+      card.addEventListener('pointercancel', onCancel);
     }
 
     function updateMaxGreenBtn() {
@@ -1473,22 +1185,23 @@
       document.getElementById('modalTitle').textContent =
         MONTHS[parseInt(m) - 1] + ' ' + parseInt(d) + ', ' + y;
 
-      // Reset all
-      for (const k of Object.keys(FIELD_DEFAULTS)) setCheck(k, false);
+      formState = defaultEntry(dateStr);
       document.getElementById('dayTitle').value = '';
       document.getElementById('nDay').value  = '';
       document.getElementById('nRead').value = '';
 
       const t = habitsData[dateStr];
       if (t) {
-        for (const k of Object.keys(FIELD_DEFAULTS)) {
-          if (t[k] !== undefined) setCheck(k, !!t[k]);
+        for (const f of FIELD_CONFIG) {
+          if (t[f.key] !== undefined) formState[f.key] = t[f.key];
         }
+        formState.maxGreen = !!t.maxGreen;
         if (t.title !== undefined) document.getElementById('dayTitle').value = t.title;
         if (t.nDay  !== undefined) document.getElementById('nDay').value  = t.nDay;
         if (t.nRead !== undefined) document.getElementById('nRead').value = t.nRead;
       }
 
+      refreshAllCards();
       updateMaxGreenBtn();
       renderFilesList(dateStr);
       document.getElementById('overlay').classList.add('open');
@@ -1502,14 +1215,6 @@
       activeDate = null;
     }
 
-    document.querySelectorAll('.check-row').forEach(row => {
-      row.addEventListener('click', () => {
-        const target = row.dataset.target;
-        setCheck(target, !formState[target]);
-      });
-    });
-
-    /* ── Save ── */
     document.getElementById('saveBtn').addEventListener('click', async () => {
       const btn = document.getElementById('saveBtn');
       btn.disabled = true;
@@ -1517,21 +1222,13 @@
 
       const dateStr = activeDate;
       const payload = {
-        date:                dateStr,
-        title:               document.getElementById('dayTitle').value.trim(),
-        pushups:             formState.pushups,
-        pullups:             formState.pullups,
-        readPages:           formState.readPages,
-        skillCardTrick:      formState.skillCardTrick,
-        skillStretch:        formState.skillStretch,
-        skillLSit:           formState.skillLSit,
-        skillOneHandPushups: formState.skillOneHandPushups,
-        skillProductive:     formState.skillProductive,
-        breathHold:          formState.breathHold,
-        maxGreen:            formState.maxGreen,
-        nDay:                document.getElementById('nDay').value,
-        nRead:               document.getElementById('nRead').value,
+        date:     dateStr,
+        title:    document.getElementById('dayTitle').value.trim(),
+        maxGreen: formState.maxGreen,
+        nDay:     document.getElementById('nDay').value,
+        nRead:    document.getElementById('nRead').value,
       };
+      for (const f of FIELD_CONFIG) payload[f.key] = formState[f.key] || 0;
 
       try {
         await saveHabitData(dateStr, payload);
@@ -1546,7 +1243,6 @@
       btn.textContent = 'Save Day';
     });
 
-    /* ── Navigation ── */
     document.getElementById('prevMonth').addEventListener('click', () => {
       viewMonth--;
       if (viewMonth < 0)  { viewMonth = 11; viewYear--; }
@@ -1564,16 +1260,14 @@
       if (e.target === document.getElementById('overlay')) closeModal();
     });
 
-    /* Re-render on resize so the mobile 12-char title truncation
-       (and rectangle layout) updates live when rotating/resizing. */
     let resizeTimer;
     window.addEventListener('resize', () => {
       clearTimeout(resizeTimer);
       resizeTimer = setTimeout(renderCalendar, 150);
     });
 
-    /* ── Init ── */
     (async () => {
+      renderSwipeSections();
       await Promise.all([loadAllHabits(), loadAllFiles()]);
       renderCalendar();
     })();
