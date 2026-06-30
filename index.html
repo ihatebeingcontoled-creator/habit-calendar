@@ -260,9 +260,6 @@
     .swipe-card.is-dragging { transition: none; }
     /* Smooth ease-out spring back to center on release */
     .swipe-card.settling { transition: transform 0.32s cubic-bezier(0.16, 1, 0.3, 1); }
-    .swipe-card.at-zero { background: #f1f1f1; border-color: #e4e4e4; }
-    .swipe-card.at-zero .swipe-count { color: #b8b8b8; }
-    .swipe-card.has-progress { background: #f0fdf4; border-color: #bbf7d0; }
     .swipe-card.shake { animation: shake-card 0.32s ease; }
 
     @keyframes shake-card {
@@ -280,10 +277,19 @@
     .swipe-card-inner { display: flex; align-items: center; justify-content: space-between; gap: 10px; position: relative; z-index: 1; }
     .swipe-label-wrap { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
     .swipe-label { font-size: 13.5px; font-weight: 700; color: #222; }
-    .swipe-count { font-size: 19px; font-weight: 800; color: #16a34a; letter-spacing: -0.3px; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+    .swipe-count { font-size: 19px; font-weight: 800; color: #999; letter-spacing: -0.3px; flex-shrink: 0; font-variant-numeric: tabular-nums; }
     .swipe-unit { font-size: 13px; font-weight: 700; margin-left: 1px; }
+    .swipe-target { font-size: 11px; font-weight: 700; color: #bbb; margin-left: 2px; }
     .swipe-card.ticking .swipe-count { transform: scale(1.06); }
-    .swipe-count { transition: transform 0.08s ease-out; }
+    .swipe-count { transition: transform 0.08s ease-out, color 0.15s; }
+
+    /* Pass/fail states — compared against that day's target, not just ">0" */
+    .swipe-card.pass, .pip-card.pass { background: #f0fdf4; border-color: #86efac; }
+    .swipe-card.pass .swipe-count { color: #16a34a; }
+    .swipe-card.pass .swipe-target { color: #86efac; }
+    .swipe-card.fail, .pip-card.fail { background: #fef2f2; border-color: #fca5a5; }
+    .swipe-card.fail .swipe-count { color: #dc2626; }
+    .swipe-card.fail .swipe-target { color: #fca5a5; }
 
     .pip-card {
       position: relative; background: #fafafa; border: 1.5px solid #ececec; border-radius: 13px;
@@ -294,17 +300,18 @@
     .pip-card:active { cursor: grabbing; }
     .pip-card.is-dragging { transition: none; }
     .pip-card.settling { transition: transform 0.32s cubic-bezier(0.16, 1, 0.3, 1); }
-    .pip-card.has-progress { background: #f0fdf4; border-color: #bbf7d0; }
     .pip-card.shake { animation: shake-card 0.32s ease; }
 
     .pip-card-inner { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .pip-label-wrap { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
     .pip-label { font-size: 13.5px; font-weight: 700; color: #222; }
+    .pip-target { font-size: 10.5px; font-weight: 600; color: #bbb; }
+    .pip-card.pass .pip-target { color: #4ade80; }
+    .pip-card.fail .pip-target { color: #fca5a5; }
     .pip-dots { display: flex; gap: 5px; flex-shrink: 0; }
     .pip-dot { width: 13px; height: 13px; border-radius: 50%; border: 2px solid #d4d4d4; background: #fff; transition: background 0.15s, border-color 0.15s; }
-    .pip-dot.filled { background: #16a34a; border-color: #16a34a; }
-
-    .check-list.skills .pip-card.has-progress { background: #f3f3f3; border-color: #555; }
-    .check-list.skills .pip-dot.filled { background: #111; border-color: #111; }
+    .pip-card.pass .pip-dot.filled { background: #16a34a; border-color: #16a34a; }
+    .pip-card.fail .pip-dot.filled { background: #dc2626; border-color: #dc2626; }
 
     .notes-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 13px; align-items: start; margin-bottom: 22px; }
     @media (max-width: 640px) { .notes-wrap { grid-template-columns: 1fr; } }
@@ -361,6 +368,48 @@
     .save-btn:hover { background: #2a2a2a; }
     .save-btn:active { transform: scale(0.99); }
     .save-btn:disabled { background: #ccc; cursor: not-allowed; transform: none; }
+
+    /* ── Bottom "Edit Daily Targets" button + its panel ── */
+    .targets-btn {
+      display: block; width: 100%; margin-top: 28px; background: #fafafa;
+      border: 1.5px solid #ececec; border-radius: 12px; padding: 13px 16px;
+      font-size: 13px; font-weight: 700; color: #444; cursor: pointer; font-family: inherit;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .targets-btn:hover { background: #f0f0f0; border-color: #ccc; }
+
+    .targets-field-list { display: flex; flex-direction: column; gap: 8px; }
+    .target-row { border: 1.5px solid #ececec; border-radius: 12px; overflow: hidden; }
+    .target-row-head {
+      display: flex; align-items: center; justify-content: space-between; padding: 13px 16px;
+      cursor: pointer; background: #fafafa; transition: background 0.15s;
+    }
+    .target-row-head:hover { background: #f2f2f2; }
+    .target-row-label { font-size: 13.5px; font-weight: 700; color: #222; }
+    .target-row-current { font-size: 12.5px; font-weight: 700; color: #16a34a; display: flex; align-items: center; gap: 6px; }
+    .target-row-arrow { color: #aaa; font-size: 11px; transition: transform 0.15s; }
+    .target-row.open .target-row-arrow { transform: rotate(180deg); }
+    .target-row-body { padding: 14px 16px; border-top: 1.5px solid #ececec; }
+    .target-edit-form { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+    .target-edit-form label { font-size: 10.5px; font-weight: 700; color: #aaa; text-transform: uppercase; letter-spacing: 0.5px; }
+    .target-edit-form input {
+      border: 1.5px solid #ebebeb; border-radius: 9px; padding: 9px 11px; font-size: 14px;
+      font-family: inherit; outline: none; color: #111; background: #fff;
+    }
+    .target-edit-form input:focus { border-color: #555; }
+    .target-save-btn {
+      background: #111; color: #fff; border: none; border-radius: 9px; padding: 10px;
+      font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; margin-top: 2px;
+    }
+    .target-save-btn:hover { background: #2a2a2a; }
+    .target-save-btn:disabled { background: #ccc; cursor: not-allowed; }
+    .target-history { display: flex; flex-direction: column; gap: 6px; }
+    .target-history-row {
+      display: flex; align-items: center; justify-content: space-between; font-size: 12px;
+      color: #555; background: #fafafa; border-radius: 7px; padding: 6px 10px;
+    }
+    .target-history-del { background: none; border: none; color: #dc2626; font-size: 16px; cursor: pointer; font-family: inherit; line-height: 1; padding: 0 2px; }
+    .target-history-empty { font-size: 12px; color: #bbb; font-style: italic; }
 
     @media (max-width: 640px) {
       .weekdays, .days-grid { gap: 4px; }
@@ -444,6 +493,8 @@
         <div class="days-grid" id="daysGrid"></div>
       </div>
     </div>
+
+    <button type="button" class="targets-btn" id="editTargetsBtn">⚙ Edit Daily Targets</button>
   </div>
 
   <!-- Day detail modal -->
@@ -503,6 +554,17 @@
     </div>
   </div>
 
+  <!-- Daily targets modal -->
+  <div class="overlay" id="targetsOverlay">
+    <div class="modal" style="max-width: 560px;">
+      <div class="modal-head">
+        <span class="modal-title">Daily Targets</span>
+        <button class="close-btn" id="targetsCloseBtn">&times;</button>
+      </div>
+      <div id="targetsFieldList" class="targets-field-list"></div>
+    </div>
+  </div>
+
   <div class="toast" id="toast"></div>
 
   <script>
@@ -514,8 +576,19 @@
         - "pip": capped 0-PIP_MAX, swipe right = +1 pip, swipe left = -1 pip
        Each field lives in its own section (nonNeg / fitness / skills)
        and is rendered + wired generically from this config.
+
+       TARGETS
+       Whether a field "passes" for a given day is no longer just
+       "value > 0" — it's "value >= that day's target for this field".
+       Targets are a history per field: { value, effectiveFrom } rows
+       loaded from /api/habits?resource=targets. The target in effect for
+       a given date is the most recent row with effectiveFrom <= that
+       date, so changing a target only affects days on/after the date
+       you pick (older days keep using whatever was in effect for them,
+       or the built-in default of 1 if you've never set one).
     ══════════════════════════════════════════════════════════ */
     const PIP_MAX = 3;
+    const DEFAULT_TARGET = 1; // reproduces the old ">0 counts as done" behavior
 
     const FIELD_CONFIG = [
       // Non-negotiables
@@ -543,6 +616,10 @@
     let allFiles   = {};
     let activeDate = null;
 
+    // Target history: raw rows from the API, plus a field → sorted-array index
+    let targetsData    = [];
+    let targetsByField = {};
+
     function defaultEntry(date) {
       const e = { date, title: '', maxGreen: false, nDay: '', nRead: '' };
       for (const f of FIELD_CONFIG) e[f.key] = 0;
@@ -556,9 +633,68 @@
 
     function pad(n) { return String(n).padStart(2, '0'); }
     function mondayIdx(dow) { return (dow + 6) % 7; }
+    function todayStr() {
+      const d = new Date();
+      return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+    }
 
-    function fieldIsActive(value) {
-      return (value || 0) > 0;
+    /* ── Targets: lookup + persistence ── */
+
+    function rebuildTargetsByField() {
+      targetsByField = {};
+      for (const row of targetsData) {
+        if (!targetsByField[row.field]) targetsByField[row.field] = [];
+        targetsByField[row.field].push(row);
+      }
+      for (const k in targetsByField) {
+        targetsByField[k].sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom));
+      }
+    }
+
+    // Returns the target value in effect for `fieldKey` on `dateStr`.
+    // Walks the (date-sorted) history and keeps the last row whose
+    // effectiveFrom is <= dateStr — later changes never affect earlier days.
+    function getTargetForDate(fieldKey, dateStr) {
+      const list = targetsByField[fieldKey];
+      if (!list || !list.length) return DEFAULT_TARGET;
+      let result = DEFAULT_TARGET;
+      for (const entry of list) {
+        if (entry.effectiveFrom <= dateStr) result = entry.value;
+        else break;
+      }
+      return result;
+    }
+
+    async function loadTargets() {
+      try {
+        const r = await fetch('/api/habits?resource=targets', { cache: 'no-store' });
+        if (r.ok) {
+          targetsData = await r.json();
+          rebuildTargetsByField();
+        }
+      } catch { /* offline → defaults apply */ }
+    }
+
+    async function saveTarget(field, value, effectiveFrom) {
+      const r = await fetch('/api/habits?resource=targets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ field, value, effectiveFrom }),
+      });
+      if (!r.ok) throw new Error('Save failed: ' + r.status);
+      await loadTargets();
+    }
+
+    async function deleteTargetEntry(id) {
+      const r = await fetch('/api/habits?resource=targets&id=' + encodeURIComponent(id), { method: 'DELETE' });
+      if (!r.ok) throw new Error('Delete failed: ' + r.status);
+      await loadTargets();
+    }
+
+    // A field "passes" for a day when its value meets or beats that day's target.
+    function fieldIsActive(value, fieldKey, dateStr) {
+      const target = getTargetForDate(fieldKey, dateStr);
+      return (value || 0) >= target;
     }
 
     function completionLevel(t) {
@@ -566,7 +702,7 @@
       if (t.maxGreen) return 10;
       let c = 0;
       for (const f of FIELD_CONFIG) {
-        if (fieldIsActive(t[f.key])) c++;
+        if (fieldIsActive(t[f.key], f.key, t.date)) c++;
       }
       if (t.nDay  && t.nDay.trim())  c++;
       if (t.nRead && t.nRead.trim()) c++;
@@ -577,7 +713,7 @@
     function isFullyComplete(t) {
       if (!t) return false;
       for (const f of FIELD_CONFIG) {
-        if (!fieldIsActive(t[f.key])) return false;
+        if (!fieldIsActive(t[f.key], f.key, t.date)) return false;
       }
       const notesFilled =
         !!(t.nDay  && t.nDay.trim())  &&
@@ -607,8 +743,8 @@
         const t = habitsData[date];
         const lvl = completionLevel(t);
         if (lvl === 10) perfect++;
-        if (t.pushupsCount > 0)   pushDays++;
-        if (t.readPagesCount > 0) readDays++;
+        if (fieldIsActive(t.pushupsCount, 'pushupsCount', date))     pushDays++;
+        if (fieldIsActive(t.readPagesCount, 'readPagesCount', date)) readDays++;
       }
 
       let streak = 0;
@@ -909,7 +1045,9 @@
         '<div class="swipe-label-wrap">' +
           '<div class="swipe-label">' + field.label + '</div>' +
         '</div>' +
-        '<div class="swipe-count"><span data-count></span>' + (field.unit ? '<span class="swipe-unit">' + field.unit + '</span>' : '') + '</div>';
+        '<div class="swipe-count"><span data-count></span><span class="swipe-target" data-target></span>' +
+          (field.unit ? '<span class="swipe-unit">' + field.unit + '</span>' : '') +
+        '</div>';
       card.appendChild(inner);
 
       wireGesture(card, field);
@@ -926,7 +1064,11 @@
       let dotsHtml = '<div class="pip-dots" data-dots>';
       for (let i = 0; i < PIP_MAX; i++) dotsHtml += '<div class="pip-dot"></div>';
       dotsHtml += '</div>';
-      inner.innerHTML = '<div class="pip-label">' + field.label + '</div>' + dotsHtml;
+      inner.innerHTML =
+        '<div class="pip-label-wrap">' +
+          '<div class="pip-label">' + field.label + '</div>' +
+          '<div class="pip-target" data-target></div>' +
+        '</div>' + dotsHtml;
       card.appendChild(inner);
 
       wireGesture(card, field);
@@ -950,17 +1092,24 @@
     function refreshCardVisual(field) {
       const card = document.querySelector('.swipe-card[data-key="' + field.key + '"], .pip-card[data-key="' + field.key + '"]');
       if (!card) return;
-      const value = formState[field.key] || 0;
+      const value  = formState[field.key] || 0;
+      const target = getTargetForDate(field.key, activeDate || todayStr());
+      const passed = value >= target;
 
       if (field.kind === 'counter') {
         const countEl = card.querySelector('[data-count]');
         countEl.textContent = value;
-        card.classList.toggle('at-zero', value <= 0);
-        card.classList.toggle('has-progress', value > 0);
+        const targetEl = card.querySelector('[data-target]');
+        if (targetEl) targetEl.textContent = ' / ' + target;
+        card.classList.toggle('pass', passed);
+        card.classList.toggle('fail', !passed);
       } else {
         const dots = card.querySelectorAll('[data-dots] .pip-dot');
         dots.forEach((dot, i) => dot.classList.toggle('filled', i < value));
-        card.classList.toggle('has-progress', value > 0);
+        const targetEl = card.querySelector('[data-target]');
+        if (targetEl) targetEl.textContent = 'Target: ' + target + (target === 1 ? ' pip' : ' pips');
+        card.classList.toggle('pass', passed);
+        card.classList.toggle('fail', !passed);
       }
     }
 
@@ -1033,6 +1182,7 @@
     function applyDelta(field, direction) {
       const card = document.querySelector('.swipe-card[data-key="' + field.key + '"], .pip-card[data-key="' + field.key + '"]');
       const current = formState[field.key] || 0;
+      const target  = getTargetForDate(field.key, activeDate || todayStr());
 
       if (field.kind === 'counter') {
         if (direction < 0 && current <= 0) {
@@ -1046,8 +1196,8 @@
           const countEl = card.querySelector('[data-count]');
           const displayedFrom = countEl ? (parseInt(countEl.textContent, 10) || 0) : current;
           animateCounterTick(card, displayedFrom, next);
-          card.classList.toggle('at-zero', next <= 0);
-          card.classList.toggle('has-progress', next > 0);
+          card.classList.toggle('pass', next >= target);
+          card.classList.toggle('fail', next < target);
         }
         return;
       } else {
@@ -1064,7 +1214,8 @@
         if (card) {
           const filledDots = card.querySelectorAll('[data-dots] .pip-dot.filled').length;
           animatePipTick(card, filledDots, next);
-          card.classList.toggle('has-progress', next > 0);
+          card.classList.toggle('pass', next >= target);
+          card.classList.toggle('fail', next < target);
         }
         return;
       }
@@ -1262,6 +1413,141 @@
       if (e.target === document.getElementById('overlay')) closeModal();
     });
 
+    /* ── Daily Targets panel ── */
+
+    function renderTargetsFieldList() {
+      const wrap = document.getElementById('targetsFieldList');
+      wrap.innerHTML = '';
+      const today = todayStr();
+
+      for (const field of FIELD_CONFIG) {
+        const current = getTargetForDate(field.key, today);
+
+        const row = document.createElement('div');
+        row.className = 'target-row';
+        row.innerHTML =
+          '<div class="target-row-head" data-field="' + field.key + '">' +
+            '<span class="target-row-label">' + field.label + '</span>' +
+            '<span class="target-row-current">' + current + (field.unit || '') +
+              '<span class="target-row-arrow">▾</span></span>' +
+          '</div>' +
+          '<div class="target-row-body" id="targetBody-' + field.key + '" style="display:none;">' +
+            '<div class="target-edit-form">' +
+              '<label>New target value</label>' +
+              '<input type="number" min="0"' + (field.kind === 'pip' ? ' max="' + PIP_MAX + '"' : '') +
+                ' id="targetValueInput-' + field.key + '" value="' + current + '" />' +
+              '<label>Effective from</label>' +
+              '<input type="date" id="targetDateInput-' + field.key + '" value="' + today + '" />' +
+              '<button type="button" class="target-save-btn" data-field="' + field.key + '">Save</button>' +
+            '</div>' +
+            '<div class="target-history" id="targetHistory-' + field.key + '"></div>' +
+          '</div>';
+        wrap.appendChild(row);
+      }
+
+      wrap.querySelectorAll('.target-row-head').forEach(head => {
+        head.addEventListener('click', () => {
+          const f = head.dataset.field;
+          const row = head.closest('.target-row');
+          const body = document.getElementById('targetBody-' + f);
+          const isOpen = body.style.display !== 'none';
+
+          wrap.querySelectorAll('.target-row-body').forEach(b => b.style.display = 'none');
+          wrap.querySelectorAll('.target-row').forEach(r => r.classList.remove('open'));
+
+          if (!isOpen) {
+            body.style.display = 'block';
+            row.classList.add('open');
+            renderTargetHistory(f);
+          }
+        });
+      });
+
+      wrap.querySelectorAll('.target-save-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const f = btn.dataset.field;
+          const valEl  = document.getElementById('targetValueInput-' + f);
+          const dateEl = document.getElementById('targetDateInput-' + f);
+          const value = parseInt(valEl.value, 10);
+          const effectiveFrom = dateEl.value;
+
+          if (!Number.isFinite(value) || value < 0 || !effectiveFrom) {
+            toast('Enter a valid target and date.', true);
+            return;
+          }
+
+          btn.disabled = true;
+          btn.textContent = 'Saving…';
+          try {
+            await saveTarget(f, value, effectiveFrom);
+            toast('Target saved.');
+            renderTargetsFieldList();
+            renderCalendar();
+            if (activeDate) refreshAllCards();
+          } catch {
+            toast('Failed to save target.', true);
+          }
+          btn.disabled = false;
+          btn.textContent = 'Save';
+        });
+      });
+    }
+
+    function renderTargetHistory(fieldKey) {
+      const el = document.getElementById('targetHistory-' + fieldKey);
+      const entries = (targetsByField[fieldKey] || [])
+        .slice()
+        .sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom));
+
+      if (!entries.length) {
+        el.innerHTML = '<div class="target-history-empty">No custom targets set yet — default is ' + DEFAULT_TARGET + '.</div>';
+        return;
+      }
+
+      el.innerHTML = '';
+      for (const e of entries) {
+        const row = document.createElement('div');
+        row.className = 'target-history-row';
+
+        const label = document.createElement('span');
+        label.textContent = e.value + ' from ' + e.effectiveFrom;
+        row.appendChild(label);
+
+        const del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'target-history-del';
+        del.textContent = '×';
+        del.title = 'Remove this target change';
+        del.addEventListener('click', async () => {
+          try {
+            await deleteTargetEntry(e.id);
+            toast('Removed.');
+            renderTargetsFieldList();
+            renderCalendar();
+            if (activeDate) refreshAllCards();
+          } catch {
+            toast('Failed to remove.', true);
+          }
+        });
+        row.appendChild(del);
+
+        el.appendChild(row);
+      }
+    }
+
+    document.getElementById('editTargetsBtn').addEventListener('click', () => {
+      renderTargetsFieldList();
+      document.getElementById('targetsOverlay').classList.add('open');
+    });
+    document.getElementById('targetsCloseBtn').addEventListener('click', () => {
+      document.getElementById('targetsOverlay').classList.remove('open');
+    });
+    document.getElementById('targetsOverlay').addEventListener('click', (e) => {
+      if (e.target === document.getElementById('targetsOverlay')) {
+        document.getElementById('targetsOverlay').classList.remove('open');
+      }
+    });
+
     let resizeTimer;
     window.addEventListener('resize', () => {
       clearTimeout(resizeTimer);
@@ -1270,7 +1556,7 @@
 
     (async () => {
       renderSwipeSections();
-      await Promise.all([loadAllHabits(), loadAllFiles()]);
+      await Promise.all([loadAllHabits(), loadAllFiles(), loadTargets()]);
       renderCalendar();
     })();
   </script>
