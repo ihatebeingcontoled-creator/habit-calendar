@@ -180,8 +180,7 @@
 
     .day-title {
       font-size: 10.5px; font-weight: 600; color: #333; text-align: center; line-height: 1.25;
-      padding: 0 2px; width: 100%; display: -webkit-box; -webkit-line-clamp: 3;
-      -webkit-box-orient: vertical; overflow: hidden; word-break: break-word;
+      padding: 0 2px; width: 100%; overflow: hidden; word-break: break-word;
     }
     .day-cell.lvl-10 .day-title { color: #14532d; }
     .day-cell.lvl-0  .day-title { color: #7f1d1d; }
@@ -198,6 +197,8 @@
       opacity: 0; pointer-events: none; transition: opacity 0.22s;
     }
     .overlay.open { opacity: 1; pointer-events: all; }
+    #targetsOverlay { z-index: 210; }
+    #confirmOverlay { z-index: 220; }
 
     .modal {
       background: #fff; border-radius: 22px; width: 94%; max-width: 900px; max-height: 92vh;
@@ -440,7 +441,7 @@
       .day-num { top: 5px; left: 6px; font-size: 10px; }
       .attach-badge { top: 4px; right: 4px; font-size: 8.5px; padding: 1px 4px 1px 2px; }
       .wake-5am-dot { width: 13px; height: 13px; bottom: 3px; right: 4px; font-size: 10px; }
-      .day-title { font-size: 9px; line-height: 1.15; -webkit-line-clamp: 2; padding: 0 1px; }
+      .day-title { font-size: 9px; line-height: 1.15; padding: 0 1px; }
     }
 
     .toast {
@@ -451,6 +452,68 @@
     }
     .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
     .toast.err { background: #dc2626; }
+
+    /* ── Unsaved-changes confirm dialog ── */
+    .confirm-msg { font-size: 13.5px; color: #666; line-height: 1.5; margin-bottom: 22px; text-align: center; }
+    .confirm-btn-row { display: flex; gap: 10px; }
+    .confirm-btn-row .target-save-btn { flex: 1; margin-top: 0; }
+    .confirm-discard-btn {
+      flex: 1; background: #f2f2f2; color: #333; border: none; border-radius: 9px; padding: 10px;
+      font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit;
+    }
+    .confirm-discard-btn:hover { background: #e6e6e6; }
+
+    /* ── Night mode ── */
+    body.night-mode { background: #121212; }
+    body.night-mode .app-title { color: #f5f5f5; }
+    body.night-mode .legend-panel { background: #1c1c1c; border-color: #333; }
+    body.night-mode .legend-title { color: #888; }
+    body.night-mode .legend-row { color: #ddd; }
+    body.night-mode .nav-btn { border-color: #333; color: #ddd; }
+    body.night-mode .nav-btn:hover { background: #222; border-color: #555; }
+    body.night-mode .month-label { color: #f5f5f5; }
+    body.night-mode .stat-card { background: #1c1c1c; border-color: #333; }
+    body.night-mode .stat-label { color: #888; }
+    body.night-mode .stat-value { color: #f5f5f5; }
+    body.night-mode .weekday { color: #777; }
+    body.night-mode .day-cell { background: #1c1c1c; }
+    body.night-mode .day-cell:hover:not(.empty) { background: #262626; }
+    body.night-mode .day-cell.today { background: #000; border-color: #f5f5f5; }
+    body.night-mode .day-num { color: #888; }
+    body.night-mode .day-cell.today .day-num { color: #f5f5f5; }
+    body.night-mode .day-title { color: #ddd; }
+    body.night-mode .attach-badge { background: rgba(0,0,0,0.55); color: #eee; }
+    body.night-mode .targets-btn { background: #1c1c1c; border-color: #333; color: #ddd; }
+    body.night-mode .targets-btn:hover { background: #262626; border-color: #555; }
+    body.night-mode .modal { background: #1a1a1a; box-shadow: 0 24px 70px rgba(0,0,0,0.6); }
+    body.night-mode .modal-title { color: #f5f5f5; }
+    body.night-mode .close-btn { background: #262626; color: #ccc; }
+    body.night-mode .close-btn:hover { background: #333; color: #fff; }
+    body.night-mode .section-head { color: #bbb; border-bottom-color: #333; }
+    body.night-mode .title-input { background: #1a1a1a; border-color: #333; color: #f5f5f5; }
+    body.night-mode .title-input::placeholder { color: #666; }
+    body.night-mode .wake-5am-btn { background: #1c1c1c; border-color: #333; color: #ccc; }
+    body.night-mode .swipe-card, body.night-mode .pip-card { background: #1c1c1c; border-color: #333; }
+    body.night-mode .swipe-label, body.night-mode .pip-label { color: #eee; }
+    body.night-mode .swipe-count { color: #999; }
+    body.night-mode .note-field label { color: #888; }
+    body.night-mode .note-field textarea { background: #1a1a1a; border-color: #333; color: #f0f0f0; }
+    body.night-mode .file-add-btn { background: #1c1c1c; border-color: #444; color: #ccc; }
+    body.night-mode .files-hint { color: #777; }
+    body.night-mode .settings-row-label { color: #eee; }
+    body.night-mode .settings-row-sub { color: #888; }
+    body.night-mode .settings-section { border-bottom-color: #333; }
+    body.night-mode .settings-number-input { background: #1a1a1a; border-color: #333; color: #f0f0f0; }
+    body.night-mode .settings-number-input:disabled { background: #222; color: #666; }
+    body.night-mode .target-row, body.night-mode .target-row-head { background: #1c1c1c; border-color: #333; }
+    body.night-mode .target-row-label { color: #eee; }
+    body.night-mode .target-row-body { border-color: #333; }
+    body.night-mode .target-edit-form input { background: #1a1a1a; border-color: #333; color: #f0f0f0; }
+    body.night-mode .target-edit-form label { color: #888; }
+    body.night-mode .target-history-row { background: #1c1c1c; color: #ccc; }
+    body.night-mode .confirm-msg { color: #ccc; }
+    body.night-mode .confirm-discard-btn { background: #262626; color: #eee; }
+    body.night-mode .confirm-discard-btn:hover { background: #333; }
   </style>
 </head>
 <body>
@@ -655,6 +718,45 @@
           <input type="number" id="desktopTitleLimitInput" class="settings-number-input" min="1" max="200" value="60">
         </div>
       </div>
+
+      <div class="settings-section">
+        <div class="settings-row">
+          <div>
+            <div class="settings-row-label">Night mode</div>
+            <div class="settings-row-sub">Dark background, light text on the calendar</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="toggleNightMode">
+            <span class="switch-track"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-row">
+          <div>
+            <div class="settings-row-label">Warn on unsaved changes</div>
+            <div class="settings-row-sub">Ask before closing a day or this panel if you changed something</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="toggleWarnUnsaved">
+            <span class="switch-track"></span>
+          </label>
+        </div>
+      </div>
+
+      <button class="save-btn" id="settingsSaveBtn">Save Settings</button>
+    </div>
+  </div>
+
+  <!-- Unsaved-changes confirm dialog (reused by day modal + settings) -->
+  <div class="overlay" id="confirmOverlay">
+    <div class="modal" style="max-width: 340px;">
+      <div class="confirm-msg" id="confirmMsg">You have unsaved changes. Save before closing?</div>
+      <div class="confirm-btn-row">
+        <button type="button" class="target-save-btn" id="confirmSaveBtn">Save</button>
+        <button type="button" class="confirm-discard-btn" id="confirmDiscardBtn">Close without saving</button>
+      </div>
     </div>
   </div>
 
@@ -683,7 +785,10 @@
     const PIP_MAX = 3;
     const DEFAULT_TARGET = 1; // reproduces the old ">0 counts as done" behavior
 
-    /* ── Settings: device-local display preferences (localStorage) ── */
+    /* ── Settings: shared across devices via D1 (habit_settings table).
+       localStorage is kept only as an instant-paint cache for the very
+       first render before the server round-trip completes — the server
+       copy always wins once it loads. ── */
     const SETTINGS_KEY = 'habitcal_settings';
     const DEFAULT_SETTINGS = {
       dailyTargetsEnabled:     true,
@@ -692,6 +797,8 @@
       mobileTitleLimit:        35,
       desktopTitleLimitEnabled: false,
       desktopTitleLimit:       60,
+      nightMode:               false,
+      warnUnsavedChanges:      true,
     };
 
     function loadSettings() {
@@ -703,24 +810,118 @@
         return { ...DEFAULT_SETTINGS };
       }
     }
-    function saveSettings() {
+    function cacheSettingsLocally() {
       try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch { /* ignore */ }
     }
-    let settings = loadSettings();
 
-    function applySettingsToUI() {
+    // Pulls the shared settings from D1 on load. If it fails (offline etc.)
+    // we just keep whatever was in the local cache / defaults.
+    async function loadSettingsFromServer() {
+      try {
+        const r = await fetch('/api/habits?resource=settings', { cache: 'no-store' });
+        if (r.ok) {
+          const server = await r.json();
+          if (server && typeof server === 'object') {
+            settings = { ...DEFAULT_SETTINGS, ...server };
+            cacheSettingsLocally();
+          }
+        }
+      } catch { /* offline → keep locally cached settings */ }
+    }
+
+    // Pushes the full settings object to D1 so every device sees it.
+    async function saveSettingsToServer() {
+      cacheSettingsLocally(); // instant local cache so this device doesn't flicker
+      const r = await fetch('/api/habits?resource=settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings),
+      });
+      if (!r.ok) throw new Error('Save failed: ' + r.status);
+    }
+
+    let settings = loadSettings(); // instant local paint; overwritten by loadSettingsFromServer() on load
+    let pendingSettings = null; // staged edits while the Settings modal is open — only committed on Save
+
+    function applyStatsBarVisibility() {
       const bar = document.querySelector('.stats-bar');
       if (bar) bar.style.display = settings.showStatsBar ? '' : 'none';
-
-      document.getElementById('toggleDailyTargets').checked      = settings.dailyTargetsEnabled;
-      document.getElementById('toggleStatsBar').checked           = settings.showStatsBar;
-      document.getElementById('toggleMobileTitleLimit').checked   = settings.mobileTitleLimitEnabled;
-      document.getElementById('mobileTitleLimitInput').value      = settings.mobileTitleLimit;
-      document.getElementById('mobileTitleLimitInput').disabled   = !settings.mobileTitleLimitEnabled;
-      document.getElementById('toggleDesktopTitleLimit').checked  = settings.desktopTitleLimitEnabled;
-      document.getElementById('desktopTitleLimitInput').value     = settings.desktopTitleLimit;
-      document.getElementById('desktopTitleLimitInput').disabled  = !settings.desktopTitleLimitEnabled;
     }
+    function applyNightMode() {
+      document.body.classList.toggle('night-mode', !!settings.nightMode);
+    }
+    function applySettingsEffects() {
+      applyStatsBarVisibility();
+      applyNightMode();
+      renderCalendar();
+    }
+
+    function loadSettingsFormFromPending() {
+      document.getElementById('toggleDailyTargets').checked      = pendingSettings.dailyTargetsEnabled;
+      document.getElementById('toggleStatsBar').checked           = pendingSettings.showStatsBar;
+      document.getElementById('toggleMobileTitleLimit').checked   = pendingSettings.mobileTitleLimitEnabled;
+      document.getElementById('mobileTitleLimitInput').value      = pendingSettings.mobileTitleLimit;
+      document.getElementById('mobileTitleLimitInput').disabled   = !pendingSettings.mobileTitleLimitEnabled;
+      document.getElementById('toggleDesktopTitleLimit').checked  = pendingSettings.desktopTitleLimitEnabled;
+      document.getElementById('desktopTitleLimitInput').value     = pendingSettings.desktopTitleLimit;
+      document.getElementById('desktopTitleLimitInput').disabled  = !pendingSettings.desktopTitleLimitEnabled;
+      document.getElementById('toggleNightMode').checked          = pendingSettings.nightMode;
+      document.getElementById('toggleWarnUnsaved').checked        = pendingSettings.warnUnsavedChanges;
+    }
+
+    function settingsIsDirty() {
+      return JSON.stringify(pendingSettings) !== JSON.stringify(settings);
+    }
+
+    // Opens the Settings panel: stage a working copy so nothing is applied
+    // or persisted until "Save Settings" is pressed.
+    function applySettingsToUI() {
+      pendingSettings = { ...settings };
+      loadSettingsFormFromPending();
+    }
+
+    async function commitSettingsSave() {
+      const btn = document.getElementById('settingsSaveBtn');
+      btn.disabled = true;
+      btn.textContent = 'Saving…';
+
+      settings = { ...pendingSettings };
+      let ok = true;
+      try {
+        await saveSettingsToServer();
+        applySettingsEffects();
+        document.getElementById('settingsOverlay').classList.remove('open');
+        toast('Settings saved.');
+      } catch {
+        toast('Failed to save settings — please try again.', true);
+        ok = false;
+      }
+
+      btn.disabled = false;
+      btn.textContent = 'Save Settings';
+      return ok;
+    }
+
+    /* ── Reusable "unsaved changes" confirm dialog ── */
+    let confirmSaveAction = null;
+    let confirmDiscardAction = null;
+
+    function showUnsavedConfirm(onSave, onDiscard) {
+      confirmSaveAction = onSave;
+      confirmDiscardAction = onDiscard;
+      document.getElementById('confirmOverlay').classList.add('open');
+    }
+    function hideUnsavedConfirm() {
+      document.getElementById('confirmOverlay').classList.remove('open');
+      confirmSaveAction = null;
+      confirmDiscardAction = null;
+    }
+    document.getElementById('confirmSaveBtn').addEventListener('click', () => {
+      if (confirmSaveAction) confirmSaveAction();
+    });
+    document.getElementById('confirmDiscardBtn').addEventListener('click', () => {
+      if (confirmDiscardAction) confirmDiscardAction();
+    });
 
     const FIELD_CONFIG = [
       // Non-negotiables
@@ -747,6 +948,7 @@
     let habitsData = {};
     let allFiles   = {};
     let activeDate = null;
+    let initialFormSnapshot = null; // JSON snapshot of the day form taken at openModal, used to detect unsaved changes
 
     // Target history: raw rows from the API, plus a field → sorted-array index
     let targetsData    = [];
@@ -1484,18 +1686,55 @@
       requestAnimationFrame(() => {
         document.querySelectorAll('.auto-grow').forEach(autoSize);
       });
+
+      initialFormSnapshot = snapshotDayForm();
+    }
+
+    function snapshotDayForm() {
+      return JSON.stringify({
+        formState,
+        title: document.getElementById('dayTitle').value,
+        nDay:  document.getElementById('nDay').value,
+        nRead: document.getElementById('nRead').value,
+      });
+    }
+
+    function dayFormIsDirty() {
+      if (initialFormSnapshot === null) return false;
+      return snapshotDayForm() !== initialFormSnapshot;
     }
 
     function closeModal() {
       document.getElementById('overlay').classList.remove('open');
       activeDate = null;
+      initialFormSnapshot = null;
     }
 
-    document.getElementById('saveBtn').addEventListener('click', async () => {
-      const btn = document.getElementById('saveBtn');
-      btn.disabled = true;
-      btn.textContent = 'Saving…';
+    function attemptCloseModal() {
+      if (settings.warnUnsavedChanges && dayFormIsDirty()) {
+        document.getElementById('confirmMsg').textContent =
+          'You have unsaved changes for this day. Save before closing?';
+        showUnsavedConfirm(
+          async () => {
+            try {
+              await saveDayEntry();
+              toast('Saved!');
+            } catch {
+              toast('Failed to save — please try again.', true);
+              return;
+            } finally {
+              hideUnsavedConfirm();
+            }
+            closeModal();
+          },
+          () => { hideUnsavedConfirm(); closeModal(); }
+        );
+      } else {
+        closeModal();
+      }
+    }
 
+    async function saveDayEntry() {
       const dateStr = activeDate;
       const payload = {
         date:     dateStr,
@@ -1505,10 +1744,17 @@
         nRead:    document.getElementById('nRead').value,
       };
       for (const f of FIELD_CONFIG) payload[f.key] = formState[f.key] || 0;
+      await saveHabitData(dateStr, payload);
+      renderCalendar();
+    }
+
+    document.getElementById('saveBtn').addEventListener('click', async () => {
+      const btn = document.getElementById('saveBtn');
+      btn.disabled = true;
+      btn.textContent = 'Saving…';
 
       try {
-        await saveHabitData(dateStr, payload);
-        renderCalendar();
+        await saveDayEntry();
         toast('Saved!');
         setTimeout(closeModal, 600);
       } catch {
@@ -1531,9 +1777,9 @@
       renderCalendar();
     });
 
-    document.getElementById('closeBtn').addEventListener('click', closeModal);
+    document.getElementById('closeBtn').addEventListener('click', attemptCloseModal);
     document.getElementById('overlay').addEventListener('click', (e) => {
-      if (e.target === document.getElementById('overlay')) closeModal();
+      if (e.target === document.getElementById('overlay')) attemptCloseModal();
     });
 
     /* ── Daily Targets panel ── */
@@ -1675,51 +1921,65 @@
       applySettingsToUI();
       document.getElementById('settingsOverlay').classList.add('open');
     });
-    document.getElementById('settingsCloseBtn').addEventListener('click', () => {
-      document.getElementById('settingsOverlay').classList.remove('open');
-    });
-    document.getElementById('settingsOverlay').addEventListener('click', (e) => {
-      if (e.target === document.getElementById('settingsOverlay')) {
+    function attemptCloseSettings() {
+      if (settings.warnUnsavedChanges && settingsIsDirty()) {
+        document.getElementById('confirmMsg').textContent =
+          'You have unsaved settings changes. Save before closing?';
+        showUnsavedConfirm(
+          async () => {
+            const ok = await commitSettingsSave();
+            if (ok) hideUnsavedConfirm();
+          },
+          () => { hideUnsavedConfirm(); document.getElementById('settingsOverlay').classList.remove('open'); }
+        );
+      } else {
         document.getElementById('settingsOverlay').classList.remove('open');
       }
+    }
+
+    document.getElementById('settingsCloseBtn').addEventListener('click', attemptCloseSettings);
+    document.getElementById('settingsOverlay').addEventListener('click', (e) => {
+      if (e.target === document.getElementById('settingsOverlay')) attemptCloseSettings();
     });
 
+    document.getElementById('settingsSaveBtn').addEventListener('click', () => {
+      commitSettingsSave();
+    });
+
+    // All of these only touch the staged pendingSettings copy — nothing is
+    // applied to the live calendar or persisted until "Save Settings".
     document.getElementById('toggleDailyTargets').addEventListener('change', (e) => {
-      settings.dailyTargetsEnabled = e.target.checked;
-      saveSettings();
-      renderCalendar();
+      pendingSettings.dailyTargetsEnabled = e.target.checked;
     });
 
     document.getElementById('toggleStatsBar').addEventListener('change', (e) => {
-      settings.showStatsBar = e.target.checked;
-      saveSettings();
-      applySettingsToUI();
+      pendingSettings.showStatsBar = e.target.checked;
     });
 
     document.getElementById('toggleMobileTitleLimit').addEventListener('change', (e) => {
-      settings.mobileTitleLimitEnabled = e.target.checked;
-      saveSettings();
-      applySettingsToUI();
-      renderCalendar();
+      pendingSettings.mobileTitleLimitEnabled = e.target.checked;
+      document.getElementById('mobileTitleLimitInput').disabled = !pendingSettings.mobileTitleLimitEnabled;
     });
     document.getElementById('mobileTitleLimitInput').addEventListener('input', (e) => {
       const n = parseInt(e.target.value, 10);
-      settings.mobileTitleLimit = Number.isFinite(n) && n > 0 ? n : DEFAULT_SETTINGS.mobileTitleLimit;
-      saveSettings();
-      renderCalendar();
+      pendingSettings.mobileTitleLimit = Number.isFinite(n) && n > 0 ? n : DEFAULT_SETTINGS.mobileTitleLimit;
     });
 
     document.getElementById('toggleDesktopTitleLimit').addEventListener('change', (e) => {
-      settings.desktopTitleLimitEnabled = e.target.checked;
-      saveSettings();
-      applySettingsToUI();
-      renderCalendar();
+      pendingSettings.desktopTitleLimitEnabled = e.target.checked;
+      document.getElementById('desktopTitleLimitInput').disabled = !pendingSettings.desktopTitleLimitEnabled;
     });
     document.getElementById('desktopTitleLimitInput').addEventListener('input', (e) => {
       const n = parseInt(e.target.value, 10);
-      settings.desktopTitleLimit = Number.isFinite(n) && n > 0 ? n : DEFAULT_SETTINGS.desktopTitleLimit;
-      saveSettings();
-      renderCalendar();
+      pendingSettings.desktopTitleLimit = Number.isFinite(n) && n > 0 ? n : DEFAULT_SETTINGS.desktopTitleLimit;
+    });
+
+    document.getElementById('toggleNightMode').addEventListener('change', (e) => {
+      pendingSettings.nightMode = e.target.checked;
+    });
+
+    document.getElementById('toggleWarnUnsaved').addEventListener('change', (e) => {
+      pendingSettings.warnUnsavedChanges = e.target.checked;
     });
 
     let resizeTimer;
@@ -1729,10 +1989,12 @@
     });
 
     (async () => {
-      const bar = document.querySelector('.stats-bar');
-      if (bar) bar.style.display = settings.showStatsBar ? '' : 'none';
+      applyStatsBarVisibility();
+      applyNightMode();
       renderSwipeSections();
-      await Promise.all([loadAllHabits(), loadAllFiles(), loadTargets()]);
+      await Promise.all([loadAllHabits(), loadAllFiles(), loadTargets(), loadSettingsFromServer()]);
+      applyStatsBarVisibility();
+      applyNightMode();
       renderCalendar();
     })();
   </script>
