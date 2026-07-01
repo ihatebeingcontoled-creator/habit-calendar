@@ -4,6 +4,8 @@
  * GET    /api/habits?resource=targets      → returns all target history rows
  * POST   /api/habits?resource=targets      → adds/updates a target ({field, value, effectiveFrom})
  * DELETE /api/habits?resource=targets&id=  → removes one target history row
+ * GET    /api/habits?resource=settings     → returns the settings JSON blob (or null if never saved)
+ * POST   /api/habits?resource=settings     → overwrites the settings JSON blob (full object, one row)
  *
  * D1 binding name: DB
  *
@@ -17,6 +19,7 @@
  *   7-convert-to-counters.sql → converts booleans to numeric counters + pips
  *   8-create-targets-table.sql→ adds habit_targets table (see bottom of this file's notes)
  *   9-wake-at-5.sql            → drops maxGreen, adds wokeAt5 column
+ *   10-create-settings-table.sql → adds habit_settings table (single JSON blob row, id=1)
  *
  * Field model (post-migration 7):
  *   Counters (uncapped, no minimum below 0):
@@ -33,6 +36,11 @@
  *   most recent row with effectiveFrom <= that date (see index.html
  *   getTargetForDate). UNIQUE(field, effectiveFrom) so re-saving the
  *   same field+date overwrites instead of duplicating.
+ *
+ * Settings (post-migration 10), table habit_settings:
+ *   Single-row table (id fixed at 1) holding the whole settings object
+ *   as a JSON string in `data`. index.html reads/writes it wholesale —
+ *   there's only ever one row, so it's the same settings on every device.
  */
 
 const CORS = {
@@ -93,12 +101,39 @@ async function deleteTarget(url, env) {
   return json({ ok: true });
 }
 
+/* ── settings sub-handlers ── */
+
+async function getSettings(env) {
+  const row = await env.DB.prepare('SELECT data FROM habit_settings WHERE id = 1').first();
+  if (!row) return json(null);
+  try {
+    return json(JSON.parse(row.data));
+  } catch {
+    return json(null);
+  }
+}
+
+async function postSettings(request, env) {
+  const s = await request.json();
+  if (!s || typeof s !== 'object' || Array.isArray(s)) {
+    return json({ error: 'Settings payload must be a JSON object' }, 400);
+  }
+  await env.DB.prepare(`
+    INSERT INTO habit_settings (id, data) VALUES (1, ?)
+    ON CONFLICT(id) DO UPDATE SET data = excluded.data
+  `).bind(JSON.stringify(s)).run();
+  return json({ ok: true });
+}
+
 /* ── GET: habits, or targets if ?resource=targets ── */
 export async function onRequestGet({ request, env }) {
   try {
     const url = new URL(request.url);
     if (url.searchParams.get('resource') === 'targets') {
       return await getTargets(env);
+    }
+    if (url.searchParams.get('resource') === 'settings') {
+      return await getSettings(env);
     }
 
     const { results } = await env.DB.prepare('SELECT * FROM habits').all();
@@ -136,6 +171,9 @@ export async function onRequestPost({ request, env }) {
     const url = new URL(request.url);
     if (url.searchParams.get('resource') === 'targets') {
       return await postTarget(request, env);
+    }
+    if (url.searchParams.get('resource') === 'settings') {
+      return await postSettings(request, env);
     }
 
     const t = await request.json();
