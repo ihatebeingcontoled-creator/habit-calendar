@@ -16,6 +16,7 @@
  *   6-add-breath-hold.sql     → adds breathHold column
  *   7-convert-to-counters.sql → converts booleans to numeric counters + pips
  *   8-create-targets-table.sql→ adds habit_targets table (see bottom of this file's notes)
+ *   9-wake-at-5.sql            → drops maxGreen, adds wokeAt5 column
  *
  * Field model (post-migration 7):
  *   Counters (uncapped, no minimum below 0):
@@ -24,7 +25,7 @@
  *   Pips (capped 0-3):
  *     stretchPips, lSitPips, productivePips, cardTrickPips
  *   Plain fields:
- *     title, nDay, nRead, maxGreen
+ *     title, nDay, nRead, wokeAt5
  *
  * Targets (post-migration 8), table habit_targets:
  *   id INTEGER PK, field TEXT, value INTEGER, effectiveFrom TEXT (YYYY-MM-DD)
@@ -118,7 +119,7 @@ export async function onRequestGet({ request, env }) {
         productivePips: clampPip(row.productivePips),
         cardTrickPips:  clampPip(row.cardTrickPips),
 
-        maxGreen: !!row.maxGreen,
+        wokeAt5:  !!row.wokeAt5,
         nDay:     row.nDay  ?? '',
         nRead:    row.nRead ?? '',
       };
@@ -156,7 +157,7 @@ export async function onRequestPost({ request, env }) {
         date, title,
         pushupsCount, readPagesCount, pullupsCount, oneHandPushupsCount, breathHoldSeconds,
         stretchPips, lSitPips, productivePips, cardTrickPips,
-        maxGreen,
+        wokeAt5,
         nDay, nRead
       )
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -171,7 +172,7 @@ export async function onRequestPost({ request, env }) {
         lSitPips            = excluded.lSitPips,
         productivePips      = excluded.productivePips,
         cardTrickPips       = excluded.cardTrickPips,
-        maxGreen            = excluded.maxGreen,
+        wokeAt5             = excluded.wokeAt5,
         nDay                = excluded.nDay,
         nRead               = excluded.nRead
     `).bind(
@@ -186,7 +187,7 @@ export async function onRequestPost({ request, env }) {
       lSitPips,
       productivePips,
       cardTrickPips,
-      t.maxGreen ? 1 : 0,
+      t.wokeAt5 ? 1 : 0,
       t.nDay  ?? '',
       t.nRead ?? '',
     ).run();
