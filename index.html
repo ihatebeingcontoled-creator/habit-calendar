@@ -883,8 +883,8 @@
 
         const rawTitle = entry && entry.title ? String(entry.title).trim() : '';
         const isMobileView = window.matchMedia('(max-width: 640px)').matches;
-        const titleText = (isMobileView && rawTitle.length > 20)
-          ? rawTitle.slice(0, 20) + '…'
+        const titleText = (isMobileView && rawTitle.length > 35)
+          ? rawTitle.slice(0, 35) + '…'
           : rawTitle;
         if (titleText) {
           const tEl = document.createElement('div');
