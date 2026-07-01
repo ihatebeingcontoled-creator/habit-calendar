@@ -42,7 +42,7 @@
 
     .legend-panel {
       flex-shrink: 0;
-      width: 168px;
+      width: 220px;
       background: #fafafa;
       border: 1.5px solid #ececec;
       border-radius: 14px;
@@ -53,16 +53,14 @@
       font-size: 10.5px; font-weight: 800; text-transform: uppercase;
       letter-spacing: 0.6px; color: #aaa; margin-bottom: 10px; text-align: center;
     }
-    .legend-list { display: flex; flex-direction: column; gap: 7px; }
-    .legend-row { display: flex; align-items: center; gap: 9px; font-size: 11.5px; font-weight: 600; color: #444; }
+    .legend-list { display: grid; grid-template-columns: repeat(3, 1fr); grid-auto-rows: auto; gap: 8px 6px; }
+    .legend-row { display: flex; flex-direction: row; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 700; color: #444; text-align: left; line-height: 1.15; }
     .legend-swatch { width: 16px; height: 16px; border-radius: 6px; flex-shrink: 0; border: 3px solid transparent; }
     .legend-swatch-perfect { border: 2px solid #16a34a; box-shadow: 0 0 0 2px #fff, 0 0 0 4px #22d3ee; }
 
     @media (max-width: 760px) {
       .app-layout { flex-direction: column; }
       .legend-panel { order: 1; width: 100%; }
-      .legend-list { flex-direction: row; flex-wrap: wrap; justify-content: center; gap: 8px 12px; }
-      .legend-row { font-size: 10.5px; }
     }
 
     .app-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 36px; }
@@ -544,18 +542,18 @@
       <div class="legend-panel">
         <div class="legend-title">Color Guide</div>
         <div class="legend-list">
-          <div class="legend-row"><span class="legend-swatch" style="background:#ffe6e6;border-color:rgba(180,0,0,0.6)"></span>Nothing done</div>
-          <div class="legend-row"><span class="legend-swatch" style="background:#fff;border-color:rgba(220,38,38,0.55)"></span>Barely started</div>
-          <div class="legend-row"><span class="legend-swatch" style="background:#fff;border-color:rgba(88,28,135,0.55)"></span>Dark purple</div>
-          <div class="legend-row"><span class="legend-swatch" style="background:#fff;border-color:rgba(147,51,234,0.55)"></span>Purple</div>
-          <div class="legend-row"><span class="legend-swatch" style="background:#fff;border-color:rgba(30,58,138,0.55)"></span>Dark blue</div>
-          <div class="legend-row"><span class="legend-swatch" style="background:#fff;border-color:rgba(59,130,246,0.55)"></span>Blue</div>
-          <div class="legend-row"><span class="legend-swatch" style="background:#fff;border-color:rgba(56,189,248,0.6)"></span>Bright blue</div>
-          <div class="legend-row"><span class="legend-swatch" style="background:#fff;border-color:rgba(6,182,212,0.62)"></span>Cyan</div>
-          <div class="legend-row"><span class="legend-swatch" style="background:#fff;border-color:rgba(234,179,8,0.6)"></span>Yellow</div>
-          <div class="legend-row"><span class="legend-swatch" style="background:#fff;border-color:rgba(250,204,21,0.65)"></span>Bright yellow</div>
-          <div class="legend-row"><span class="legend-swatch" style="background:#dcfce7;border-color:rgba(34,197,94,0.7)"></span>Almost perfect</div>
-          <div class="legend-row"><span class="legend-swatch legend-swatch-perfect" style="background:#dcfce7;"></span>Perfect day</div>
+          <div class="legend-row">1<span class="legend-swatch" style="background:#ffe6e6;border-color:rgba(180,0,0,0.6)"></span></div>
+          <div class="legend-row">2<span class="legend-swatch" style="background:#fff;border-color:rgba(220,38,38,0.55)"></span></div>
+          <div class="legend-row">3<span class="legend-swatch" style="background:#fff;border-color:rgba(88,28,135,0.55)"></span></div>
+          <div class="legend-row">4<span class="legend-swatch" style="background:#fff;border-color:rgba(147,51,234,0.55)"></span></div>
+          <div class="legend-row">5<span class="legend-swatch" style="background:#fff;border-color:rgba(30,58,138,0.55)"></span></div>
+          <div class="legend-row">6<span class="legend-swatch" style="background:#fff;border-color:rgba(59,130,246,0.55)"></span></div>
+          <div class="legend-row">7<span class="legend-swatch" style="background:#fff;border-color:rgba(56,189,248,0.6)"></span></div>
+          <div class="legend-row">8<span class="legend-swatch" style="background:#fff;border-color:rgba(6,182,212,0.62)"></span></div>
+          <div class="legend-row">9<span class="legend-swatch" style="background:#fff;border-color:rgba(234,179,8,0.6)"></span></div>
+          <div class="legend-row">10<span class="legend-swatch" style="background:#fff;border-color:rgba(250,204,21,0.65)"></span></div>
+          <div class="legend-row">11<span class="legend-swatch" style="background:#dcfce7;border-color:rgba(34,197,94,0.7)"></span></div>
+          <div class="legend-row">12<span class="legend-swatch legend-swatch-perfect" style="background:#dcfce7;"></span></div>
         </div>
       </div>
 
