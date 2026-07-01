@@ -404,6 +404,36 @@
     .target-history-del { background: none; border: none; color: #dc2626; font-size: 16px; cursor: pointer; font-family: inherit; line-height: 1; padding: 0 2px; }
     .target-history-empty { font-size: 12px; color: #bbb; font-style: italic; }
 
+    /* ── Settings modal ── */
+    .settings-section { margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1.5px solid #ececec; }
+    .settings-section:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+    .settings-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .settings-row-label { font-size: 13.5px; font-weight: 700; color: #222; }
+    .settings-row-sub { font-size: 11.5px; color: #999; margin-top: 2px; }
+    .settings-number-wrap { margin-top: 10px; }
+    .settings-number-wrap label {
+      font-size: 10.5px; font-weight: 700; color: #aaa; text-transform: uppercase;
+      letter-spacing: 0.5px; display: block; margin-bottom: 6px;
+    }
+    .settings-number-input {
+      width: 100%; border: 1.5px solid #ebebeb; border-radius: 9px; padding: 9px 11px;
+      font-size: 14px; font-family: inherit; outline: none; color: #111; background: #fff;
+    }
+    .settings-number-input:focus { border-color: #555; }
+    .settings-number-input:disabled { background: #f5f5f5; color: #bbb; cursor: not-allowed; }
+
+    .switch { position: relative; display: inline-block; width: 42px; height: 24px; flex-shrink: 0; }
+    .switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+    .switch-track {
+      position: absolute; cursor: pointer; inset: 0; background: #ddd; border-radius: 24px; transition: background 0.15s;
+    }
+    .switch-track::before {
+      content: ''; position: absolute; height: 18px; width: 18px; left: 3px; bottom: 3px;
+      background: #fff; border-radius: 50%; transition: transform 0.15s; box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+    }
+    .switch input:checked + .switch-track { background: #16a34a; }
+    .switch input:checked + .switch-track::before { transform: translateX(18px); }
+
     @media (max-width: 640px) {
       .weekdays, .days-grid { gap: 4px; }
       .day-cell { aspect-ratio: auto; min-height: 78px; height: 78px; padding: 18px 3px 6px; border-radius: 9px; }
@@ -487,7 +517,7 @@
       </div>
     </div>
 
-    <button type="button" class="targets-btn" id="editTargetsBtn">⚙ Edit Daily Targets</button>
+    <button type="button" class="targets-btn" id="openSettingsBtn">⚙ Settings</button>
   </div>
 
   <!-- Day detail modal -->
@@ -558,6 +588,76 @@
     </div>
   </div>
 
+  <div class="overlay" id="settingsOverlay">
+    <div class="modal" style="max-width: 480px;">
+      <div class="modal-head">
+        <span class="modal-title">Settings</span>
+        <button class="close-btn" id="settingsCloseBtn">&times;</button>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-row">
+          <div>
+            <div class="settings-row-label">Daily targets</div>
+            <div class="settings-row-sub">Require a minimum value for a habit to count as done</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="toggleDailyTargets">
+            <span class="switch-track"></span>
+          </label>
+        </div>
+        <button type="button" class="targets-btn" id="editTargetsBtn" style="margin-top:12px;">⚙ Edit Daily Targets</button>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-row">
+          <div>
+            <div class="settings-row-label">Show stats bar</div>
+            <div class="settings-row-sub">Streak, perfect days, pushup and reading days</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="toggleStatsBar">
+            <span class="switch-track"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-row">
+          <div>
+            <div class="settings-row-label">Limit title length — phone</div>
+            <div class="settings-row-sub">Truncate day titles on mobile screens</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="toggleMobileTitleLimit">
+            <span class="switch-track"></span>
+          </label>
+        </div>
+        <div class="settings-number-wrap">
+          <label for="mobileTitleLimitInput">Character limit</label>
+          <input type="number" id="mobileTitleLimitInput" class="settings-number-input" min="1" max="200" value="35">
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-row">
+          <div>
+            <div class="settings-row-label">Limit title length — computer</div>
+            <div class="settings-row-sub">Truncate day titles on desktop screens</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="toggleDesktopTitleLimit">
+            <span class="switch-track"></span>
+          </label>
+        </div>
+        <div class="settings-number-wrap">
+          <label for="desktopTitleLimitInput">Character limit</label>
+          <input type="number" id="desktopTitleLimitInput" class="settings-number-input" min="1" max="200" value="60">
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="toast" id="toast"></div>
 
   <script>
@@ -582,6 +682,45 @@
     ══════════════════════════════════════════════════════════ */
     const PIP_MAX = 3;
     const DEFAULT_TARGET = 1; // reproduces the old ">0 counts as done" behavior
+
+    /* ── Settings: device-local display preferences (localStorage) ── */
+    const SETTINGS_KEY = 'habitcal_settings';
+    const DEFAULT_SETTINGS = {
+      dailyTargetsEnabled:     true,
+      showStatsBar:            true,
+      mobileTitleLimitEnabled:  true,
+      mobileTitleLimit:        35,
+      desktopTitleLimitEnabled: false,
+      desktopTitleLimit:       60,
+    };
+
+    function loadSettings() {
+      try {
+        const raw = localStorage.getItem(SETTINGS_KEY);
+        if (!raw) return { ...DEFAULT_SETTINGS };
+        return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
+      } catch {
+        return { ...DEFAULT_SETTINGS };
+      }
+    }
+    function saveSettings() {
+      try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch { /* ignore */ }
+    }
+    let settings = loadSettings();
+
+    function applySettingsToUI() {
+      const bar = document.querySelector('.stats-bar');
+      if (bar) bar.style.display = settings.showStatsBar ? '' : 'none';
+
+      document.getElementById('toggleDailyTargets').checked      = settings.dailyTargetsEnabled;
+      document.getElementById('toggleStatsBar').checked           = settings.showStatsBar;
+      document.getElementById('toggleMobileTitleLimit').checked   = settings.mobileTitleLimitEnabled;
+      document.getElementById('mobileTitleLimitInput').value      = settings.mobileTitleLimit;
+      document.getElementById('mobileTitleLimitInput').disabled   = !settings.mobileTitleLimitEnabled;
+      document.getElementById('toggleDesktopTitleLimit').checked  = settings.desktopTitleLimitEnabled;
+      document.getElementById('desktopTitleLimitInput').value     = settings.desktopTitleLimit;
+      document.getElementById('desktopTitleLimitInput').disabled  = !settings.desktopTitleLimitEnabled;
+    }
 
     const FIELD_CONFIG = [
       // Non-negotiables
@@ -685,8 +824,9 @@
     }
 
     // A field "passes" for a day when its value meets or beats that day's target.
+    // If daily targets are disabled in Settings, fall back to the simple ">0 counts as done" rule.
     function fieldIsActive(value, fieldKey, dateStr) {
-      const target = getTargetForDate(fieldKey, dateStr);
+      const target = settings.dailyTargetsEnabled ? getTargetForDate(fieldKey, dateStr) : DEFAULT_TARGET;
       return (value || 0) >= target;
     }
 
@@ -883,8 +1023,10 @@
 
         const rawTitle = entry && entry.title ? String(entry.title).trim() : '';
         const isMobileView = window.matchMedia('(max-width: 640px)').matches;
-        const titleText = (isMobileView && rawTitle.length > 35)
-          ? rawTitle.slice(0, 35) + '…'
+        const limitEnabled = isMobileView ? settings.mobileTitleLimitEnabled : settings.desktopTitleLimitEnabled;
+        const limit        = isMobileView ? settings.mobileTitleLimit        : settings.desktopTitleLimit;
+        const titleText = (limitEnabled && rawTitle.length > limit)
+          ? rawTitle.slice(0, limit) + '…'
           : rawTitle;
         if (titleText) {
           const tEl = document.createElement('div');
@@ -1529,6 +1671,57 @@
       }
     });
 
+    document.getElementById('openSettingsBtn').addEventListener('click', () => {
+      applySettingsToUI();
+      document.getElementById('settingsOverlay').classList.add('open');
+    });
+    document.getElementById('settingsCloseBtn').addEventListener('click', () => {
+      document.getElementById('settingsOverlay').classList.remove('open');
+    });
+    document.getElementById('settingsOverlay').addEventListener('click', (e) => {
+      if (e.target === document.getElementById('settingsOverlay')) {
+        document.getElementById('settingsOverlay').classList.remove('open');
+      }
+    });
+
+    document.getElementById('toggleDailyTargets').addEventListener('change', (e) => {
+      settings.dailyTargetsEnabled = e.target.checked;
+      saveSettings();
+      renderCalendar();
+    });
+
+    document.getElementById('toggleStatsBar').addEventListener('change', (e) => {
+      settings.showStatsBar = e.target.checked;
+      saveSettings();
+      applySettingsToUI();
+    });
+
+    document.getElementById('toggleMobileTitleLimit').addEventListener('change', (e) => {
+      settings.mobileTitleLimitEnabled = e.target.checked;
+      saveSettings();
+      applySettingsToUI();
+      renderCalendar();
+    });
+    document.getElementById('mobileTitleLimitInput').addEventListener('input', (e) => {
+      const n = parseInt(e.target.value, 10);
+      settings.mobileTitleLimit = Number.isFinite(n) && n > 0 ? n : DEFAULT_SETTINGS.mobileTitleLimit;
+      saveSettings();
+      renderCalendar();
+    });
+
+    document.getElementById('toggleDesktopTitleLimit').addEventListener('change', (e) => {
+      settings.desktopTitleLimitEnabled = e.target.checked;
+      saveSettings();
+      applySettingsToUI();
+      renderCalendar();
+    });
+    document.getElementById('desktopTitleLimitInput').addEventListener('input', (e) => {
+      const n = parseInt(e.target.value, 10);
+      settings.desktopTitleLimit = Number.isFinite(n) && n > 0 ? n : DEFAULT_SETTINGS.desktopTitleLimit;
+      saveSettings();
+      renderCalendar();
+    });
+
     let resizeTimer;
     window.addEventListener('resize', () => {
       clearTimeout(resizeTimer);
@@ -1536,6 +1729,8 @@
     });
 
     (async () => {
+      const bar = document.querySelector('.stats-bar');
+      if (bar) bar.style.display = settings.showStatsBar ? '' : 'none';
       renderSwipeSections();
       await Promise.all([loadAllHabits(), loadAllFiles(), loadTargets()]);
       renderCalendar();
