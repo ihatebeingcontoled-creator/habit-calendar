@@ -635,12 +635,16 @@
       <div class="section-head">Notes</div>
       <div class="notes-wrap">
         <div class="note-field">
-          <label>What I did today</label>
+          <label>What productive did you do today</label>
           <textarea id="nDay" class="auto-grow" placeholder="What did you get done today?"></textarea>
         </div>
         <div class="note-field">
           <label>What I read about</label>
           <textarea id="nRead" class="auto-grow" placeholder="What was today's reading about?"></textarea>
+        </div>
+        <div class="note-field">
+          <label>Anything else</label>
+          <textarea id="nExtra" class="auto-grow" placeholder="Free space for anything else…"></textarea>
         </div>
       </div>
 
@@ -944,7 +948,7 @@
     let targetsByField = {};
 
     function defaultEntry(date) {
-      const e = { date, title: '', wokeAt5: false, nDay: '', nRead: '' };
+      const e = { date, title: '', wokeAt5: false, nDay: '', nRead: '', nExtra: '' };
       for (const f of FIELD_CONFIG) e[f.key] = 0;
       return e;
     }
@@ -1654,8 +1658,9 @@
 
       formState = defaultEntry(dateStr);
       document.getElementById('dayTitle').value = '';
-      document.getElementById('nDay').value  = '';
-      document.getElementById('nRead').value = '';
+      document.getElementById('nDay').value   = '';
+      document.getElementById('nRead').value  = '';
+      document.getElementById('nExtra').value = '';
 
       const t = habitsData[dateStr];
       if (t) {
@@ -1663,9 +1668,10 @@
           if (t[f.key] !== undefined) formState[f.key] = t[f.key];
         }
         formState.wokeAt5 = !!t.wokeAt5;
-        if (t.title !== undefined) document.getElementById('dayTitle').value = t.title;
-        if (t.nDay  !== undefined) document.getElementById('nDay').value  = t.nDay;
-        if (t.nRead !== undefined) document.getElementById('nRead').value = t.nRead;
+        if (t.title  !== undefined) document.getElementById('dayTitle').value = t.title;
+        if (t.nDay   !== undefined) document.getElementById('nDay').value   = t.nDay;
+        if (t.nRead  !== undefined) document.getElementById('nRead').value  = t.nRead;
+        if (t.nExtra !== undefined) document.getElementById('nExtra').value = t.nExtra;
       }
 
       refreshAllCards();
@@ -1682,9 +1688,10 @@
     function snapshotDayForm() {
       return JSON.stringify({
         formState,
-        title: document.getElementById('dayTitle').value,
-        nDay:  document.getElementById('nDay').value,
-        nRead: document.getElementById('nRead').value,
+        title:  document.getElementById('dayTitle').value,
+        nDay:   document.getElementById('nDay').value,
+        nRead:  document.getElementById('nRead').value,
+        nExtra: document.getElementById('nExtra').value,
       });
     }
 
@@ -1731,6 +1738,7 @@
         wokeAt5:  formState.wokeAt5,
         nDay:     document.getElementById('nDay').value,
         nRead:    document.getElementById('nRead').value,
+        nExtra:   document.getElementById('nExtra').value,
       };
       for (const f of FIELD_CONFIG) payload[f.key] = formState[f.key] || 0;
       await saveHabitData(dateStr, payload);
