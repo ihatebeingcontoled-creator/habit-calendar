@@ -20,6 +20,7 @@
  *   8-create-targets-table.sql→ adds habit_targets table (see bottom of this file's notes)
  *   9-wake-at-5.sql            → drops maxGreen, adds wokeAt5 column
  *   10-create-settings-table.sql → adds habit_settings table (single JSON blob row, id=1)
+ *   11-add-extra-note.sql      → adds nExtra column (free-typing note, no daily requirement)
  *
  * Field model (post-migration 7):
  *   Counters (uncapped, no minimum below 0):
@@ -28,7 +29,7 @@
  *   Pips (capped 0-3):
  *     stretchPips, lSitPips, productivePips, cardTrickPips
  *   Plain fields:
- *     title, nDay, nRead, wokeAt5
+ *     title, nDay, nRead, nExtra, wokeAt5
  *
  * Targets (post-migration 8), table habit_targets:
  *   id INTEGER PK, field TEXT, value INTEGER, effectiveFrom TEXT (YYYY-MM-DD)
@@ -155,8 +156,9 @@ export async function onRequestGet({ request, env }) {
         cardTrickPips:  clampPip(row.cardTrickPips),
 
         wokeAt5:  !!row.wokeAt5,
-        nDay:     row.nDay  ?? '',
-        nRead:    row.nRead ?? '',
+        nDay:     row.nDay   ?? '',
+        nRead:    row.nRead  ?? '',
+        nExtra:   row.nExtra ?? '',
       };
     }
     return json(out);
@@ -196,9 +198,9 @@ export async function onRequestPost({ request, env }) {
         pushupsCount, readPagesCount, pullupsCount, oneHandPushupsCount, breathHoldSeconds,
         stretchPips, lSitPips, productivePips, cardTrickPips,
         wokeAt5,
-        nDay, nRead
+        nDay, nRead, nExtra
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(date) DO UPDATE SET
         title               = excluded.title,
         pushupsCount        = excluded.pushupsCount,
@@ -212,7 +214,8 @@ export async function onRequestPost({ request, env }) {
         cardTrickPips       = excluded.cardTrickPips,
         wokeAt5             = excluded.wokeAt5,
         nDay                = excluded.nDay,
-        nRead               = excluded.nRead
+        nRead               = excluded.nRead,
+        nExtra              = excluded.nExtra
     `).bind(
       t.date,
       t.title ?? '',
@@ -226,8 +229,9 @@ export async function onRequestPost({ request, env }) {
       productivePips,
       cardTrickPips,
       t.wokeAt5 ? 1 : 0,
-      t.nDay  ?? '',
-      t.nRead ?? '',
+      t.nDay   ?? '',
+      t.nRead  ?? '',
+      t.nExtra ?? '',
     ).run();
     return json({ ok: true });
   } catch (e) {
