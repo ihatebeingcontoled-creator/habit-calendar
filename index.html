@@ -56,7 +56,7 @@
     .legend-list { display: grid; grid-template-columns: repeat(6, 1fr); grid-auto-rows: auto; gap: 8px 6px; }
     .legend-row { display: flex; flex-direction: row; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 700; color: #444; text-align: left; line-height: 1.15; }
     .legend-swatch { width: 16px; height: 16px; border-radius: 6px; flex-shrink: 0; border: 3px solid transparent; }
-    .legend-swatch-perfect { border: 2px solid #16a34a; box-shadow: 0 0 0 2px #fff, 0 0 0 4px #22d3ee; }
+    .legend-swatch-perfect { border: 2px solid #72fb0f; box-shadow: 0 0 0 2px #fff, 0 0 0 4px #22d3ee; }
 
     @media (max-width: 760px) {
       .app-layout { flex-direction: column; }
@@ -136,14 +136,14 @@
       border-color: #adf623;
     }
     .day-cell.lvl-10 {
-      box-shadow: 0 0 0 2px #72fb0f, 0 0 6px 2px rgba(114,251,15,0.55);
-      border-color: #72fb0f; background: #eafedb;
+      box-shadow: 0 0 0 2px #8df918, 0 0 6px 2px rgba(141,249,24,0.55);
+      border-color: #8df918; background: #f3fde0;
     }
 
     .day-cell.fully-complete {
       box-shadow:
-        0 0 0 2px rgba(34,197,94,0.82),
-        0 0 6px 2px rgba(34,197,94,0.48),
+        0 0 0 2px #72fb0f,
+        0 0 6px 2px rgba(114,251,15,0.48),
         inset 0 0 0 3px #22d3ee,
         inset 0 0 8px 2px rgba(34,211,238,0.55);
       animation: cyan-ring-pulse 2.2s ease-in-out infinite;
@@ -151,15 +151,15 @@
     @keyframes cyan-ring-pulse {
       0%, 100% {
         box-shadow:
-          0 0 0 2px rgba(34,197,94,0.82),
-          0 0 6px 2px rgba(34,197,94,0.48),
+          0 0 0 2px #72fb0f,
+          0 0 6px 2px rgba(114,251,15,0.48),
           inset 0 0 0 3px #22d3ee,
           inset 0 0 8px 2px rgba(34,211,238,0.55);
       }
       50% {
         box-shadow:
-          0 0 0 2px rgba(34,197,94,0.82),
-          0 0 6px 2px rgba(34,197,94,0.48),
+          0 0 0 2px #72fb0f,
+          0 0 6px 2px rgba(114,251,15,0.48),
           inset 0 0 0 3px #67e8f9,
           inset 0 0 10px 3px rgba(34,211,238,0.75);
       }
@@ -565,7 +565,7 @@
           <div class="legend-row">8<span class="legend-swatch" style="background:#fff;border-color:#e9f038"></span></div>
           <div class="legend-row">9<span class="legend-swatch" style="background:#fff;border-color:#caf32d"></span></div>
           <div class="legend-row">10<span class="legend-swatch" style="background:#fff;border-color:#adf623"></span></div>
-          <div class="legend-row">11<span class="legend-swatch" style="background:#eafedb;border-color:#72fb0f"></span></div>
+          <div class="legend-row">11<span class="legend-swatch" style="background:#f3fde0;border-color:#8df918"></span></div>
           <div class="legend-row">12<span class="legend-swatch legend-swatch-perfect" style="background:#eafedb;"></span></div>
         </div>
       </div>
