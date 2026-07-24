@@ -1959,16 +1959,16 @@
       document.getElementById('nRead').value  = '';
       document.getElementById('nExtra').value = '';
 
-      const t = habitsData[dateStr];
-      if (t) {
+      const entry = habitsData[dateStr];
+      if (entry) {
         for (const f of FIELD_CONFIG) {
-          if (t[f.key] !== undefined) formState[f.key] = t[f.key];
+          if (entry[f.key] !== undefined) formState[f.key] = entry[f.key];
         }
-        formState.wokeAt5 = !!t.wokeAt5;
-        if (t.title  !== undefined) document.getElementById('dayTitle').value = t.title;
-        if (t.nDay   !== undefined) document.getElementById('nDay').value   = t.nDay;
-        if (t.nRead  !== undefined) document.getElementById('nRead').value  = t.nRead;
-        if (t.nExtra !== undefined) document.getElementById('nExtra').value = t.nExtra;
+        formState.wokeAt5 = !!entry.wokeAt5;
+        if (entry.title  !== undefined) document.getElementById('dayTitle').value = entry.title;
+        if (entry.nDay   !== undefined) document.getElementById('nDay').value   = entry.nDay;
+        if (entry.nRead  !== undefined) document.getElementById('nRead').value  = entry.nRead;
+        if (entry.nExtra !== undefined) document.getElementById('nExtra').value = entry.nExtra;
       }
 
       refreshAllCards();
