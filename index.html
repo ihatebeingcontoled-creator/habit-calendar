@@ -417,6 +417,19 @@
     }
     .settings-cell { min-width: 0; }
     .settings-cell-charlimit { gap: 5px; }
+
+    .lang-btn { transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.2s; color: #555; }
+    .lang-btn:hover { background: #f4f4f4; border-color: #ccc; }
+    .lang-btn.active {
+      color: #111; border-color: #3b82f6; background: #eff6ff;
+      box-shadow: 0 0 0 2px rgba(59,130,246,0.55), 0 0 10px 2px rgba(59,130,246,0.45);
+    }
+    body.night-mode .lang-btn { background: #1a1a1a; border-color: #333; color: #999; }
+    body.night-mode .lang-btn:hover { background: #222; }
+    body.night-mode .lang-btn.active {
+      color: #fff; border-color: #60a5fa; background: #142136;
+      box-shadow: 0 0 0 2px rgba(96,165,250,0.6), 0 0 12px 3px rgba(96,165,250,0.5);
+    }
     .settings-number-input-sm {
       width: 38px; border: 1.5px solid #ebebeb; border-radius: 7px; padding: 3px 4px;
       font-size: 12px; font-family: inherit; outline: none; color: #111; background: #fff; text-align: center;
@@ -535,12 +548,12 @@
 <body>
   <div class="app">
     <div class="app-header">
-      <span class="app-title">Habit Calendar</span>
+      <span class="app-title" id="appTitleEl">Habit Calendar</span>
     </div>
 
     <div class="app-layout">
       <div class="legend-panel">
-        <div class="legend-title">Color Guide</div>
+        <div class="legend-title" id="colorGuideEl">Color Guide</div>
         <div class="legend-list">
           <div class="legend-row">1<span class="legend-swatch" style="background:#ffe6e6;border-color:rgba(180,0,0,0.6)"></span></div>
           <div class="legend-row">2<span class="legend-swatch" style="background:#fff;border-color:rgba(220,38,38,0.55)"></span></div>
@@ -566,24 +579,24 @@
 
         <div class="stats-bar">
           <div class="stat-card">
-            <div class="stat-label">Current Streak</div>
+            <div class="stat-label" id="statStreakLabel">Current Streak</div>
             <div class="stat-value" id="statStreak">0</div>
           </div>
           <div class="stat-card">
-            <div class="stat-label">Perfect Days</div>
+            <div class="stat-label" id="statPerfectLabel">Perfect Days</div>
             <div class="stat-value" id="statPerfect">0</div>
           </div>
           <div class="stat-card">
-            <div class="stat-label">Pushup Days</div>
+            <div class="stat-label" id="statPushupsLabel">Pushup Days</div>
             <div class="stat-value" id="statPushups">0</div>
           </div>
           <div class="stat-card">
-            <div class="stat-label">Reading Days</div>
+            <div class="stat-label" id="statReadingLabel">Reading Days</div>
             <div class="stat-value" id="statReading">0</div>
           </div>
         </div>
 
-        <div class="weekdays">
+        <div class="weekdays" id="weekdaysRow">
           <div class="weekday">Mon</div>
           <div class="weekday">Tue</div>
           <div class="weekday">Wed</div>
@@ -611,48 +624,48 @@
         ⏰ Wake up at 5am
       </button>
 
-      <div class="section-head">Title</div>
+      <div class="section-head" id="titleSectionEl">Title</div>
       <div class="title-wrap">
         <textarea id="dayTitle" class="title-input auto-grow" maxlength="200" rows="1"
                placeholder="Give this day a title…"></textarea>
       </div>
 
-      <div class="section-head">Non-Negotiables</div>
+      <div class="section-head" id="nonNegSectionEl">Non-Negotiables</div>
       <div class="section-block">
         <div class="swipe-grid" id="nonNegotiablesGrid"></div>
       </div>
 
-      <div class="section-head">Fitness</div>
+      <div class="section-head" id="fitnessSectionEl">Fitness</div>
       <div class="section-block">
         <div class="swipe-grid" id="fitnessGrid"></div>
       </div>
 
-      <div class="section-head">Skills</div>
+      <div class="section-head" id="skillsSectionEl">Skills</div>
       <div class="section-block">
         <div class="swipe-grid" id="skillsGrid"></div>
       </div>
 
-      <div class="section-head">Notes</div>
+      <div class="section-head" id="notesSectionEl">Notes</div>
       <div class="notes-wrap">
         <div class="note-field">
-          <label>What productive did you do today</label>
+          <label id="nDayLabelEl">What productive did you do today</label>
           <textarea id="nDay" class="auto-grow" placeholder="What did you get done today?"></textarea>
         </div>
         <div class="note-field">
-          <label>What I read about</label>
+          <label id="nReadLabelEl">What I read about</label>
           <textarea id="nRead" class="auto-grow" placeholder="What was today's reading about?"></textarea>
         </div>
         <div class="note-field">
-          <label>Anything else</label>
+          <label id="nExtraLabelEl">Anything else</label>
           <textarea id="nExtra" class="auto-grow" placeholder="Free space for anything else…"></textarea>
         </div>
       </div>
 
-      <div class="section-head">Files</div>
+      <div class="section-head" id="filesSectionEl">Files</div>
       <div class="files-wrap">
         <input type="file" id="fileInput" multiple style="display:none" />
         <button type="button" class="file-add-btn" id="fileAddBtn">+ Add files</button>
-        <div class="files-hint">Max 500KB per file</div>
+        <div class="files-hint" id="filesHintEl">Max 500KB per file</div>
         <div class="files-list" id="filesList"></div>
       </div>
 
@@ -664,7 +677,7 @@
   <div class="overlay" id="targetsOverlay">
     <div class="modal" style="max-width: 560px;">
       <div class="modal-head">
-        <span class="modal-title">Daily Targets</span>
+        <span class="modal-title" id="targetsModalTitleEl">Daily Targets</span>
         <button class="close-btn" id="targetsCloseBtn">&times;</button>
       </div>
       <div id="targetsFieldList" class="targets-field-list"></div>
@@ -674,14 +687,23 @@
   <div class="overlay" id="settingsOverlay">
     <div class="modal" style="max-width: 480px;">
       <div class="modal-head">
-        <span class="modal-title">Settings</span>
+        <span class="modal-title" id="settingsModalTitleEl">Settings</span>
         <button class="close-btn" id="settingsCloseBtn">&times;</button>
+      </div>
+
+      <div class="settings-cell" style="margin-bottom:12px;">
+        <button type="button" class="info-btn" id="languageInfoBtn" data-info="Switches the app language. Syncs across all your devices, same as every other setting.">i</button>
+        <span class="settings-cell-label" id="languageLabelEl">Language</span>
+        <div class="lang-switch" id="langSwitch" style="display:flex; gap:6px; margin-left:auto;">
+          <button type="button" class="lang-btn" data-lang="en" style="padding:6px 12px; font-size:11px; font-weight:800; border-radius:8px; border:1.5px solid #e2e2e2; background:#fff; cursor:pointer; font-family:inherit;">EN</button>
+          <button type="button" class="lang-btn" data-lang="lt" style="padding:6px 12px; font-size:11px; font-weight:800; border-radius:8px; border:1.5px solid #e2e2e2; background:#fff; cursor:pointer; font-family:inherit;">LT</button>
+        </div>
       </div>
 
       <div class="settings-grid">
         <div class="settings-cell">
-          <button type="button" class="info-btn" data-info="Shows a daily targets bar and lets you track progress toward goals you set for each day.">i</button>
-          <span class="settings-cell-label">Daily targets</span>
+          <button type="button" class="info-btn" id="dailyTargetsInfoBtn" data-info="Shows a daily targets bar and lets you track progress toward goals you set for each day.">i</button>
+          <span class="settings-cell-label" id="dailyTargetsLabelEl">Daily targets</span>
           <label class="switch switch-sm">
             <input type="checkbox" id="toggleDailyTargets">
             <span class="switch-track"></span>
@@ -689,8 +711,8 @@
         </div>
 
         <div class="settings-cell">
-          <button type="button" class="info-btn" data-info="Shows a summary bar with stats about your month, like completion rates and streaks.">i</button>
-          <span class="settings-cell-label">Stats bar</span>
+          <button type="button" class="info-btn" id="statsBarInfoBtn" data-info="Shows a summary bar with stats about your month, like completion rates and streaks.">i</button>
+          <span class="settings-cell-label" id="statsBarLabelEl">Stats bar</span>
           <label class="switch switch-sm">
             <input type="checkbox" id="toggleStatsBar">
             <span class="switch-track"></span>
@@ -698,8 +720,8 @@
         </div>
 
         <div class="settings-cell">
-          <button type="button" class="info-btn" data-info="Switches the app to a darker color scheme, easier on the eyes in low light.">i</button>
-          <span class="settings-cell-label">Night mode</span>
+          <button type="button" class="info-btn" id="nightModeInfoBtn" data-info="Switches the app to a darker color scheme, easier on the eyes in low light.">i</button>
+          <span class="settings-cell-label" id="nightModeLabelEl">Night mode</span>
           <label class="switch switch-sm">
             <input type="checkbox" id="toggleNightMode">
             <span class="switch-track"></span>
@@ -707,8 +729,8 @@
         </div>
 
         <div class="settings-cell">
-          <button type="button" class="info-btn" data-info="Warns you before closing a day or leaving settings if you have unsaved changes.">i</button>
-          <span class="settings-cell-label">Unsaved warning</span>
+          <button type="button" class="info-btn" id="warnUnsavedInfoBtn" data-info="Warns you before closing a day or leaving settings if you have unsaved changes.">i</button>
+          <span class="settings-cell-label" id="warnUnsavedLabelEl">Unsaved warning</span>
           <label class="switch switch-sm">
             <input type="checkbox" id="toggleWarnUnsaved">
             <span class="switch-track"></span>
@@ -716,8 +738,8 @@
         </div>
 
         <div class="settings-cell settings-cell-charlimit">
-          <button type="button" class="info-btn" data-info="Truncates day titles on phone screens once they pass this many characters.">i</button>
-          <span class="settings-cell-label">Phone chars:</span>
+          <button type="button" class="info-btn" id="phoneCharsInfoBtn" data-info="Truncates day titles on phone screens once they pass this many characters.">i</button>
+          <span class="settings-cell-label" id="phoneCharsLabelEl">Phone chars:</span>
           <input type="number" id="mobileTitleLimitInput" class="settings-number-input-sm" min="1" max="200" value="35">
           <label class="switch switch-sm">
             <input type="checkbox" id="toggleMobileTitleLimit">
@@ -726,8 +748,8 @@
         </div>
 
         <div class="settings-cell settings-cell-charlimit">
-          <button type="button" class="info-btn" data-info="Truncates day titles on desktop screens once they pass this many characters.">i</button>
-          <span class="settings-cell-label">PC chars:</span>
+          <button type="button" class="info-btn" id="pcCharsInfoBtn" data-info="Truncates day titles on desktop screens once they pass this many characters.">i</button>
+          <span class="settings-cell-label" id="pcCharsLabelEl">PC chars:</span>
           <input type="number" id="desktopTitleLimitInput" class="settings-number-input-sm" min="1" max="200" value="60">
           <label class="switch switch-sm">
             <input type="checkbox" id="toggleDesktopTitleLimit">
@@ -778,6 +800,210 @@
     const PIP_MAX = 3;
     const DEFAULT_TARGET = 1; // reproduces the old ">0 counts as done" behavior
 
+    /* ── i18n: static UI text only. User-entered content (titles, notes,
+       file names) is never translated. `settings.language` is 'en' | 'lt'
+       and syncs to D1 exactly like every other setting. ── */
+    const I18N = {
+      en: {
+        appTitle: 'Habit Calendar',
+        colorGuide: 'Color Guide',
+        currentStreak: 'Current Streak',
+        perfectDays: 'Perfect Days',
+        pushupDays: 'Pushup Days',
+        readingDays: 'Reading Days',
+        weekdays: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],
+        months: ['January','February','March','April','May','June',
+                 'July','August','September','October','November','December'],
+        settingsBtn: '⚙ Settings',
+        dayModalTitle: 'Day',
+        wakeUp: '⏰ Wake up at 5am',
+        wakeUpDone: '⏰ Woke up at 5am ✓',
+        titleSection: 'Title',
+        titlePlaceholder: 'Give this day a title…',
+        nonNegSection: 'Non-Negotiables',
+        fitnessSection: 'Fitness',
+        skillsSection: 'Skills',
+        notesSection: 'Notes',
+        filesSection: 'Files',
+        nDayLabel: 'What productive did you do today',
+        nDayPlaceholder: 'What did you get done today?',
+        nReadLabel: 'What I read about',
+        nReadPlaceholder: "What was today's reading about?",
+        nExtraLabel: 'Anything else',
+        nExtraPlaceholder: 'Free space for anything else…',
+        addFiles: '+ Add files',
+        uploadingFile: 'Uploading',
+        maxFileSize: 'Max 500KB per file',
+        noFilesForDay: 'No files for this day.',
+        deleteThisFile: 'Delete this file',
+        deleteConfirm: 'Delete "{name}"?',
+        saveDay: 'Save Day',
+        saving: 'Saving…',
+        savedToast: 'Saved!',
+        saveFailedToast: 'Failed to save — please try again.',
+        deletedToast: 'Deleted.',
+        deleteFailedToast: 'Delete failed.',
+        uploadedToast: 'Uploaded.',
+        uploadedMultiToast: '{n} files uploaded.',
+        uploadFailedToast: 'Upload failed: {name}',
+        tooBigToast: '{name}: too big ({size}, max 500KB)',
+        dailyTargetsTitle: 'Daily Targets',
+        editTargets: '⚙ Edit Daily Targets',
+        newTargetValue: 'New target value',
+        effectiveFrom: 'Effective from',
+        save: 'Save',
+        closeWithoutSaving: 'Close without saving',
+        removeChange: 'Remove this target change',
+        removedToast: 'Removed.',
+        targetSavedToast: 'Target saved.',
+        targetSaveFailedToast: 'Failed to save target.',
+        enterValidTarget: 'Enter a valid target and date.',
+        removeFailedToast: 'Failed to remove.',
+        noCustomTargets: 'No custom targets set yet — default is {n}.',
+        targetHistoryLabel: '{value} from {date}',
+        settingsTitle: 'Settings',
+        dailyTargetsLabel: 'Daily targets',
+        dailyTargetsInfo: 'Shows a daily targets bar and lets you track progress toward goals you set for each day.',
+        statsBarLabel: 'Stats bar',
+        statsBarInfo: 'Shows a summary bar with stats about your month, like completion rates and streaks.',
+        nightModeLabel: 'Night mode',
+        nightModeInfo: 'Switches the app to a darker color scheme, easier on the eyes in low light.',
+        warnUnsavedLabel: 'Unsaved warning',
+        warnUnsavedInfo: 'Warns you before closing a day or leaving settings if you have unsaved changes.',
+        phoneChars: 'Phone chars:',
+        phoneCharsInfo: 'Truncates day titles on phone screens once they pass this many characters.',
+        pcChars: 'PC chars:',
+        pcCharsInfo: 'Truncates day titles on desktop screens once they pass this many characters.',
+        languageLabel: 'Language',
+        languageInfo: 'Switches the app language. Syncs across all your devices, same as every other setting.',
+        saveSettings: 'Save Settings',
+        settingsSaved: 'Settings saved.',
+        settingsSaveFailed: 'Failed to save settings — please try again.',
+        unsavedSettingsMsg: 'You have unsaved settings changes. Save before closing?',
+        unsavedDayMsg: 'You have unsaved changes for this day. Save before closing?',
+        target: 'Target',
+        pip: 'pip',
+        pips: 'pips',
+        fields: {
+          pushupsCount: 'Pushups',
+          readPagesCount: 'Pages',
+          stretchPips: 'Stretch',
+          lSitPips: 'L-sit',
+          oneHandPushupsCount: 'One-hand pushups',
+          pullupsCount: 'Pull-ups',
+          breathHoldSeconds: 'Hold your breath for',
+          productivePips: 'Do something productive',
+          cardTrickPips: 'Practice a card trick',
+        },
+      },
+      lt: {
+        appTitle: 'Įpročių Kalendorius',
+        colorGuide: 'Spalvų Gidas',
+        currentStreak: 'Dabartinė Serija',
+        perfectDays: 'Tobulos Dienos',
+        pushupDays: 'Atsispaudimų Dienos',
+        readingDays: 'Skaitymo Dienos',
+        weekdays: ['Pr','An','Tr','Kt','Pn','Št','Sk'],
+        months: ['Sausis','Vasaris','Kovas','Balandis','Gegužė','Birželis',
+                 'Liepa','Rugpjūtis','Rugsėjis','Spalis','Lapkritis','Gruodis'],
+        settingsBtn: '⚙ Nustatymai',
+        dayModalTitle: 'Diena',
+        wakeUp: '⏰ Atsikelti 5 val. ryto',
+        wakeUpDone: '⏰ Atsikėliau 5 val. ✓',
+        titleSection: 'Pavadinimas',
+        titlePlaceholder: 'Suteikite šiai dienai pavadinimą…',
+        nonNegSection: 'Privalomi Dalykai',
+        fitnessSection: 'Fizinis Aktyvumas',
+        skillsSection: 'Įgūdžiai',
+        notesSection: 'Pastabos',
+        filesSection: 'Failai',
+        nDayLabel: 'Ką produktyvaus nuveikei šiandien',
+        nDayPlaceholder: 'Ką nuveikei šiandien?',
+        nReadLabel: 'Apie ką skaičiau',
+        nReadPlaceholder: 'Apie ką buvo šiandienos skaitymas?',
+        nExtraLabel: 'Kas nors kita',
+        nExtraPlaceholder: 'Laisva vieta bet kam kitam…',
+        addFiles: '+ Pridėti failus',
+        uploadingFile: 'Keliama',
+        maxFileSize: 'Maks. 500KB vienam failui',
+        noFilesForDay: 'Šiai dienai failų nėra.',
+        deleteThisFile: 'Ištrinti šį failą',
+        deleteConfirm: 'Ištrinti „{name}"?',
+        saveDay: 'Išsaugoti Dieną',
+        saving: 'Saugoma…',
+        savedToast: 'Išsaugota!',
+        saveFailedToast: 'Nepavyko išsaugoti — bandykite dar kartą.',
+        deletedToast: 'Ištrinta.',
+        deleteFailedToast: 'Ištrinti nepavyko.',
+        uploadedToast: 'Įkelta.',
+        uploadedMultiToast: 'Įkelta failų: {n}.',
+        uploadFailedToast: 'Įkėlimas nepavyko: {name}',
+        tooBigToast: '{name}: per didelis ({size}, maks. 500KB)',
+        dailyTargetsTitle: 'Dienos Tikslai',
+        editTargets: '⚙ Keisti Dienos Tikslus',
+        newTargetValue: 'Nauja tikslo reikšmė',
+        effectiveFrom: 'Galioja nuo',
+        save: 'Išsaugoti',
+        closeWithoutSaving: 'Uždaryti neišsaugant',
+        removeChange: 'Pašalinti šį tikslo pakeitimą',
+        removedToast: 'Pašalinta.',
+        targetSavedToast: 'Tikslas išsaugotas.',
+        targetSaveFailedToast: 'Nepavyko išsaugoti tikslo.',
+        enterValidTarget: 'Įveskite galiojantį tikslą ir datą.',
+        removeFailedToast: 'Pašalinti nepavyko.',
+        noCustomTargets: 'Individualūs tikslai dar nenustatyti — numatytasis yra {n}.',
+        targetHistoryLabel: '{value} nuo {date}',
+        settingsTitle: 'Nustatymai',
+        dailyTargetsLabel: 'Dienos tikslai',
+        dailyTargetsInfo: 'Rodo dienos tikslų juostą ir leidžia sekti pažangą link kiekvienai dienai užsibrėžtų tikslų.',
+        statsBarLabel: 'Statistikos juosta',
+        statsBarInfo: 'Rodo suvestinės juostą su mėnesio statistika, pvz., įvykdymo rodikliais ir serijomis.',
+        nightModeLabel: 'Nakties režimas',
+        nightModeInfo: 'Perjungia programėlę į tamsesnę spalvų schemą, švelnesnę akims prastame apšvietime.',
+        warnUnsavedLabel: 'Neišsaugotų perspėjimas',
+        warnUnsavedInfo: 'Perspėja prieš uždarant dieną ar nustatymus, jei yra neišsaugotų pakeitimų.',
+        phoneChars: 'Telefono simboliai:',
+        phoneCharsInfo: 'Sutrumpina dienos pavadinimus telefono ekranuose, kai jie viršija šį simbolių skaičių.',
+        pcChars: 'Kompiuterio simboliai:',
+        pcCharsInfo: 'Sutrumpina dienos pavadinimus kompiuterio ekranuose, kai jie viršija šį simbolių skaičių.',
+        languageLabel: 'Kalba',
+        languageInfo: 'Keičia programėlės kalbą. Sinchronizuojasi visuose jūsų įrenginiuose, kaip ir kiti nustatymai.',
+        saveSettings: 'Išsaugoti Nustatymus',
+        settingsSaved: 'Nustatymai išsaugoti.',
+        settingsSaveFailed: 'Nepavyko išsaugoti nustatymų — bandykite dar kartą.',
+        unsavedSettingsMsg: 'Turite neišsaugotų nustatymų pakeitimų. Išsaugoti prieš uždarant?',
+        unsavedDayMsg: 'Turite neišsaugotų šios dienos pakeitimų. Išsaugoti prieš uždarant?',
+        target: 'Tikslas',
+        pip: 'taškas',
+        pips: 'taškai',
+        fields: {
+          pushupsCount: 'Atsispaudimai',
+          readPagesCount: 'Puslapiai',
+          stretchPips: 'Tempimas',
+          lSitPips: 'L-sėdynė',
+          oneHandPushupsCount: 'Atsispaudimai viena ranka',
+          pullupsCount: 'Prisitraukimai',
+          breathHoldSeconds: 'Sulaikyk kvėpavimą',
+          productivePips: 'Padaryti ką nors produktyvaus',
+          cardTrickPips: 'Pasipraktikuoti kortų triuką',
+        },
+      },
+    };
+
+    function t(key) {
+      const dict = I18N[settings.language] || I18N.en;
+      return (key in dict) ? dict[key] : I18N.en[key];
+    }
+    function tf(key, params) {
+      let s = t(key);
+      for (const k in params) s = s.split('{' + k + '}').join(params[k]);
+      return s;
+    }
+    function fieldLabel(field) {
+      const dict = I18N[settings.language] || I18N.en;
+      return (dict.fields && dict.fields[field.key]) || field.label;
+    }
+
     /* ── Settings: shared across devices via D1 (habit_settings table).
        localStorage is kept only as an instant-paint cache for the very
        first render before the server round-trip completes — the server
@@ -792,6 +1018,7 @@
       desktopTitleLimit:       60,
       nightMode:               false,
       warnUnsavedChanges:      true,
+      language:                'en',
     };
 
     function loadSettings() {
@@ -846,7 +1073,76 @@
     function applySettingsEffects() {
       applyStatsBarVisibility();
       applyNightMode();
+      applyLanguage();
       renderCalendar();
+    }
+
+    // Repaints every piece of static chrome text in the current settings.language.
+    // Never touches user-entered content (day titles, notes, file names).
+    function applyLanguage() {
+      document.documentElement.lang = settings.language === 'lt' ? 'lt' : 'en';
+      document.getElementById('appTitleEl').textContent      = t('appTitle');
+      document.title                                          = t('appTitle');
+      document.getElementById('colorGuideEl').textContent    = t('colorGuide');
+      document.getElementById('statStreakLabel').textContent  = t('currentStreak');
+      document.getElementById('statPerfectLabel').textContent = t('perfectDays');
+      document.getElementById('statPushupsLabel').textContent = t('pushupDays');
+      document.getElementById('statReadingLabel').textContent = t('readingDays');
+
+      const wdEls = document.querySelectorAll('#weekdaysRow .weekday');
+      t('weekdays').forEach((label, i) => { if (wdEls[i]) wdEls[i].textContent = label; });
+
+      document.getElementById('openSettingsBtn').textContent = t('settingsBtn');
+      updateWakeBtn();
+
+      document.getElementById('titleSectionEl').textContent   = t('titleSection');
+      document.getElementById('dayTitle').placeholder         = t('titlePlaceholder');
+      document.getElementById('nonNegSectionEl').textContent  = t('nonNegSection');
+      document.getElementById('fitnessSectionEl').textContent = t('fitnessSection');
+      document.getElementById('skillsSectionEl').textContent  = t('skillsSection');
+      document.getElementById('notesSectionEl').textContent   = t('notesSection');
+      document.getElementById('nDayLabelEl').textContent      = t('nDayLabel');
+      document.getElementById('nDay').placeholder              = t('nDayPlaceholder');
+      document.getElementById('nReadLabelEl').textContent     = t('nReadLabel');
+      document.getElementById('nRead').placeholder             = t('nReadPlaceholder');
+      document.getElementById('nExtraLabelEl').textContent    = t('nExtraLabel');
+      document.getElementById('nExtra').placeholder            = t('nExtraPlaceholder');
+      document.getElementById('filesSectionEl').textContent   = t('filesSection');
+      document.getElementById('fileAddBtn').textContent       = t('addFiles');
+      document.getElementById('filesHintEl').textContent      = t('maxFileSize');
+      document.getElementById('saveBtn').textContent          = t('saveDay');
+
+      document.getElementById('targetsModalTitleEl').textContent = t('dailyTargetsTitle');
+      document.getElementById('editTargetsBtn').textContent      = t('editTargets');
+
+      document.getElementById('settingsModalTitleEl').textContent = t('settingsTitle');
+      document.getElementById('languageLabelEl').textContent      = t('languageLabel');
+      document.getElementById('languageInfoBtn').dataset.info     = t('languageInfo');
+      document.getElementById('dailyTargetsLabelEl').textContent  = t('dailyTargetsLabel');
+      document.getElementById('dailyTargetsInfoBtn').dataset.info = t('dailyTargetsInfo');
+      document.getElementById('statsBarLabelEl').textContent      = t('statsBarLabel');
+      document.getElementById('statsBarInfoBtn').dataset.info     = t('statsBarInfo');
+      document.getElementById('nightModeLabelEl').textContent     = t('nightModeLabel');
+      document.getElementById('nightModeInfoBtn').dataset.info    = t('nightModeInfo');
+      document.getElementById('warnUnsavedLabelEl').textContent   = t('warnUnsavedLabel');
+      document.getElementById('warnUnsavedInfoBtn').dataset.info  = t('warnUnsavedInfo');
+      document.getElementById('phoneCharsLabelEl').textContent    = t('phoneChars');
+      document.getElementById('phoneCharsInfoBtn').dataset.info   = t('phoneCharsInfo');
+      document.getElementById('pcCharsLabelEl').textContent       = t('pcChars');
+      document.getElementById('pcCharsInfoBtn').dataset.info      = t('pcCharsInfo');
+      document.getElementById('settingsSaveBtn').textContent      = t('saveSettings');
+      document.getElementById('confirmSaveBtn').textContent       = t('save');
+      document.getElementById('confirmDiscardBtn').textContent    = t('closeWithoutSaving');
+      document.querySelectorAll('.lang-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.lang === settings.language);
+      });
+
+      // Re-render pieces that build their own markup from field labels
+      renderSwipeSections();
+      if (activeDate) { refreshAllCards(); updateWakeBtn(); }
+      if (document.getElementById('targetsOverlay').classList.contains('open')) {
+        renderTargetsFieldList();
+      }
     }
 
     function loadSettingsFormFromPending() {
@@ -860,6 +1156,9 @@
       document.getElementById('desktopTitleLimitInput').disabled  = !pendingSettings.desktopTitleLimitEnabled;
       document.getElementById('toggleNightMode').checked          = pendingSettings.nightMode;
       document.getElementById('toggleWarnUnsaved').checked        = pendingSettings.warnUnsavedChanges;
+      document.querySelectorAll('.lang-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.lang === pendingSettings.language);
+      });
     }
 
     function settingsIsDirty() {
@@ -876,7 +1175,7 @@
     async function commitSettingsSave() {
       const btn = document.getElementById('settingsSaveBtn');
       btn.disabled = true;
-      btn.textContent = 'Saving…';
+      btn.textContent = t('saving');
 
       settings = { ...pendingSettings };
       let ok = true;
@@ -884,14 +1183,14 @@
         await saveSettingsToServer();
         applySettingsEffects();
         document.getElementById('settingsOverlay').classList.remove('open');
-        toast('Settings saved.');
+        toast(t('settingsSaved'));
       } catch {
-        toast('Failed to save settings — please try again.', true);
+        toast(t('settingsSaveFailed'), true);
         ok = false;
       }
 
       btn.disabled = false;
-      btn.textContent = 'Save Settings';
+      btn.textContent = t('saveSettings');
       return ok;
     }
 
@@ -933,8 +1232,6 @@
       { key: 'cardTrickPips',       kind: 'pip',                section: 'skills',  label: 'Practice a card trick' },
     ];
 
-    const MONTHS = ['January','February','March','April','May','June',
-                    'July','August','September','October','November','December'];
     let now       = new Date();
     let viewYear  = now.getFullYear();
     let viewMonth = now.getMonth();
@@ -1151,7 +1448,7 @@
 
     async function uploadFile(file, dateStr) {
       if (file.size > MAX_FILE_BYTES) {
-        toast(file.name + ': too big (' + fmtKB(file.size) + ', max 500KB)', true);
+        toast(tf('tooBigToast', { name: file.name, size: fmtKB(file.size) }), true);
         return null;
       }
       const data = await fileToBase64(file);
@@ -1162,7 +1459,7 @@
       });
       if (!r.ok) {
         const err = await r.json().catch(() => ({}));
-        toast('Upload failed: ' + (err.error || file.name), true);
+        toast(tf('uploadFailedToast', { name: err.error || file.name }), true);
         return null;
       }
       return await r.json();
@@ -1174,7 +1471,7 @@
     }
 
     function renderCalendar() {
-      document.getElementById('monthLabel').textContent = MONTHS[viewMonth] + ' ' + viewYear;
+      document.getElementById('monthLabel').textContent = t('months')[viewMonth] + ' ' + viewYear;
       const grid         = document.getElementById('daysGrid');
       const today        = new Date();
       const firstDow     = new Date(viewYear, viewMonth, 1).getDay();
@@ -1233,7 +1530,7 @@
         if (entry && entry.wokeAt5) {
           const dot = document.createElement('div');
           dot.className = 'wake-5am-dot';
-          dot.title = 'Woke up at 5am';
+          dot.title = t('wakeUpDone');
           dot.textContent = '⏰';
           cell.appendChild(dot);
         }
@@ -1263,7 +1560,7 @@
       if (files.length === 0) {
         const empty = document.createElement('div');
         empty.className = 'files-empty';
-        empty.textContent = 'No files for this day.';
+        empty.textContent = t('noFilesForDay');
         wrap.appendChild(empty);
         return;
       }
@@ -1298,20 +1595,20 @@
         del.className = 'file-delete';
         del.type = 'button';
         del.textContent = '×';
-        del.title = 'Delete this file';
+        del.title = t('deleteThisFile');
         del.addEventListener('click', async (e) => {
           e.stopPropagation();
-          if (!confirm('Delete "' + f.name + '"?')) return;
+          if (!confirm(tf('deleteConfirm', { name: f.name }))) return;
           del.disabled = true;
           const ok = await deleteFile(f.id);
           if (ok) {
             allFiles[dateStr] = (allFiles[dateStr] || []).filter(x => x.id !== f.id);
             renderFilesList(dateStr);
             renderCalendar();
-            toast('Deleted.');
+            toast(t('deletedToast'));
           } else {
             del.disabled = false;
-            toast('Delete failed.', true);
+            toast(t('deleteFailedToast'), true);
           }
         });
         card.appendChild(del);
@@ -1336,7 +1633,7 @@
 
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        btn.textContent = 'Uploading ' + (i + 1) + '/' + files.length + ': ' + file.name;
+        btn.textContent = t('uploadingFile') + ' ' + (i + 1) + '/' + files.length + ': ' + file.name;
         const res = await uploadFile(file, activeDate);
         if (res && res.ok) {
           if (!allFiles[activeDate]) allFiles[activeDate] = [];
@@ -1346,10 +1643,10 @@
       }
 
       btn.disabled = false;
-      btn.textContent = '+ Add files';
+      btn.textContent = t('addFiles');
       renderFilesList(activeDate);
       renderCalendar();
-      if (uploadedCount > 0) toast(uploadedCount === 1 ? 'Uploaded.' : uploadedCount + ' files uploaded.');
+      if (uploadedCount > 0) toast(uploadedCount === 1 ? t('uploadedToast') : tf('uploadedMultiToast', { n: uploadedCount }));
     });
 
     function buildCounterCard(field) {
@@ -1361,7 +1658,7 @@
       inner.className = 'swipe-card-inner';
       inner.innerHTML =
         '<div class="swipe-label-wrap">' +
-          '<div class="swipe-label">' + field.label + '</div>' +
+          '<div class="swipe-label">' + fieldLabel(field) + '</div>' +
         '</div>' +
         '<div class="swipe-count"><span data-count></span><span class="swipe-target" data-target></span>' +
           (field.unit ? '<span class="swipe-unit">' + field.unit + '</span>' : '') +
@@ -1384,7 +1681,7 @@
       dotsHtml += '</div>';
       inner.innerHTML =
         '<div class="pip-label-wrap">' +
-          '<div class="pip-label">' + field.label + '</div>' +
+          '<div class="pip-label">' + fieldLabel(field) + '</div>' +
           '<div class="pip-target" data-target></div>' +
         '</div>' + dotsHtml;
       card.appendChild(inner);
@@ -1425,7 +1722,7 @@
         const dots = card.querySelectorAll('[data-dots] .pip-dot');
         dots.forEach((dot, i) => dot.classList.toggle('filled', i < value));
         const targetEl = card.querySelector('[data-target]');
-        if (targetEl) targetEl.textContent = 'Target: ' + target + (target === 1 ? ' pip' : ' pips');
+        if (targetEl) targetEl.textContent = t('target') + ': ' + target + ' ' + (target === 1 ? t('pip') : t('pips'));
         card.classList.toggle('pass', passed);
         card.classList.toggle('fail', !passed);
       }
@@ -1636,10 +1933,10 @@
     function updateWakeBtn() {
       const btn = document.getElementById('wake5amBtn');
       if (formState.wokeAt5) {
-        btn.textContent = '⏰ Woke up at 5am ✓';
+        btn.textContent = t('wakeUpDone');
         btn.classList.add('active');
       } else {
-        btn.textContent = '⏰ Wake up at 5am';
+        btn.textContent = t('wakeUp');
         btn.classList.remove('active');
       }
     }
@@ -1654,7 +1951,7 @@
 
       const [y, m, d] = dateStr.split('-');
       document.getElementById('modalTitle').textContent =
-        MONTHS[parseInt(m) - 1] + ' ' + parseInt(d) + ', ' + y;
+        t('months')[parseInt(m) - 1] + ' ' + parseInt(d) + ', ' + y;
 
       formState = defaultEntry(dateStr);
       document.getElementById('dayTitle').value = '';
@@ -1708,15 +2005,14 @@
 
     function attemptCloseModal() {
       if (settings.warnUnsavedChanges && dayFormIsDirty()) {
-        document.getElementById('confirmMsg').textContent =
-          'You have unsaved changes for this day. Save before closing?';
+        document.getElementById('confirmMsg').textContent = t('unsavedDayMsg');
         showUnsavedConfirm(
           async () => {
             try {
               await saveDayEntry();
-              toast('Saved!');
+              toast(t('savedToast'));
             } catch {
-              toast('Failed to save — please try again.', true);
+              toast(t('saveFailedToast'), true);
               return;
             } finally {
               hideUnsavedConfirm();
@@ -1748,18 +2044,18 @@
     document.getElementById('saveBtn').addEventListener('click', async () => {
       const btn = document.getElementById('saveBtn');
       btn.disabled = true;
-      btn.textContent = 'Saving…';
+      btn.textContent = t('saving');
 
       try {
         await saveDayEntry();
-        toast('Saved!');
+        toast(t('savedToast'));
         setTimeout(closeModal, 600);
       } catch {
-        toast('Failed to save — please try again.', true);
+        toast(t('saveFailedToast'), true);
       }
 
       btn.disabled = false;
-      btn.textContent = 'Save Day';
+      btn.textContent = t('saveDay');
     });
 
     document.getElementById('prevMonth').addEventListener('click', () => {
@@ -1793,18 +2089,18 @@
         row.className = 'target-row';
         row.innerHTML =
           '<div class="target-row-head" data-field="' + field.key + '">' +
-            '<span class="target-row-label">' + field.label + '</span>' +
+            '<span class="target-row-label">' + fieldLabel(field) + '</span>' +
             '<span class="target-row-current">' + current + (field.unit || '') +
               '<span class="target-row-arrow">▾</span></span>' +
           '</div>' +
           '<div class="target-row-body" id="targetBody-' + field.key + '" style="display:none;">' +
             '<div class="target-edit-form">' +
-              '<label>New target value</label>' +
+              '<label>' + t('newTargetValue') + '</label>' +
               '<input type="number" min="0"' + (field.kind === 'pip' ? ' max="' + PIP_MAX + '"' : '') +
                 ' id="targetValueInput-' + field.key + '" value="' + current + '" />' +
-              '<label>Effective from</label>' +
+              '<label>' + t('effectiveFrom') + '</label>' +
               '<input type="date" id="targetDateInput-' + field.key + '" value="' + today + '" />' +
-              '<button type="button" class="target-save-btn" data-field="' + field.key + '">Save</button>' +
+              '<button type="button" class="target-save-btn" data-field="' + field.key + '">' + t('save') + '</button>' +
             '</div>' +
             '<div class="target-history" id="targetHistory-' + field.key + '"></div>' +
           '</div>';
@@ -1838,23 +2134,23 @@
           const effectiveFrom = dateEl.value;
 
           if (!Number.isFinite(value) || value < 0 || !effectiveFrom) {
-            toast('Enter a valid target and date.', true);
+            toast(t('enterValidTarget'), true);
             return;
           }
 
           btn.disabled = true;
-          btn.textContent = 'Saving…';
+          btn.textContent = t('saving');
           try {
             await saveTarget(f, value, effectiveFrom);
-            toast('Target saved.');
+            toast(t('targetSavedToast'));
             renderTargetsFieldList();
             renderCalendar();
             if (activeDate) refreshAllCards();
           } catch {
-            toast('Failed to save target.', true);
+            toast(t('targetSaveFailedToast'), true);
           }
           btn.disabled = false;
-          btn.textContent = 'Save';
+          btn.textContent = t('save');
         });
       });
     }
@@ -1866,7 +2162,7 @@
         .sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom));
 
       if (!entries.length) {
-        el.innerHTML = '<div class="target-history-empty">No custom targets set yet — default is ' + DEFAULT_TARGET + '.</div>';
+        el.innerHTML = '<div class="target-history-empty">' + tf('noCustomTargets', { n: DEFAULT_TARGET }) + '</div>';
         return;
       }
 
@@ -1876,23 +2172,23 @@
         row.className = 'target-history-row';
 
         const label = document.createElement('span');
-        label.textContent = e.value + ' from ' + e.effectiveFrom;
+        label.textContent = tf('targetHistoryLabel', { value: e.value, date: e.effectiveFrom });
         row.appendChild(label);
 
         const del = document.createElement('button');
         del.type = 'button';
         del.className = 'target-history-del';
         del.textContent = '×';
-        del.title = 'Remove this target change';
+        del.title = t('removeChange');
         del.addEventListener('click', async () => {
           try {
             await deleteTargetEntry(e.id);
-            toast('Removed.');
+            toast(t('removedToast'));
             renderTargetsFieldList();
             renderCalendar();
             if (activeDate) refreshAllCards();
           } catch {
-            toast('Failed to remove.', true);
+            toast(t('removeFailedToast'), true);
           }
         });
         row.appendChild(del);
@@ -1920,8 +2216,7 @@
     });
     function attemptCloseSettings() {
       if (settings.warnUnsavedChanges && settingsIsDirty()) {
-        document.getElementById('confirmMsg').textContent =
-          'You have unsaved settings changes. Save before closing?';
+        document.getElementById('confirmMsg').textContent = t('unsavedSettingsMsg');
         showUnsavedConfirm(
           async () => {
             const ok = await commitSettingsSave();
@@ -1979,6 +2274,13 @@
       pendingSettings.warnUnsavedChanges = e.target.checked;
     });
 
+    document.querySelectorAll('.lang-btn').forEach(b => {
+      b.addEventListener('click', () => {
+        pendingSettings.language = b.dataset.lang;
+        document.querySelectorAll('.lang-btn').forEach(x => x.classList.toggle('active', x === b));
+      });
+    });
+
     document.querySelectorAll('.info-btn').forEach((btn) => {
       btn.addEventListener('click', (e) => {
         e.preventDefault();
@@ -1995,10 +2297,11 @@
     (async () => {
       applyStatsBarVisibility();
       applyNightMode();
-      renderSwipeSections();
+      applyLanguage();
       await Promise.all([loadAllHabits(), loadAllFiles(), loadTargets(), loadSettingsFromServer()]);
       applyStatsBarVisibility();
       applyNightMode();
+      applyLanguage();
       renderCalendar();
     })();
   </script>
