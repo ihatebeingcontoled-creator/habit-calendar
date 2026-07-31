@@ -3112,7 +3112,6 @@
         idleTimer = setTimeout(() => {
           accum = 0;
           exitAccum = 0;
-          renderDebug();
         }, cfg.DECAY_IDLE_MS);
       }
 
@@ -3126,22 +3125,7 @@
           const finalState = direction === 'forward' ? STATES.LOCKED : STATES.CALENDAR;
           transitionDirection = null;
           DayViewState.set(finalState, { direction });
-          renderDebug();
         }, cfg.TRANSITION_MS);
-      }
-
-      let debugEl = null;
-      function renderDebug() {
-        if (!debugEl) return;
-        const state = DayViewState.get();
-        if (state === STATES.TRANSITIONING) {
-          debugEl.textContent = '[scroll debug] mode: transitioning (' + transitionDirection + ')';
-          return;
-        }
-        const value     = state === STATES.CALENDAR ? accum : exitAccum;
-        const threshold = state === STATES.CALENDAR ? unlockThreshold() : exitThreshold();
-        debugEl.textContent =
-          '[scroll debug] mode: ' + state + '   ' + Math.round(value) + ' / ' + threshold;
       }
 
       function handleWheel(e) {
@@ -3176,7 +3160,6 @@
         }
 
         armIdleDecay();
-        renderDebug();
       }
 
       // Phones don't fire 'wheel' events — a finger drag on the
@@ -3214,19 +3197,6 @@
         window.addEventListener('touchmove', handleTouchMove, { passive: true });
         window.addEventListener('touchend', handleTouchEnd, { passive: true });
         window.addEventListener('touchcancel', handleTouchEnd, { passive: true });
-        // Temporary visual readout for testing sections 1-2 only.
-        // Will be removed once section 4+ replaces it with the real
-        // mini-calendar / day-view transition.
-        debugEl = document.createElement('div');
-        debugEl.id = 'dayViewScrollDebug';
-        debugEl.style.cssText =
-          'position:fixed;bottom:12px;right:12px;z-index:99999;' +
-          'background:rgba(0,0,0,0.82);color:#39ff88;' +
-          'font:11px/1.4 monospace;padding:6px 10px;border-radius:8px;' +
-          'pointer-events:none;white-space:nowrap;';
-        document.body.appendChild(debugEl);
-        renderDebug();
-        DayViewState.onChange(renderDebug);
       }
 
       return { init, cfg };
@@ -3420,6 +3390,15 @@
        outright). The ghost draws itself whenever the state isn't
        CALENDAR, and clears itself otherwise.
     ============================================================ */
+    // Shared by every module below that needs to tell phones apart from
+    // desktop/tablet (same 640px breakpoint the rest of the app already
+    // uses for its mobile styles/thresholds) — one source of truth so
+    // the locked mini-calendar block and its scroll thresholds never
+    // disagree about what counts as "mobile".
+    function isPhoneVP() {
+      return window.matchMedia('(max-width: 640px)').matches;
+    }
+
     const MiniCalendarLayout = (() => {
       const cfg = {
         top:        6,     // px from top of the page (start of the weekday label row) —
@@ -3427,6 +3406,10 @@
                             // since HeaderCollapse (section 3 addendum) fully retracts
                             // the app-header before LOCKED is ever reached, so nothing
                             // occupies this corner once the mini-calendar is showing.
+        topMobile:  -14,   // phones: pull the whole locked block (number + nav + grid)
+                            // further up than desktop, since the shorter viewport means
+                            // it otherwise sits low enough to crowd the day-time-grid
+                            // (hour rows) that starts right below it.
         showcaseSpace: 178, // reserved width for the day-showcase number + its gap
                             // (see DayShowcase's own cfg.gap:28 + ~150px for a bold
                             // 2-digit number), so the mini-calendar starts right after it
@@ -3437,7 +3420,15 @@
         cellAspect: 0.82,  // cell height = cell width * this (slightly short, like Google Calendar)
         headerHeight: 14,  // px height of the Pr/An/Tr/... weekday label row
         headerGap:    4,   // px gap between the weekday labels and the day grid below
+        headerGapMobile: 2, // tighter version of headerGap for phones (see topMobile)
       };
+
+      function currentTop() {
+        return isPhoneVP() ? cfg.topMobile : cfg.top;
+      }
+      function currentHeaderGap() {
+        return isPhoneVP() ? cfg.headerGapMobile : cfg.headerGap;
+      }
 
       function computeContainerRect() {
         // The day-showcase + mini-calendar are always centered together
@@ -3453,7 +3444,7 @@
         const height = cellH * cfg.rows + cfg.gap * (cfg.rows - 1);
         const groupLeft = (window.innerWidth - groupWidth) / 2; // centers the whole group
         const left   = groupLeft + cfg.showcaseSpace;
-        const top    = cfg.top + cfg.headerHeight + cfg.headerGap; // day grid starts below the weekday labels
+        const top    = currentTop() + cfg.headerHeight + currentHeaderGap(); // day grid starts below the weekday labels
         return { left, top, width, height, cellW, cellH };
       }
 
@@ -4250,9 +4241,10 @@
       function computeRect() {
         const layoutCfg   = MiniCalendarLayout.cfg;
         const container   = MiniCalendarLayout.computeContainerRect();
-        const totalHeight = layoutCfg.headerHeight + layoutCfg.headerGap + container.height;
+        const headerGap   = isPhoneVP() ? layoutCfg.headerGapMobile : layoutCfg.headerGap;
+        const totalHeight = layoutCfg.headerHeight + headerGap + container.height;
         return {
-          top:       layoutCfg.top,
+          top:       isPhoneVP() ? layoutCfg.topMobile : layoutCfg.top,
           height:    totalHeight,
           rightEdge: container.left - cfg.gap, // showcase's own right boundary, viewport-left-relative px
         };
@@ -4367,7 +4359,7 @@
         // is shown before this card, see init() below).
         const showcaseLeft = showcaseBox ? showcaseBox.left : (container.left - 28 - 150);
 
-        const top    = MiniCalendarLayout.cfg.top;
+        const top    = isPhoneVP() ? MiniCalendarLayout.cfg.topMobile : MiniCalendarLayout.cfg.top;
         const bottom = Math.max(gridBottom, navBottom);
 
         return {
