@@ -66,14 +66,15 @@
     .app-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 36px; }
     .app-title { font-size: 22px; font-weight: 800; letter-spacing: -0.6px; color: #111; }
 
-    .month-nav { display: flex; align-items: center; justify-content: center; gap: 18px; margin-bottom: 22px; }
+    .month-nav { display: grid; grid-template-columns: 38px 1fr 38px; align-items: center; gap: 0; margin-bottom: 22px; }
+    .nav-btn { justify-self: center; }
     .nav-btn {
       background: none; border: 1.5px solid #e2e2e2; border-radius: 9px;
       width: 38px; height: 38px; display: flex; align-items: center; justify-content: center;
       cursor: pointer; color: #444; font-size: 16px; transition: background 0.15s, border-color 0.15s;
     }
     .nav-btn:hover { background: #f4f4f4; border-color: #ccc; }
-    .month-label { font-size: 20px; font-weight: 700; color: #111; min-width: 200px; text-align: center; letter-spacing: -0.3px; }
+    .month-label { font-size: 20px; font-weight: 700; color: #111; min-width: 0; text-align: center; letter-spacing: -0.3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 6px; }
 
     .stats-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 26px; }
     .stat-card { background: #fafafa; border: 1.5px solid #ececec; border-radius: 12px; padding: 13px 16px; }
@@ -166,7 +167,668 @@
     }
     @media (prefers-reduced-motion: reduce) { .day-cell.fully-complete { animation: none; } }
 
-    .day-num { position: absolute; top: 7px; left: 9px; font-size: 11.5px; font-weight: 700; color: #aaa; }
+    /* Mini-calendar (locked/day-view) presentation — the day-cells
+       are the same real elements, just shrunk via FlipAnimator. At
+       mini scale the full-size multi-layer glow rings read as messy
+       blur, so while a cell is flying/parked as a mini-cell we swap
+       to a single crisp, thin ring instead — same color language
+       (still driven by the existing lvl-N classes), just calmer at
+       ~24-29px. The pulsing "fully complete" glow is likewise
+       swapped for a small steady cyan ring rather than an animated
+       blur that would look like a smudge at this size. */
+    .day-cell.flip-animating {
+      box-shadow: 0 0 0 1.5px var(--mini-ring, #3b82f6) !important;
+      border-color: transparent;
+      border-width: 1.5px;
+      overflow: visible; /* the day-num is intentionally boosted bigger than
+                             the shrunk cell for legibility — don't let the
+                             base .day-cell's overflow:hidden clip it */
+    }
+    .day-cell.flip-animating.lvl-0  { --mini-ring: #c61215; }
+    .day-cell.flip-animating.lvl-1  { --mini-ring: #cd361a; }
+    .day-cell.flip-animating.lvl-2  { --mini-ring: #d55821; }
+    .day-cell.flip-animating.lvl-3  { --mini-ring: #e17c29; }
+    .day-cell.flip-animating.lvl-4  { --mini-ring: #e8a22e; }
+    .day-cell.flip-animating.lvl-5  { --mini-ring: #f4c439; }
+    .day-cell.flip-animating.lvl-6  { --mini-ring: #fce83e; }
+    .day-cell.flip-animating.lvl-7  { --mini-ring: #e9f038; }
+    .day-cell.flip-animating.lvl-8  { --mini-ring: #caf32d; }
+    .day-cell.flip-animating.lvl-9  { --mini-ring: #adf623; }
+    .day-cell.flip-animating.lvl-10 { --mini-ring: rgba(34,197,94,0.85); }
+    .day-cell.flip-animating.fully-complete {
+      animation: none !important;
+      box-shadow: 0 0 0 1.5px rgba(34,197,94,0.85), inset 0 0 0 1.5px #22d3ee !important;
+    }
+    /* Today no longer gets its own ring override here — it used to
+       (a black ring, then later transparent), but that box-shadow
+       always beat the lvl-N/fully-complete rules above since it came
+       later in the cascade with the same !important specificity. Now
+       today's circle just shows its real completion color like any
+       other day (blue if untouched, green if maxed, etc). */
+
+    /* The card that groups the huge day number + month nav + mini
+       calendar into one cohesive panel once locked, instead of three
+       independently-floating pieces. Same visual language as the
+       app's other cards (.stat-card / .legend-panel). */
+    .locked-header-card {
+      position: absolute;
+      z-index: 0; /* must stay below .app's stacking context (z-index: 1) —
+                     the mini-calendar cells live inside .app, so anything
+                     higher than that paints over them, not behind them */
+      background: rgba(255,255,255,0.94);
+      -webkit-backdrop-filter: blur(8px);
+      backdrop-filter: blur(8px);
+      border: 1.5px solid #ececec;
+      border-radius: 20px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 320ms ease;
+    }
+    .locked-header-card.night { background: rgba(24,24,26,0.92); border-color: #333; }
+
+    /* ============================================================
+       DAY TIME GRID (new Google-Calendar-style day view feature).
+       Fully additive — its own class namespace, its own JS module
+       (DayTimeGrid, see the script), reads DayViewState but never
+       writes to it. See the safety note directly above the
+       DayViewState module in the script for the guarantee this is
+       being built under: nothing in this feature rewrites the
+       existing "click a day" behavior.
+    ============================================================ */
+    .day-time-grid {
+      position: absolute;
+      left: 0;
+      right: 0;
+      z-index: 2;
+      display: none;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 320ms ease;
+      border-top: 1.5px solid #ececec;
+    }
+    .day-time-grid.night { border-top-color: #333; }
+
+    /* Inner scrollable content — sized to 24 hours * hourHeight so the
+       browser's native scrollbar/scroll physics drive "scroll down to
+       your desired hour", no custom scroll-hijacking needed here. */
+    .day-time-grid-inner {
+      position: relative;
+      width: 100%;
+      /* The outer .day-time-grid wrapper is pointer-events:none (so it
+         never blocks clicks on whatever's behind it while fading in/out),
+         but that disables events for its entire subtree by default. This
+         explicitly re-enables them for the actual interactive surface —
+         without it, the hold-to-create gesture (step 5) never receives
+         a single pointerdown. */
+      pointer-events: auto;
+    }
+    /* Kept deliberately tiny — the spec calls for the hour labels to
+       take up the least amount of space possible, so this is a narrow
+       gutter, not a full time-column like Google Calendar's ~50px one. */
+    .day-time-grid-hour-label {
+      position: absolute;
+      left: 4px;
+      width: 26px;
+      font-size: 9px;
+      font-weight: 700;
+      color: #bbb;
+      line-height: 1;
+      transform: translateY(-50%);
+      pointer-events: none;
+      user-select: none;
+      font-variant-numeric: tabular-nums;
+    }
+    .day-time-grid.night .day-time-grid-hour-label { color: #666; }
+    .day-time-grid-hour-line {
+      position: absolute;
+      left: 30px;
+      right: 0;
+      height: 1px;
+      background: #ececec;
+    }
+    .day-time-grid.night .day-time-grid-hour-line { background: #2c2c2e; }
+
+    /* Quarter-hour expand ruler — the extra :15/:30/:45 marks that
+       fade in around whichever hour a drag/resize currently sits in.
+       Reuses the base hour-line/hour-label look (position, width,
+       tabular numerals) but in an accent color and starting hidden,
+       toggled visible via the .visible class so it reads as an
+       "expand" rather than an instant pop. */
+    .day-time-grid-quarter-line {
+      background: rgba(59,130,246,0.5);
+      opacity: 0;
+      transition: opacity 160ms ease;
+      pointer-events: none;
+    }
+    .day-time-grid-quarter-line.visible { opacity: 1; }
+    .day-time-grid.night .day-time-grid-quarter-line { background: rgba(96,165,250,0.55); }
+
+    .day-time-grid-quarter-label {
+      color: #3b82f6;
+      font-weight: 800;
+      font-size: 8px;
+      opacity: 0;
+      transform: translateY(-50%) scale(0.6);
+      transition: opacity 160ms ease, transform 160ms ease;
+    }
+    .day-time-grid-quarter-label.visible {
+      opacity: 1;
+      transform: translateY(-50%) scale(1);
+    }
+    .day-time-grid.night .day-time-grid-quarter-label { color: #60a5fa; }
+
+    /* Current-time indicator — only shown when the locked day is
+       actually today (see DayTimeGrid.updateNowLine). Sits above the
+       hour lines (z-index) and lines up with the same left offset as
+       .day-time-grid-hour-line so it spans the same track width. */
+    .day-time-grid-now-line {
+      position: absolute;
+      left: 30px;
+      right: 0;
+      height: 2px;
+      background: #e6362a;
+      z-index: 3;
+      pointer-events: none;
+      display: none;
+    }
+    .day-time-grid-now-dot {
+      position: absolute;
+      left: 26px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #e6362a;
+      transform: translate(-50%, -50%);
+      z-index: 3;
+      pointer-events: none;
+      display: none;
+    }
+    .day-time-grid.night .day-time-grid-now-line,
+    .day-time-grid.night .day-time-grid-now-dot { background: #ff453a; }
+
+    /* Hold-to-create progress cue (step 5). Fills in over the hold
+       duration so a press gives visible feedback before it commits —
+       lets a normal scroll-drag get cancelled instead of accidentally
+       creating something. No event box exists yet (that's step 6);
+       this is purely the gesture's visual confirmation layer. */
+    .day-time-grid-hold-indicator {
+      position: absolute;
+      left: 34px;
+      right: 6px;
+      border-radius: 6px;
+      background: rgba(59, 130, 246, 0.16);
+      border: 1.5px dashed rgba(59, 130, 246, 0.55);
+      opacity: 0;
+      pointer-events: none;
+      z-index: 4;
+    }
+    .day-time-grid-hold-indicator.confirmed {
+      background: rgba(59, 130, 246, 0.32);
+      border-style: solid;
+    }
+    .day-time-grid.night .day-time-grid-hold-indicator {
+      background: rgba(96, 165, 250, 0.22);
+      border-color: rgba(96, 165, 250, 0.6);
+    }
+    .day-time-grid.night .day-time-grid-hold-indicator.confirmed {
+      background: rgba(96, 165, 250, 0.4);
+    }
+
+    /* Event box (step 6) — the persistent block a completed hold
+       leaves behind, distinct from the hold-indicator (which is just
+       the press/progress cue and disappears once a box exists). Plain
+       default styling for now: no per-event color yet (step 11),
+       no click-to-reopen yet (step 18), no drag/resize yet (steps
+       16-17) — just the element and its base look. */
+    .day-time-grid-event-box {
+      position: absolute;
+      left: 34px;
+      right: 6px;
+      min-height: 15px;
+      border-radius: 7px;
+      background: #3b82f6;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.18);
+      color: #fff;
+      overflow: hidden;
+      cursor: pointer;
+      z-index: 5;
+      box-sizing: border-box;
+      touch-action: none;
+    }
+    /* Step 17 — the actual text lives in here, not directly on the
+       box. renderBoxFace only ever touches .day-time-grid-event-box-
+       content, so the resize handles (siblings of this wrapper,
+       added below) survive every re-render/re-save instead of
+       getting wiped by the old textContent='' reset. */
+    .day-time-grid-event-box-content {
+      height: 100%;
+      padding: 2px 7px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      gap: 1px;
+      overflow: hidden;
+    }
+    /* Step 13 fix — the box is now two stacked lines rather than one
+       textContent string: the type/label stays on top where it
+       always was, and the typed description sits underneath it, not
+       replacing it. Each line clips independently so a long
+       description doesn't push the type line out of view. */
+    /* Always-on time readout (start – end) — sits above the type
+       line on both the compact box and while editing, so the "when"
+       never disappears the way it used to when it only lived inside
+       the editor popup. */
+    .day-time-grid-event-box-facetime {
+      font-size: 9px;
+      font-weight: 600;
+      line-height: 1.15;
+      opacity: 0.8;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .day-time-grid-event-box-type {
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1.25;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .day-time-grid-event-box-desc {
+      font-size: 10px;
+      font-weight: 500;
+      line-height: 1.2;
+      opacity: 0.85;
+      white-space: normal;
+      overflow-wrap: break-word;
+      word-break: break-word;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: var(--desc-lines, 1);
+      -webkit-box-orient: vertical;
+    }
+    .day-time-grid.night .day-time-grid-event-box {
+      box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+    }
+
+    /* Step 16 — drag-to-move. Lifted shadow + higher stacking so the
+       box being dragged visibly floats above its neighbors and the
+       hour lines while it's being repositioned; cursor flips to
+       "grabbing" for the duration of the drag. No transition on
+       top/left here on purpose — position updates must track the
+       pointer 1:1 every frame, not ease toward it. */
+    .day-time-grid-event-box.dragging {
+      cursor: grabbing;
+      z-index: 20;
+      box-shadow: 0 6px 16px rgba(0,0,0,0.28);
+      opacity: 0.92;
+    }
+    .day-time-grid.night .day-time-grid-event-box.dragging {
+      box-shadow: 0 6px 18px rgba(0,0,0,0.6);
+    }
+
+    /* Step 17 — drag-to-resize handles. Thin strips flush against
+       the top/bottom edges, sitting above the content wrapper so a
+       press there is captured before it can register as a move-drag
+       on the box underneath. Invisible at rest (the cursor + a hover
+       hint are the only affordance, same restraint Google Calendar
+       uses) — a solid grip bar would be visual noise on a ~15px-tall
+       compact box. */
+    .day-time-grid-event-box-handle {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 7px;
+      cursor: ns-resize;
+      z-index: 10;
+      touch-action: none;
+    }
+    .day-time-grid-event-box-handle.top    { top: 0; }
+    .day-time-grid-event-box-handle.bottom { bottom: 0; }
+    .day-time-grid-event-box-handle.left,
+    .day-time-grid-event-box-handle.right {
+      left: auto; right: auto; top: 0; bottom: 0; height: auto; width: 8px; cursor: ew-resize;
+    }
+    .day-time-grid-event-box-handle.left  { left: 0; }
+    .day-time-grid-event-box-handle.right { right: 0; }
+    .day-time-grid-event-box-handle:hover  { background: rgba(255,255,255,0.28); }
+    .day-time-grid-event-box.resizing {
+      z-index: 20;
+      box-shadow: 0 6px 16px rgba(0,0,0,0.28);
+    }
+    .day-time-grid.night .day-time-grid-event-box.resizing {
+      box-shadow: 0 6px 18px rgba(0,0,0,0.6);
+    }
+
+    /* Step 13 — "settle" pulse the box plays when Save is pressed.
+       Reads as the box collapsing back into its compact resting
+       state right as the popup closes over it. Short and snappy,
+       same ~300ms register as the hold-indicator's confirm-flash. */
+    .day-time-grid-event-box.just-saved {
+      animation: event-box-save-settle 300ms ease;
+    }
+    @keyframes event-box-save-settle {
+      0%   { transform: scale(1);     box-shadow: 0 1px 3px rgba(0,0,0,0.18); }
+      45%  { transform: scale(1.045); box-shadow: 0 3px 10px rgba(0,0,0,0.3); }
+      100% { transform: scale(1);     box-shadow: 0 1px 3px rgba(0,0,0,0.18); }
+    }
+    .day-time-grid.night .day-time-grid-event-box.just-saved {
+      animation-name: event-box-save-settle-night;
+    }
+    @keyframes event-box-save-settle-night {
+      0%   { transform: scale(1);     box-shadow: 0 1px 4px rgba(0,0,0,0.5); }
+      45%  { transform: scale(1.045); box-shadow: 0 3px 12px rgba(0,0,0,0.6); }
+      100% { transform: scale(1);     box-shadow: 0 1px 4px rgba(0,0,0,0.5); }
+    }
+
+    /* ============================================================
+       INLINE TASK EDITOR (revision).
+       No more separate popup/card — editing happens right inside the
+       task box itself. Tapping a box swaps its plain display content
+       (.day-time-grid-event-box-content) for this editor block, which
+       lives inside the exact same element. The box gets a taller
+       min-height and switches overflow to visible so the type/color
+       dropdowns (which are bigger than the box) have room to open.
+    ============================================================ */
+    .day-time-grid-event-box.editing {
+      overflow: visible;
+      /* No flat min-height here anymore — how tall this needs to be
+         depends on whether there's actually a description to show.
+         JS (EventEditor.syncEditingHeight) measures the real content
+         and sets an inline min-height only when the box's own
+         time-slot height isn't already enough to fit it. */
+      transition: min-height 180ms ease;
+      box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(0,0,0,0.18), 0 8px 20px rgba(0,0,0,0.22);
+      z-index: 25;
+    }
+    .day-time-grid.night .day-time-grid-event-box.editing {
+      box-shadow: 0 0 0 2px #1c1c1e, 0 0 0 4px rgba(255,255,255,0.18), 0 8px 22px rgba(0,0,0,0.5);
+    }
+
+    .day-time-grid-event-box-editor {
+      display: none;
+      position: relative;
+      height: 100%;
+      flex-direction: column;
+      padding: 6px 8px 8px;
+    }
+    .day-time-grid-event-box.editing .day-time-grid-event-box-content { display: none; }
+    .day-time-grid-event-box.editing .day-time-grid-event-box-editor { display: flex; }
+
+    .day-time-grid-event-box-editor-toprow {
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .day-time-grid-event-box-type-wrap {
+      position: relative;
+      display: inline-block;
+      max-width: 20ch; /* wrap itself never forces the row wider than the button below */
+      flex-shrink: 0;
+    }
+    .day-time-grid-event-box-type-btn {
+      background: rgba(255,255,255,0.16);
+      border: none;
+      border-radius: 6px;
+      padding: 2px 20px 2px 6px;
+      margin: -2px 0 -2px -6px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #fff;
+      cursor: pointer;
+      max-width: 20ch; /* widened so longer type names have room to breathe, ~20 chars before truncating */
+      width: max-content;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      position: relative;
+    }
+    .day-time-grid-event-box-time-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: rgba(255,255,255,0.8);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      flex: 1;
+      min-width: 0;
+      text-align: left;
+    }
+    .day-time-grid-event-box-type-btn::after {
+      content: '';
+      position: absolute;
+      right: 7px; top: 50%;
+      width: 6px; height: 6px;
+      border-right: 1.5px solid rgba(255,255,255,0.85);
+      border-bottom: 1.5px solid rgba(255,255,255,0.85);
+      transform: translateY(-65%) rotate(45deg);
+    }
+    .day-time-grid-event-box-type-btn:hover { background: rgba(255,255,255,0.26); }
+
+    .day-time-grid-event-box-type-menu {
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 0;
+      width: 190px;
+      background: #fff;
+      border: 1.5px solid #ececec;
+      border-radius: 10px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.22);
+      padding: 6px;
+      display: none;
+      z-index: 30;
+      max-height: 220px;
+      overflow-y: auto;
+    }
+    .day-time-grid-event-box-type-menu.open { display: block; }
+    .day-time-grid.night .day-time-grid-event-box-type-menu {
+      background: #2c2c2e; border-color: #3a3a3c;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.55);
+    }
+    .day-time-grid-event-box-type-option {
+      width: 100%; text-align: left; background: none; border: none;
+      border-radius: 7px; padding: 8px 9px; font-size: 13px; font-weight: 600;
+      color: #222; cursor: pointer;
+    }
+    .day-time-grid-event-box-type-option:hover { background: #f2f2f2; }
+    .day-time-grid-event-box-type-option.selected { background: #eaf1ff; color: #1d4ed8; font-weight: 800; }
+    .day-time-grid.night .day-time-grid-event-box-type-option { color: #eee; }
+    .day-time-grid.night .day-time-grid-event-box-type-option:hover { background: #3a3a3c; }
+    .day-time-grid.night .day-time-grid-event-box-type-option.selected { background: #1e3a6a; color: #8ab4ff; }
+
+    .day-time-grid-event-box-type-divider {
+      height: 1px;
+      background: #ececec;
+      margin: 5px 3px 6px;
+    }
+    .day-time-grid.night .day-time-grid-event-box-type-divider { background: #3a3a3c; }
+    .day-time-grid-event-box-type-custom-input {
+      width: 100%;
+      background: #fafafa;
+      border: 1.5px solid #ececec;
+      border-radius: 7px;
+      padding: 7px 9px;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: inherit;
+      color: #111;
+    }
+    .day-time-grid-event-box-type-custom-input:focus { outline: none; border-color: #3b82f6; }
+    .day-time-grid.night .day-time-grid-event-box-type-custom-input {
+      background: #232325; border-color: #3a3a3c; color: #f5f5f5;
+    }
+
+    .day-time-grid-event-box-desc-input {
+      flex: 1;
+      width: 100%;
+      min-height: 0;
+      resize: none;
+      background: transparent;
+      border: none;
+      padding: 0;
+      font-size: 11px;
+      font-weight: 500;
+      font-family: inherit;
+      line-height: 1.3;
+      color: #fff;
+      overflow-y: auto;
+    }
+    .day-time-grid-event-box-desc-input::placeholder { color: rgba(255,255,255,0.7); }
+    .day-time-grid-event-box-desc-input:focus { outline: none; }
+
+    /* Color badge — now sits inline in the top row, right after the
+       time readout: type → time → color → trash. Clicking it still
+       opens the swatch grid, anchored below it. */
+    .day-time-grid-event-box-color-wrap {
+      position: relative;
+      flex-shrink: 0;
+    }
+    .day-time-grid-event-box-color-btn {
+      width: 20px; height: 20px;
+      border-radius: 50%;
+      border: none;
+      padding: 0;
+      cursor: pointer;
+      box-shadow: 0 0 0 2px rgba(255,255,255,0.9), 0 0 0 3.5px rgba(0,0,0,0.18);
+    }
+    .day-time-grid.night .day-time-grid-event-box-color-btn {
+      box-shadow: 0 0 0 2px #1c1c1e, 0 0 0 3.5px rgba(255,255,255,0.35);
+    }
+
+    .day-time-grid-event-box-color-menu {
+      position: absolute;
+      top: calc(100% + 6px);
+      right: 0;
+      background: #fff;
+      border: 1.5px solid #ececec;
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.22);
+      padding: 10px;
+      display: none;
+      z-index: 30;
+      width: 176px;
+    }
+    .day-time-grid-event-box-color-menu.open { display: block; }
+    .day-time-grid.night .day-time-grid-event-box-color-menu {
+      background: #2c2c2e; border-color: #3a3a3c;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.55);
+    }
+    .day-time-grid-event-box-color-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 8px;
+    }
+    .day-time-grid-event-box-color-swatch {
+      width: 26px; height: 26px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      cursor: pointer;
+      padding: 0;
+    }
+    .day-time-grid-event-box-color-swatch.selected {
+      border-color: #111;
+      box-shadow: 0 0 0 2px #fff, 0 0 0 3.5px #111;
+    }
+    .day-time-grid.night .day-time-grid-event-box-color-swatch.selected {
+      box-shadow: 0 0 0 2px #1c1c1e, 0 0 0 3.5px #f5f5f5;
+      border-color: #f5f5f5;
+    }
+    .day-time-grid-event-box-color-divider {
+      height: 1px;
+      background: #ececec;
+      margin: 10px 0 8px;
+    }
+    .day-time-grid.night .day-time-grid-event-box-color-divider { background: #3a3a3c; }
+
+    /* Trash icon — sits right after the color picker in the top row
+       (type → time → color → trash), always visible instead of
+       buried inside a dropdown. Same white/translucent look as the
+       type button, with a red hover to signal it's destructive. */
+    .day-time-grid-event-box-delete-inline-btn {
+      width: 20px; height: 20px;
+      flex-shrink: 0;
+      border: none;
+      border-radius: 6px;
+      background: rgba(255,255,255,0.16);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .day-time-grid-event-box-delete-inline-btn:hover {
+      background: #dc2626;
+    }
+
+    /* Notify bell — sits right before the color picker in the top
+       row (type → time → bell → color → trash). Toggles on/off like
+       a checkbox; active state is filled amber to read as "on" at a
+       glance. */
+    .day-time-grid-event-box-notify-btn {
+      width: 20px; height: 20px;
+      flex-shrink: 0;
+      border: none;
+      border-radius: 6px;
+      background: rgba(255,255,255,0.16);
+      color: rgba(255,255,255,0.9);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .day-time-grid-event-box-notify-btn:hover { background: rgba(255,255,255,0.26); }
+    .day-time-grid-event-box-notify-btn.active {
+      background: #f4c439;
+      color: #111;
+    }
+    @keyframes notify-bell-ring {
+      0%   { transform: rotate(0deg); }
+      20%  { transform: rotate(-16deg); }
+      40%  { transform: rotate(13deg); }
+      60%  { transform: rotate(-9deg); }
+      80%  { transform: rotate(5deg); }
+      100% { transform: rotate(0deg); }
+    }
+    .day-time-grid-event-box-notify-btn svg { display: block; transform-origin: 50% 20%; }
+    .day-time-grid-event-box-notify-btn.ringing svg { animation: notify-bell-ring 0.4s ease; }
+
+    /* Small persistent bell badge on the box's own corner — part of
+       the permanent box skeleton (built once, alongside the resize
+       handles), so it stays visible on the compact face even while
+       the inline editor is closed. Hidden by default; only shown
+       once a record has notifications turned on. */
+    .day-time-grid-event-box-notify-badge {
+      position: absolute;
+      top: 2px; right: 2px;
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      background: #f4c439;
+      color: #111;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 8;
+      box-shadow: 0 0 0 1.5px rgba(255,255,255,0.9);
+      pointer-events: none;
+    }
+    .day-time-grid-event-box-notify-badge.visible { display: flex; }
+    /* While the editor is open, the toprow bell button already shows
+       on/off state — having the corner badge visible too is a
+       redundant second bell, so it hides for the duration of editing
+       and reappears once the box closes back to its compact face. */
+    .day-time-grid-event-box.editing .day-time-grid-event-box-notify-badge { display: none; }
+    .day-time-grid.night .day-time-grid-event-box-notify-badge {
+      box-shadow: 0 0 0 1.5px #1c1c1e;
+    }
+
+    .day-num { position: absolute; top: 7px; left: 9px; font-size: 11.5px; font-weight: 700; color: #aaa; z-index: 5; }
     .day-cell.today .day-num { color: #111; }
 
     .wake-5am-dot {
@@ -482,6 +1144,29 @@
     .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
     .toast.err { background: #dc2626; }
 
+    /* ── Mini-calendar D1 sync indicator (top-right) ──
+       Only ever shown while the mini-calendar (day-time-grid) is
+       what's producing writes — see SyncIndicator / EventStore in
+       the script. It appears the moment a debounced batch actually
+       starts uploading, then switches to "Synced" and stays put
+       (per spec: it doesn't auto-hide) until the next batch begins. */
+    .sync-indicator {
+      position: fixed; top: 14px; right: 16px;
+      display: flex; align-items: center; gap: 7px;
+      background: #111; color: #fff; padding: 7px 14px 7px 12px; border-radius: 999px;
+      font-size: 12px; font-weight: 700; letter-spacing: 0.2px;
+      opacity: 0; transform: translateY(-8px); pointer-events: none;
+      transition: opacity 0.2s ease, transform 0.2s ease, background 0.2s ease;
+      z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.18);
+    }
+    .sync-indicator.show { opacity: 1; transform: translateY(0); }
+    .sync-indicator.synced { background: #16a34a; }
+    .sync-indicator.error  { background: #dc2626; }
+    .sync-indicator-dot { width: 7px; height: 7px; border-radius: 50%; background: #fff; flex-shrink: 0; }
+    .sync-indicator.syncing .sync-indicator-dot { animation: sync-dot-pulse 0.9s ease-in-out infinite; }
+    @keyframes sync-dot-pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+    @media (prefers-reduced-motion: reduce) { .sync-indicator.syncing .sync-indicator-dot { animation: none; } }
+
     /* ── Unsaved-changes confirm dialog ── */
     .confirm-msg { font-size: 13.5px; color: #666; line-height: 1.5; margin-bottom: 22px; text-align: center; }
     .confirm-btn-row { display: flex; gap: 10px; }
@@ -776,6 +1461,12 @@
   </div>
 
   <div class="toast" id="toast"></div>
+
+  <!-- Mini-calendar D1 sync status — see SyncIndicator in the script -->
+  <div class="sync-indicator" id="syncIndicator">
+    <span class="sync-indicator-dot"></span>
+    <span id="syncIndicatorText"></span>
+  </div>
 
   <script>
     /* ══════════════════════════════════════════════════════════
@@ -2303,6 +2994,3313 @@
       applyNightMode();
       applyLanguage();
       renderCalendar();
+    })();
+
+    /* ============================================================
+       SECTION 2 — State machine skeleton
+       (Day-view feature, build step 2/20. Builds on section 1's
+       scroll accumulator. Still no visual changes to the calendar —
+       that starts in section 4 (FLIP animation). This section's job
+       is ONLY to define the single source of truth for what "mode"
+       the page is in, and to make the scroll accumulator drive real
+       transitions between those modes.)
+
+       Three states, matching the spec exactly:
+         CALENDAR      — normal page, current behavior, unchanged.
+         TRANSITIONING — the 1-2s "locking in" or "unlocking" animation
+                          is playing. This is a timer, NOT scroll-driven —
+                          once it starts, it always runs to completion.
+         LOCKED         — the mini-calendar / day-view state. Scrolling
+                          here does nothing to the calendar itself yet;
+                          section 3 will freeze real page scroll and
+                          section 13 will use it to grow the hour lines.
+
+       Anything else in the app (any later section) should read/write
+       through DayViewState instead of keeping its own copy of "what
+       mode are we in" — that's the "single source of truth" requirement.
+    ============================================================ */
+    /* ============================================================
+       SAFETY NOTE — read this before touching anything below.
+       NOTHING IN THE NEW DAY-TIME-GRID FEATURE (Google-Calendar-style
+       hour view, added starting at "SECTION 13 — Day time grid" near
+       the bottom of this file) REWRITES ANY OF THE WORKING FUNCTIONS
+       IN HERE FOR WHAT HAPPENS WHEN YOU CLICK ON A DAY. This whole
+       state machine (DayViewState / DayViewScroll and everything
+       downstream of it that reacts to DayViewState.onChange) is left
+       completely as-is. The new feature only ever READS
+       DayViewState.get()/.onChange() from the outside and renders
+       its own separate container into the empty space that opens up
+       once a day is LOCKED — it never calls DayViewState.set(),
+       never touches the day-cells, and never edits any function in
+       this block.
+    ============================================================ */
+    const DayViewState = (() => {
+      const STATES = {
+        CALENDAR:      'calendar',
+        TRANSITIONING: 'transitioning',
+        LOCKED:        'dayview-locked',
+      };
+      let current = STATES.CALENDAR;
+      const listeners = [];
+
+      function get() { return current; }
+
+      function set(next, meta) {
+        if (next === current) return;
+        const prev = current;
+        current = next;
+        console.log('[DayViewState] ' + prev + ' -> ' + next);
+        listeners.forEach((fn) => fn(next, prev, meta || {}));
+      }
+
+      // Anything (later sections) can subscribe to be told when the
+      // state changes, instead of polling it.
+      function onChange(fn) { listeners.push(fn); }
+
+      return { STATES, get, set, onChange };
+    })();
+
+    const DayViewScroll = (() => {
+      const cfg = {
+        UNLOCK_THRESHOLD: 900,   // total downward wheel delta (in CALENDAR) to start locking in
+        EXIT_THRESHOLD:   900,   // total upward wheel delta (in LOCKED) to start unlocking
+        MAX_ACCUM:        1400,  // clamp so a single big scroll gesture can't overshoot wildly
+        DECAY_IDLE_MS:    550,   // pause this long with no wheel input -> accumulator bleeds back to 0
+        // Placeholder only — the real 1-2s animation is built in section 4-8.
+        // This timer just stands in for "however long that animation takes"
+        // so the state machine can be tested end-to-end right now.
+        TRANSITION_MS:    1600,
+      };
+
+      const { STATES } = DayViewState;
+      let accum = 0;      // builds while in CALENDAR, scrolling down
+      let exitAccum = 0;  // builds while in LOCKED, scrolling up
+      let transitionTimer = null;
+      let transitionDirection = null; // 'forward' | 'backward', only set while TRANSITIONING
+
+      let idleTimer = null;
+      function armIdleDecay() {
+        clearTimeout(idleTimer);
+        idleTimer = setTimeout(() => {
+          accum = 0;
+          exitAccum = 0;
+          renderDebug();
+        }, cfg.DECAY_IDLE_MS);
+      }
+
+      function startTransition(direction) {
+        transitionDirection = direction;
+        accum = 0;
+        exitAccum = 0;
+        DayViewState.set(STATES.TRANSITIONING, { direction });
+        clearTimeout(transitionTimer);
+        transitionTimer = setTimeout(() => {
+          const finalState = direction === 'forward' ? STATES.LOCKED : STATES.CALENDAR;
+          transitionDirection = null;
+          DayViewState.set(finalState, { direction });
+          renderDebug();
+        }, cfg.TRANSITION_MS);
+      }
+
+      let debugEl = null;
+      function renderDebug() {
+        if (!debugEl) return;
+        const state = DayViewState.get();
+        if (state === STATES.TRANSITIONING) {
+          debugEl.textContent = '[scroll debug] mode: transitioning (' + transitionDirection + ')';
+          return;
+        }
+        const value     = state === STATES.CALENDAR ? accum : exitAccum;
+        const threshold = state === STATES.CALENDAR ? cfg.UNLOCK_THRESHOLD : cfg.EXIT_THRESHOLD;
+        debugEl.textContent =
+          '[scroll debug] mode: ' + state + '   ' + Math.round(value) + ' / ' + threshold;
+      }
+
+      function handleWheel(e) {
+        const state = DayViewState.get();
+
+        if (state === STATES.TRANSITIONING) {
+          // The lock-in/unlock animation is time-driven, not scroll-driven —
+          // per spec, once it starts it always finishes on its own.
+          // Section 3 will also prevent-default real page scroll during
+          // this state; for now we just ignore wheel input here.
+          return;
+        }
+
+        if (state === STATES.CALENDAR) {
+          if (e.deltaY > 0) {
+            accum = Math.min(cfg.MAX_ACCUM, accum + e.deltaY);
+          } else if (e.deltaY < 0) {
+            accum = Math.max(0, accum + e.deltaY);
+          }
+          if (accum >= cfg.UNLOCK_THRESHOLD) {
+            startTransition('forward');
+          }
+        } else if (state === STATES.LOCKED) {
+          if (e.deltaY < 0) {
+            exitAccum = Math.min(cfg.MAX_ACCUM, exitAccum + Math.abs(e.deltaY));
+          } else if (e.deltaY > 0) {
+            exitAccum = Math.max(0, exitAccum - e.deltaY);
+          }
+          if (exitAccum >= cfg.EXIT_THRESHOLD) {
+            startTransition('backward');
+          }
+        }
+
+        armIdleDecay();
+        renderDebug();
+      }
+
+      function init() {
+        window.addEventListener('wheel', handleWheel, { passive: true });
+        // Temporary visual readout for testing sections 1-2 only.
+        // Will be removed once section 4+ replaces it with the real
+        // mini-calendar / day-view transition.
+        debugEl = document.createElement('div');
+        debugEl.id = 'dayViewScrollDebug';
+        debugEl.style.cssText =
+          'position:fixed;bottom:12px;right:12px;z-index:99999;' +
+          'background:rgba(0,0,0,0.82);color:#39ff88;' +
+          'font:11px/1.4 monospace;padding:6px 10px;border-radius:8px;' +
+          'pointer-events:none;white-space:nowrap;';
+        document.body.appendChild(debugEl);
+        renderDebug();
+        DayViewState.onChange(renderDebug);
+      }
+
+      return { init, cfg };
+    })();
+    DayViewScroll.init();
+
+    /* ============================================================
+       SECTION 3 — Lock behavior (corrected)
+       (Day-view feature, build step 3/20. Builds on sections 1-2.
+       Still zero visual changes to the calendar itself — that
+       starts in section 4.)
+
+       Correction: "lock" refers to the CALENDAR, not the page.
+       Real page/wheel scrolling must always work completely normally
+       — sections 1-2 already guarantee tiny/jittery scrolls can't
+       cause weird half-finished transforms, because state only ever
+       changes at a hard threshold (accumulator) or on a fixed timer
+       (the transition itself), never by directly mapping scroll
+       position to a live transform. So there's no scroll-scrubbing to
+       "escape" from in the first place.
+
+       What this section actually adds: while TRANSITIONING or LOCKED,
+       the calendar's day-cells stop being clickable/interactive, so a
+       stray click during the shrink animation (or while it's sitting
+       as a mini-calendar) can't accidentally fire openModal() on the
+       wrong-sized element mid-flight. This only toggles pointer-events
+       + a marker class on .calendar-main — your existing click
+       handler (cell.addEventListener('click', () => openModal(...)))
+       is completely untouched; this just stops it from receiving the
+       click event while locked/transitioning.
+    ============================================================ */
+    const CalendarInteractionLock = (() => {
+      let calendarMainEl = null;
+
+      function apply(state) {
+        if (!calendarMainEl) return;
+        const isCalendar = state === DayViewState.STATES.CALENDAR;
+        calendarMainEl.style.pointerEvents = isCalendar ? '' : 'none';
+        calendarMainEl.classList.toggle('day-view-locked', !isCalendar);
+      }
+
+      function init() {
+        calendarMainEl = document.querySelector('.calendar-main');
+        apply(DayViewState.get());
+        DayViewState.onChange((next) => apply(next));
+      }
+
+      return { init };
+    })();
+    CalendarInteractionLock.init();
+
+    /* ============================================================
+       SECTION 3 (addendum) — Collapse the vacated header space
+       (Requested fix: once month-nav flies out and the stats-bar
+       fades away, they leave behind their normal reserved flow
+       space — a blank gap — since both of those effects only ever
+       apply a CSS transform/opacity, which never affects layout.
+       This closes that gap by pulling #weekdaysRow (and everything
+       that follows it, i.e. #daysGrid, via normal block flow) up
+       to where the stats-bar used to start.
+
+       Order matters a lot here: this must run BEFORE section 4's
+       geometry capture (and before month-nav's own capture), so the
+       "First" rects everything else reads are already the collapsed,
+       final positions — not a mid-flight moving target. Registering
+       this listener first (it's defined above section 4) guarantees
+       that, since DayViewState calls listeners synchronously in the
+       order they subscribed. Nothing here uses transform, so there's
+       nothing for later transform-based FLIP math to compensate for.
+
+       month-nav and stats-bar themselves are untouched by this — it
+       only ever moves weekdaysRow's margin, so their own capture
+       rects (used for their own fly-away animations) stay accurate.
+    ============================================================ */
+    const HeaderCollapse = (() => {
+      let appHeaderEl = null;
+      let appLayoutEl = null;
+      let daysGridEl  = null;
+
+      function collapse() {
+        const monthNav = document.querySelector('.month-nav');
+        if (!appHeaderEl || !appLayoutEl || !daysGridEl || !monthNav) return;
+
+        // Gap 1: app-header ("Kalendorius" title) now fades away too —
+        // pull the whole app-layout (legend + calendar) up to close it.
+        const headerGap = appLayoutEl.getBoundingClientRect().top - appHeaderEl.getBoundingClientRect().top;
+        appLayoutEl.style.marginTop = '-' + headerGap + 'px';
+
+        // Gap 2: month-nav + stats-bar + weekdays (also now fading away)
+        // reserve space above daysGrid — pull daysGrid up to right after
+        // month-nav's own spot so the flying day-cells start collapsed.
+        const gridGap = daysGridEl.getBoundingClientRect().top - monthNav.getBoundingClientRect().top;
+        daysGridEl.style.marginTop = '-' + gridGap + 'px';
+      }
+
+      function restore() {
+        if (appLayoutEl) appLayoutEl.style.marginTop = '';
+        if (daysGridEl)  daysGridEl.style.marginTop  = '';
+      }
+
+      function init() {
+        appHeaderEl = document.querySelector('.app-header');
+        appLayoutEl = document.querySelector('.app-layout');
+        daysGridEl  = document.getElementById('daysGrid');
+        DayViewState.onChange((next, prev, meta) => {
+          if (next === DayViewState.STATES.TRANSITIONING && meta.direction === 'forward') {
+            collapse();
+          } else if (next === DayViewState.STATES.TRANSITIONING && meta.direction === 'backward') {
+            restore();
+          }
+        });
+      }
+
+      return { init };
+    })();
+    HeaderCollapse.init();
+
+    /* ============================================================
+       SECTION 4 — Capture calendar geometry (FLIP: "First")
+       (Day-view feature, build step 4/20. Builds on sections 1-3.
+       Still zero visual changes — this only READS layout and stores
+       it. Section 5 defines the mini-calendar target layout ("Last"),
+       section 6 applies the actual transform+animate.)
+
+       FLIP = First, Last, Invert, Play. This section is "First":
+       at the exact moment the forward transition begins (state ->
+       TRANSITIONING with direction 'forward'), we snapshot every
+       real day-cell's current on-screen bounding box, before
+       anything about the layout changes. That snapshot is what
+       section 6 will animate FROM.
+
+       We capture this at the *start* of the transition (not later)
+       because the calendar is still in its completely normal,
+       unmodified layout at that instant — exactly the position we
+       need to FLIP from.
+    ============================================================ */
+    const CalendarGeometry = (() => {
+      let lastCapture = []; // [{ el, dateStr, dayNum, rect }]
+
+      function captureFirst() {
+        const grid = document.getElementById('daysGrid');
+        const cells = Array.from(grid.querySelectorAll('.day-cell:not(.empty)'));
+        lastCapture = cells.map((cell) => {
+          const numEl = cell.querySelector('.day-num');
+          return {
+            el:     cell,
+            dayNum: numEl ? numEl.textContent : '',
+            rect:   cell.getBoundingClientRect(),
+          };
+        });
+        console.log('[CalendarGeometry] captured First rects for', lastCapture.length, 'day cells');
+        if (lastCapture.length) {
+          const sample = lastCapture[0];
+          console.log('[CalendarGeometry] sample (day ' + sample.dayNum + '):', sample.rect);
+        }
+        return lastCapture;
+      }
+
+      function getLastCapture() { return lastCapture; }
+
+      function init() {
+        DayViewState.onChange((next, prev, meta) => {
+          if (next === DayViewState.STATES.TRANSITIONING && meta.direction === 'forward') {
+            captureFirst();
+          }
+        });
+      }
+
+      // Exposed for section 5+ to consume without touching this block again.
+      return { init, captureFirst, getLastCapture };
+    })();
+    CalendarGeometry.init();
+
+    /* ============================================================
+       SECTION 5 — Define mini-calendar target layout (FLIP: "Last")
+       (Day-view feature, build step 5/20. Builds on section 4.
+       Still no real animation — section 6 does the actual
+       transform+animate using this section's math + section 4's
+       captured rects.)
+
+       This is the "Last" step of FLIP: given the CURRENT month being
+       viewed, compute where each day number's square SHOULD end up —
+       a compact grid pinned to the top-right corner. Rows are fixed
+       at 6 (the max any month can need) so the target container never
+       changes size between months, which keeps the locked layout
+       stable regardless of which month you're on.
+
+       A temporary dashed "ghost" preview is included so you can see
+       this math working before the real persistent mini-calendar
+       widget exists (that's section 9, which will replace this ghost
+       outright). The ghost draws itself whenever the state isn't
+       CALENDAR, and clears itself otherwise.
+    ============================================================ */
+    const MiniCalendarLayout = (() => {
+      const cfg = {
+        top:        6,     // px from top of the page (start of the weekday label row) —
+                            // pulled up as close to the edge as possible. Safe to do
+                            // since HeaderCollapse (section 3 addendum) fully retracts
+                            // the app-header before LOCKED is ever reached, so nothing
+                            // occupies this corner once the mini-calendar is showing.
+        showcaseSpace: 178, // reserved width for the day-showcase number + its gap
+                            // (see DayShowcase's own cfg.gap:28 + ~150px for a bold
+                            // 2-digit number), so the mini-calendar starts right after it
+        width:      224,   // total mini-calendar width (max — shrinks on narrow screens, see computeContainerRect)
+        horizontalMargin: 12, // min breathing room kept clear on either edge of the viewport
+        rows:       6,     // fixed max weeks-per-month, so target size never shifts
+        gap:        3,     // px gap between cells
+        cellAspect: 0.82,  // cell height = cell width * this (slightly short, like Google Calendar)
+        headerHeight: 14,  // px height of the Pr/An/Tr/... weekday label row
+        headerGap:    4,   // px gap between the weekday labels and the day grid below
+      };
+
+      function computeContainerRect() {
+        // The day-showcase + mini-calendar are always centered together
+        // as one group on the x-axis (never pinned to an edge). Shrink
+        // the mini-calendar's width if the combined group wouldn't fit
+        // with margin to spare on a narrow screen.
+        const maxGroupWidth = cfg.showcaseSpace + cfg.width;
+        const availableTotal = window.innerWidth - cfg.horizontalMargin * 2;
+        const groupWidth = Math.min(maxGroupWidth, availableTotal);
+        const width  = Math.max(140, groupWidth - cfg.showcaseSpace);
+        const cellW  = (width - cfg.gap * 6) / 7;
+        const cellH  = cellW * cfg.cellAspect;
+        const height = cellH * cfg.rows + cfg.gap * (cfg.rows - 1);
+        const groupLeft = (window.innerWidth - groupWidth) / 2; // centers the whole group
+        const left   = groupLeft + cfg.showcaseSpace;
+        const top    = cfg.top + cfg.headerHeight + cfg.headerGap; // day grid starts below the weekday labels
+        return { left, top, width, height, cellW, cellH };
+      }
+
+      // Uses the SAME weekday-offset logic as renderCalendar (mondayIdx),
+      // so a given date always lands in the same relative grid cell as
+      // it does in the full calendar — just scaled down.
+      function computeTargets(year, month) {
+        const container   = computeContainerRect();
+        const firstDow     = new Date(year, month, 1).getDay();
+        const firstMonIdx  = mondayIdx(firstDow);
+        const daysInMonth  = new Date(year, month + 1, 0).getDate();
+
+        const targets = {}; // dayNum -> { left, top, width, height }
+        for (let d = 1; d <= daysInMonth; d++) {
+          const idx = firstMonIdx + (d - 1);
+          const col = idx % 7;
+          const row = Math.floor(idx / 7);
+          targets[d] = {
+            left:   container.left + col * (container.cellW + cfg.gap),
+            top:    container.top  + row * (container.cellH + cfg.gap),
+            width:  container.cellW,
+            height: container.cellH,
+          };
+        }
+        return { container, targets };
+      }
+
+      let ghostEls = [];
+      function clearGhost() {
+        ghostEls.forEach((el) => el.remove());
+        ghostEls = [];
+      }
+
+      function showGhost() {
+        clearGhost();
+        const { container, targets } = computeTargets(viewYear, viewMonth);
+
+        const frame = document.createElement('div');
+        frame.id = 'miniCalGhostFrame';
+        frame.style.cssText =
+          'position:fixed;left:' + container.left + 'px;top:' + container.top + 'px;' +
+          'width:' + container.width + 'px;height:' + container.height + 'px;' +
+          'border:1px dashed rgba(59,130,246,0.55);border-radius:8px;' +
+          'z-index:99998;pointer-events:none;';
+        document.body.appendChild(frame);
+        ghostEls.push(frame);
+
+        // Weekday abbreviation row (Pr/An/Tr/Kt/Pn/Št/Sk) sits just above
+        // the day grid — since the full weekday row + day cells fade away
+        // together now, this is the only weekday context left once locked.
+        t('weekdays').forEach((label, col) => {
+          const lbl = document.createElement('div');
+          lbl.style.cssText =
+            'position:fixed;' +
+            'left:' + (container.left + col * (container.cellW + cfg.gap)) + 'px;' +
+            'top:' + cfg.top + 'px;' +
+            'width:' + container.cellW + 'px;height:' + cfg.headerHeight + 'px;' +
+            'display:flex;align-items:center;justify-content:center;' +
+            'font:700 8px sans-serif;letter-spacing:0.3px;color:rgba(120,120,120,0.9);' +
+            'text-transform:uppercase;z-index:99998;pointer-events:none;';
+          lbl.textContent = label;
+          document.body.appendChild(lbl);
+          ghostEls.push(lbl);
+        });
+
+        Object.keys(targets).forEach((dayNum) => {
+          const r = targets[dayNum];
+          const box = document.createElement('div');
+          box.style.cssText =
+            'position:fixed;left:' + r.left + 'px;top:' + r.top + 'px;' +
+            'width:' + r.width + 'px;height:' + r.height + 'px;' +
+            'border:1px solid rgba(59,130,246,0.35);border-radius:3px;' +
+            'z-index:99998;pointer-events:none;display:flex;' +
+            'align-items:center;justify-content:center;' +
+            'font:8px monospace;color:rgba(59,130,246,0.8);';
+          box.textContent = dayNum;
+          document.body.appendChild(box);
+          ghostEls.push(box);
+        });
+      }
+
+      function init() {
+        // Superseded once the FLIP animation (sections 6-7) exists: the
+        // real day-cells fly to these exact targets and hold there
+        // (numbers included), so this dashed debug preview is redundant
+        // in normal use. Left as a no-op rather than deleted so nothing
+        // above (sections 6-8, which call computeContainerRect/
+        // computeTargets directly) has to change.
+      }
+
+      // Exposed for section 6+ to consume without touching this block again.
+      return { init, computeContainerRect, computeTargets, cfg };
+    })();
+    MiniCalendarLayout.init();
+
+    /* ============================================================
+       SECTION 6 — FLIP transform + animate
+       (Day-view feature, build step 6/20. Builds on sections 4-5.
+       THIS is where the real day-cells actually start moving.)
+
+       Since the day-cells never structurally change position in the
+       DOM/layout (we're not reparenting them into a new grid), we
+       don't need the classic "invert the jump" FLIP trick — there is
+       no jump to hide. Instead we animate directly: from the cell's
+       current identity transform (its normal First position) to a
+       computed translate+scale that lands it exactly on the Last
+       (mini-calendar) target, anchored from the top-left corner so
+       the math stays simple (transform-origin: 0 0).
+
+       All cells get their transition started in the same frame, so
+       they all move/shrink simultaneously — matching "this all
+       happens simultaneously in one smooth animation" from the spec.
+       Duration is read from DayViewScroll.cfg.TRANSITION_MS (section
+       2/section 2's timer) so the animation and the state-machine
+       timer that finalizes it always stay in sync — one source of
+       truth for timing, not two numbers that can drift apart.
+    ============================================================ */
+    const FlipAnimator = (() => {
+      const cfg = {
+        easing: 'cubic-bezier(0.4, 0, 0.2, 1)', // smooth, decelerating — Google-Calendar-ish shrink feel
+        zIndexWhileFlying: '500',
+        dayNumBoost: 1.3, // how much bigger than its normal full-size the day
+                           // number should render once the cell is shrunk down
+                           // to mini-calendar size, so it stays easy to read
+      };
+
+      // The whole cell (including its .day-num child) gets visually shrunk
+      // by the parent's own scale(scaleX, scaleY) transform below — that's
+      // what makes the "1"/"2"/... numbers unreadably tiny by default, since
+      // the parent transform scales everything painted inside it uniformly.
+      // To counter that, .day-num gets its OWN scale transform applied on
+      // top, sized so it cancels out (most of) the parent's shrink — leaving
+      // the number rendering close to its full natural size (times the
+      // boost above) regardless of how small the cell itself has become.
+      function applyDayNumScale(cell, scaleX, scaleY, durationMs) {
+        const numEl = cell.querySelector('.day-num');
+        if (!numEl) return;
+        const avgScale = (scaleX + scaleY) / 2;
+        const counter  = cfg.dayNumBoost / avgScale;
+        numEl.style.transformOrigin = '0 0';
+        numEl.style.transition = durationMs
+          ? ('transform ' + durationMs + 'ms ' + cfg.easing)
+          : 'none';
+        numEl.style.transform = 'scale(' + counter + ')';
+      }
+
+      // How far (in the cell's own untransformed pixel space, same space
+      // .day-num's CSS top/left already live in) the number needs to move
+      // from its normal corner spot to sit exactly in the middle of the
+      // cell. Reads real box sizes so it stays correct regardless of any
+      // dayNumBoost/breakpoint tuning elsewhere.
+      function computeDayNumCenterOffset(numEl, cellW, cellH, finalNumScale) {
+        const left = parseFloat(getComputedStyle(numEl).left) || 0;
+        const top  = parseFloat(getComputedStyle(numEl).top)  || 0;
+        // numEl is scaled up (by finalNumScale) about its own top-left corner
+        // AFTER this translate is applied, so the box we need to center is
+        // its size at that final scale — not its unscaled offsetWidth/Height.
+        // This offset already lives in the same local coordinate space the
+        // parent cell's scale(scaleX, scaleY) transform scales uniformly, so
+        // no extra division by scaleX/scaleY is needed here.
+        return {
+          dx: (cellW - numEl.offsetWidth  * finalNumScale) / 2 - left,
+          dy: (cellH - numEl.offsetHeight * finalNumScale) / 2 - top,
+        };
+      }
+
+      // Layered on top of the cell's own translate/scale flight transform
+      // (set by the caller just before this runs): morphs the cell into a
+      // circle — number recentered and a touch smaller — and holds that
+      // shape once it lands. Used for the forward flight (calendar -> mini)
+      // and to keep the mini-calendar cells circular at rest.
+      function animateToCircle(cell, scaleX, scaleY, durationMs) {
+        const numEl = cell.querySelector('.day-num');
+        const finalNumScale = cfg.dayNumBoost / ((scaleX + scaleY) / 2);
+        cell.style.transition = 'transform ' + durationMs + 'ms ' + cfg.easing +
+          ', border-radius ' + durationMs + 'ms ' + cfg.easing;
+        cell.style.borderRadius = '50%';
+        if (numEl) {
+          const offset = computeDayNumCenterOffset(numEl, cell.offsetWidth, cell.offsetHeight, finalNumScale);
+          numEl.style.transformOrigin = '0 0';
+          numEl.style.transition = 'transform ' + durationMs + 'ms ' + cfg.easing;
+          numEl.style.transform =
+            'translate(' + offset.dx + 'px, ' + offset.dy + 'px) scale(' + finalNumScale + ')';
+        }
+      }
+
+      // Mirror of the above for the backward flight (mini -> calendar):
+      // the cell starts out circular (from the forward flight/rest above)
+      // and morphs back to its normal rounded-square over the flight, with
+      // the number un-centering back to its corner at normal (unboosted) size.
+      function animateFromCircle(cell, finalNumScale, durationMs) {
+        const numEl = cell.querySelector('.day-num');
+
+        // The cell's own inline border-radius is currently '50%' (circle).
+        // Briefly clear it to read the natural rounded-square radius the
+        // CSS class defines (13px full-size / 9px on the narrow breakpoint),
+        // then restore the circle so nothing visibly flashes before the
+        // transition below picks it up.
+        const prevRadius = cell.style.borderRadius;
+        cell.style.borderRadius = '';
+        const naturalRadius = getComputedStyle(cell).borderRadius;
+        cell.style.borderRadius = prevRadius;
+
+        cell.style.transition = 'transform ' + durationMs + 'ms ' + cfg.easing +
+          ', border-radius ' + durationMs + 'ms ' + cfg.easing;
+        cell.style.borderRadius = naturalRadius;
+        if (numEl) {
+          numEl.style.transformOrigin = '0 0';
+          numEl.style.transition = 'transform ' + durationMs + 'ms ' + cfg.easing;
+          numEl.style.transform = 'translate(0px, 0px) scale(' + finalNumScale + ')';
+        }
+      }
+
+      function animateForward() {
+        const firstCells = CalendarGeometry.getLastCapture(); // populated synchronously by section 4's listener, which runs before this one
+        const { targets } = MiniCalendarLayout.computeTargets(viewYear, viewMonth);
+        const durationMs = DayViewScroll.cfg.TRANSITION_MS;
+
+        firstCells.forEach(({ el, dayNum, rect: firstRect }) => {
+          const lastRect = targets[dayNum];
+          if (!lastRect) return; // no matching target cell (shouldn't normally happen)
+          flyTo(el, firstRect, lastRect, durationMs);
+        });
+      }
+
+      function flyTo(el, firstRect, lastRect, durationMs) {
+        const dx     = lastRect.left - firstRect.left;
+        const dy     = lastRect.top  - firstRect.top;
+        const scaleX = lastRect.width  / firstRect.width;
+        const scaleY = lastRect.height / firstRect.height;
+
+        el.classList.add('flip-animating');
+        el.style.zIndex         = cfg.zIndexWhileFlying;
+        el.style.transformOrigin = '0 0';
+        el.style.willChange      = 'transform';
+
+        // Make sure we're starting cleanly from identity before animating,
+        // in case a previous (interrupted) animation left a transform on it.
+        el.style.transition   = 'none';
+        el.style.transform    = 'translate(0px, 0px) scale(1, 1)';
+        el.style.borderRadius = '';
+        void el.offsetWidth; // force the browser to commit the "from" state
+
+        el.style.transition = 'transform ' + durationMs + 'ms ' + cfg.easing;
+        el.style.transform  = 'translate(' + dx + 'px, ' + dy + 'px) scale(' + scaleX + ', ' + scaleY + ')';
+
+        animateToCircle(el, scaleX, scaleY, durationMs);
+      }
+
+      function animateBackward() {
+        const durationMs = DayViewScroll.cfg.TRANSITION_MS;
+        const { targets } = MiniCalendarLayout.computeTargets(viewYear, viewMonth);
+        const cells = document.querySelectorAll('#daysGrid .day-cell.flip-animating');
+
+        cells.forEach((el) => {
+          const numEl = el.querySelector('.day-num');
+          const dayNum = numEl ? numEl.textContent : '';
+          const currentRect = targets[dayNum]; // freshly recomputed mini-calendar position — not reused from section 4/5's old numbers
+          if (!currentRect) return;
+
+          // Recapture the natural (untransformed) grid position FRESH, right
+          // now — not from section 4's original snapshot — so this is still
+          // correct even if the window was resized while locked.
+          const prevTransform = el.style.transform;
+          el.style.transition = 'none';
+          el.style.transform = 'none';
+          const naturalRect = el.getBoundingClientRect();
+          el.style.transform = prevTransform;
+
+          flyBackToNatural(el, currentRect, naturalRect, durationMs);
+        });
+      }
+
+      function flyBackToNatural(el, currentRect, naturalRect, durationMs) {
+        const dx     = currentRect.left - naturalRect.left;
+        const dy     = currentRect.top  - naturalRect.top;
+        const scaleX = currentRect.width  / naturalRect.width;
+        const scaleY = currentRect.height / naturalRect.height;
+
+        el.classList.add('flip-animating');
+        el.style.zIndex          = cfg.zIndexWhileFlying;
+        el.style.transformOrigin = '0 0';
+        el.style.willChange      = 'transform';
+
+        // Re-assert the (freshly computed) current transform instantly —
+        // self-corrects for any resize that happened while locked — then
+        // animate it down to identity, which visually returns the cell to
+        // its exact natural document position.
+        el.style.transition   = 'none';
+        el.style.transform    = 'translate(' + dx + 'px, ' + dy + 'px) scale(' + scaleX + ', ' + scaleY + ')';
+        el.style.borderRadius = '50%'; // starts circular (that's the parked mini-cell shape now)
+        applyDayNumScale(el, scaleX, scaleY, 0);
+        void el.offsetWidth;
+
+        el.style.transition = 'transform ' + durationMs + 'ms ' + cfg.easing;
+        el.style.transform  = 'translate(0px, 0px) scale(1, 1)';
+        animateFromCircle(el, 1, durationMs); // back to normal, un-boosted size
+      }
+
+      function settleAtTarget() {
+        // Called once the state-machine timer completes (-> LOCKED).
+        // Cells are already visually parked at the target from the
+        // transition above; this just tidies the inline styles so
+        // they hold steady (no dangling transition) until section 9's
+        // real widget takes over. Border-radius is deliberately left
+        // alone here — the parked mini-cells stay circular.
+        document.querySelectorAll('.day-cell.flip-animating').forEach((el) => {
+          el.style.transition = '';
+        });
+      }
+
+      function resetToOriginal() {
+        // Called once the reverse animation has finished playing
+        // (state -> CALENDAR). By this point the transform has already
+        // animated all the way back to identity, so this just clears
+        // the inline styles/classes so the cell is fully back to its
+        // untouched, original state — no lingering transform/z-index.
+        document.querySelectorAll('.day-cell.flip-animating').forEach((el) => {
+          el.style.transition   = '';
+          el.style.transform    = '';
+          el.style.zIndex       = '';
+          el.style.willChange   = '';
+          el.style.borderRadius = '';
+          el.classList.remove('flip-animating');
+          const numEl = el.querySelector('.day-num');
+          if (numEl) {
+            numEl.style.transition = '';
+            numEl.style.transform  = '';
+            numEl.style.transformOrigin = '';
+          }
+        });
+      }
+
+      function init() {
+        DayViewState.onChange((next, prev, meta) => {
+          if (next === DayViewState.STATES.TRANSITIONING && meta.direction === 'forward') {
+            // rAF so section 4's capture (registered earlier, same event) has
+            // definitely run and populated CalendarGeometry's stored rects.
+            requestAnimationFrame(animateForward);
+          } else if (next === DayViewState.STATES.TRANSITIONING && meta.direction === 'backward') {
+            requestAnimationFrame(animateBackward);
+          } else if (next === DayViewState.STATES.LOCKED) {
+            settleAtTarget();
+          } else if (next === DayViewState.STATES.CALENDAR) {
+            resetToOriginal();
+          }
+        });
+      }
+
+      return { init, cfg, applyDayNumScale, animateToCircle };
+    })();
+    FlipAnimator.init();
+
+    /* ============================================================
+       SECTION 7 — Text fade choreography
+       (Day-view feature, build step 7/20. Builds on section 6.)
+
+       The squares already shrink via transform (section 6), but tiny
+       shrunk text is unreadable clutter — the spec asks for the text
+       to disappear IN SYNC with the movement, not after it. So this
+       fades each cell's inner content (day number, title, badges,
+       wake-up dot — whatever's actually in there, read generically via
+       el.children rather than hardcoding specific classes) to opacity 0
+       using the exact same duration and easing as the transform, kicked
+       off in the same frame as section 6's flyTo(). Same timeline,
+       different property — that's the "keyframed alongside transform"
+       requirement.
+
+       Reverse fade-in is paired here with section 8's reverse movement:
+       fades back to opacity 1 over the same duration, starting the
+       moment the backward transition begins.
+
+       Updated per feedback: .day-num is now deliberately EXCLUDED from
+       this fade. Section 9 no longer builds a separate popup widget —
+       the flown originals themselves double as the mini-calendar at
+       rest, so their numbers need to stay visible the whole time,
+       not fade out and never come back. Everything else per-day that
+       doesn't belong at mini-calendar scale (title text, attachment
+       badge, wake-up dot) still fades out exactly as before.
+    ============================================================ */
+    const TextFadeChoreography = (() => {
+      function fadeChildren(el, opacity, durationMs, easing) {
+        Array.from(el.children).forEach((child) => {
+          if (child.classList.contains('day-num')) return; // stays visible — see note above
+          child.style.transition = 'opacity ' + durationMs + 'ms ' + easing;
+          child.style.opacity = String(opacity);
+        });
+      }
+
+      function resetChildren(el) {
+        Array.from(el.children).forEach((child) => {
+          child.style.transition = '';
+          child.style.opacity = '';
+        });
+      }
+
+      function onForward() {
+        const firstCells = CalendarGeometry.getLastCapture();
+        const durationMs = DayViewScroll.cfg.TRANSITION_MS;
+        const easing = FlipAnimator.cfg.easing; // same curve as the square's own movement
+        firstCells.forEach(({ el }) => fadeChildren(el, 0, durationMs, easing));
+      }
+
+      function onBackward() {
+        const durationMs = DayViewScroll.cfg.TRANSITION_MS;
+        const easing = FlipAnimator.cfg.easing;
+        document.querySelectorAll('#daysGrid .day-cell.flip-animating').forEach((el) => {
+          fadeChildren(el, 1, durationMs, easing);
+        });
+      }
+
+      function onCalendarReset() {
+        // Animation has already finished fading back in by this point;
+        // this just clears the inline styles so nothing lingers.
+        document.querySelectorAll('.day-cell').forEach((el) => resetChildren(el));
+      }
+
+      function init() {
+        DayViewState.onChange((next, prev, meta) => {
+          if (next === DayViewState.STATES.TRANSITIONING && meta.direction === 'forward') {
+            requestAnimationFrame(onForward);
+          } else if (next === DayViewState.STATES.TRANSITIONING && meta.direction === 'backward') {
+            requestAnimationFrame(onBackward);
+          } else if (next === DayViewState.STATES.CALENDAR) {
+            onCalendarReset();
+          }
+        });
+      }
+
+      return { init };
+    })();
+    TextFadeChoreography.init();
+
+    /* ============================================================
+       SECTION 8 (addendum) — Stat cards + color guide join the exit
+       (Requested alongside section 8's reverse animation.)
+
+       The stats-bar cards (streak / perfect days / pushup days /
+       reading days) and the legend-panel ("Color Guide") aren't part
+       of the mini-calendar itself, so they don't need a FLIP-to-target
+       — they should simply fly upward and fade out of view while the
+       day-cells are converging into the corner, then fly back down and
+       fade in on the way back. Same shared duration/easing as
+       everything else, so it all reads as one motion.
+    ============================================================ */
+    const AuxPanelExit = (() => {
+      const cfg = {
+        exitDistancePx: 70, // how far up these panels travel while exiting
+      };
+
+      function getPanels() {
+        const cards     = Array.from(document.querySelectorAll('.stats-bar .stat-card'));
+        const legend    = document.querySelector('.legend-panel');
+        const appHeader = document.querySelector('.app-header');
+        const weekdays  = document.getElementById('weekdaysRow');
+        const monthNav  = document.querySelector('.month-nav');
+        const extras    = [legend, appHeader, weekdays, monthNav].filter(Boolean);
+        return cards.concat(extras);
+      }
+
+      function exit() {
+        const durationMs = DayViewScroll.cfg.TRANSITION_MS;
+        const easing = FlipAnimator.cfg.easing;
+        getPanels().forEach((el) => {
+          el.style.transition = 'transform ' + durationMs + 'ms ' + easing + ', opacity ' + durationMs + 'ms ' + easing;
+          el.style.transform = 'translateY(-' + cfg.exitDistancePx + 'px)';
+          el.style.opacity = '0';
+          el.style.pointerEvents = 'none';
+        });
+      }
+
+      function enter() {
+        const durationMs = DayViewScroll.cfg.TRANSITION_MS;
+        const easing = FlipAnimator.cfg.easing;
+        getPanels().forEach((el) => {
+          el.style.transition = 'transform ' + durationMs + 'ms ' + easing + ', opacity ' + durationMs + 'ms ' + easing;
+          el.style.transform = 'translateY(0px)';
+          el.style.opacity = '1';
+        });
+      }
+
+      function cleanup() {
+        // Animation has already finished by the time we reach CALENDAR;
+        // just clear inline styles so nothing lingers and pointer events
+        // work normally again.
+        getPanels().forEach((el) => {
+          el.style.transition = '';
+          el.style.transform = '';
+          el.style.opacity = '';
+          el.style.pointerEvents = '';
+        });
+      }
+
+      function init() {
+        DayViewState.onChange((next, prev, meta) => {
+          if (next === DayViewState.STATES.TRANSITIONING && meta.direction === 'forward') {
+            requestAnimationFrame(exit);
+          } else if (next === DayViewState.STATES.TRANSITIONING && meta.direction === 'backward') {
+            requestAnimationFrame(enter);
+          } else if (next === DayViewState.STATES.CALENDAR) {
+            cleanup();
+          }
+        });
+      }
+
+      return { init };
+    })();
+    AuxPanelExit.init();
+
+    /* ============================================================
+       SECTION 8 (addendum 2) / SECTION 11 — Locked month nav
+       (Reworked: the previous approach tried to FLIP-transform the
+       REAL .month-nav element from its normal flow position all the
+       way to a spot below the day showcase — same technique as the
+       day-cells. In practice that's much more fragile for this one
+       element than for the day-cells: the day-cells all move as a
+       single rigid grid captured in one synchronous snapshot, while
+       the nav's start rect depends on HeaderCollapse having already
+       run, font/box model quirks of a flex row with two buttons +
+       text, etc. — lots of surface area for the computed translate/
+       scale to come out wrong (or effectively identity), which is
+       exactly the "nav just sits there full-size" bug reported.
+
+       New approach: don't transform the original element at all.
+       .month-nav now simply fades away with the other aux panels
+       (see AuxPanelExit — it's been added to that list). In its
+       place, this module builds one small, real, persistent nav
+       widget positioned with plain layout math (top/right, like
+       DayShowcase and LockedHeaderCard already do) directly below
+       the day showcase. No FLIP, no captured "first" rect to get
+       wrong — its position is recomputed fresh from DayShowcase's
+       own rect every time it's shown, so it can't drift or land at
+       an identity transform by accident.
+
+       Clicking its arrows just clicks the real, hidden #prevMonth /
+       #nextMonth buttons — so the existing renderCalendar() logic
+       (and the snapCurrentCellsToMini() below, which keeps the
+       mini-calendar's cells snapped in place across a month switch
+       while locked) stays exactly as it was, untouched.
+    ============================================================ */
+    const LockedMonthNav = (() => {
+      const cfg = { height: 26, gapBelowShowcase: 14, fadeMs: 260 };
+      let el = null, labelEl = null;
+
+      function computeRect() {
+        const showcase = DayShowcase.computeRect();
+        return {
+          top:       showcase.top + showcase.height + cfg.gapBelowShowcase,
+          height:    cfg.height,
+          rightEdge: showcase.rightEdge,
+        };
+      }
+
+      // Left edge + width of the WHOLE panel (day-number showcase all
+      // the way through to the mini-calendar's right edge) — same
+      // math LockedHeaderCard uses for its own box, duplicated here
+      // (rather than calling LockedHeaderCard.computeRect() directly)
+      // because LockedHeaderCard's own bottom-edge math reads this
+      // module's computeRect() above, and calling back into it here
+      // would be a circular dependency. The 20px pad matches
+      // LockedHeaderCard's cfg.padding.
+      function computePanelRect() {
+        const container    = MiniCalendarLayout.computeContainerRect();
+        const showcaseBox  = DayShowcase.getRect();
+        const pad          = 20;
+        const showcaseLeft = showcaseBox ? showcaseBox.left : (container.left - 28 - 150);
+        const gridRight    = container.left + container.width;
+        return {
+          left:  showcaseLeft - pad,
+          width: (gridRight - showcaseLeft) + pad * 2,
+        };
+      }
+
+      function ensureBuilt() {
+        if (el) return;
+        el = document.createElement('div');
+        el.id = 'lockedMonthNav';
+        el.style.cssText =
+          'position:absolute;z-index:520;display:flex;align-items:center;justify-content:center;' +
+          'gap:8px;opacity:0;pointer-events:none;' +
+          'transition:opacity ' + cfg.fadeMs + 'ms ease;' +
+          'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;';
+
+        const prev = document.createElement('button');
+        prev.type = 'button';
+        prev.textContent = '\u2190';
+        labelEl = document.createElement('span');
+        labelEl.style.cssText = 'font-weight:700;white-space:nowrap;width:120px;text-align:center;overflow:hidden;text-overflow:ellipsis;';
+        const next = document.createElement('button');
+        next.type = 'button';
+        next.textContent = '\u2192';
+
+        [prev, next].forEach((btn) => {
+          btn.style.cssText =
+            'background:none;border:1.5px solid #e2e2e2;border-radius:7px;' +
+            'width:20px;height:20px;display:flex;align-items:center;justify-content:center;' +
+            'cursor:pointer;font-size:11px;line-height:1;pointer-events:auto;';
+        });
+        prev.addEventListener('click', () => document.getElementById('prevMonth').click());
+        next.addEventListener('click', () => document.getElementById('nextMonth').click());
+
+        el.appendChild(prev);
+        el.appendChild(labelEl);
+        el.appendChild(next);
+        document.body.appendChild(el);
+      }
+
+      function render() {
+        ensureBuilt();
+        const rect    = computeRect();
+        const panel   = computePanelRect();
+        const isNight = document.body.classList.contains('night-mode');
+        const monthLabelEl = document.getElementById('monthLabel');
+
+        // Centered on the WHOLE panel's width (day number + mini
+        // calendar together), not right-anchored under just the day
+        // number column like before — the day number itself keeps
+        // its own separate position untouched (DayShowcase, above).
+        const navWidth = el.offsetWidth || 176; // 176 = 20+8+120+8+20, matches the built children
+        const centerX  = panel.left + panel.width / 2;
+
+        el.style.top    = (rect.top + rect.height / 2 - 10 + window.scrollY) + 'px'; // vertically centered on the target band
+        el.style.right  = '';
+        el.style.left   = (centerX - navWidth / 2) + 'px';
+        labelEl.textContent = monthLabelEl ? monthLabelEl.textContent : '';
+        const color = isNight ? '#f5f5f5' : '#111';
+        labelEl.style.color = color;
+        el.querySelectorAll('button').forEach((btn) => { btn.style.color = color; });
+      }
+
+      function show() {
+        render();
+        requestAnimationFrame(() => { if (el) el.style.opacity = '1'; });
+      }
+
+      function hide() {
+        if (el) el.style.opacity = '0';
+      }
+
+      // Runs right after the existing prevMonth/nextMonth handlers'
+      // renderCalendar() call. Those fresh cells have no FLIP
+      // transform on them yet — this instantly (no transition) parks
+      // each one on its mini-calendar target, exactly like
+      // FlipAnimator.flyTo() but with duration 0, so a month switch
+      // while LOCKED never shows a full-size flash.
+      function snapCurrentCellsToMini() {
+        const grid = document.getElementById('daysGrid');
+        if (!grid) return;
+        const cells = Array.from(grid.querySelectorAll('.day-cell:not(.empty)'));
+        const { targets } = MiniCalendarLayout.computeTargets(viewYear, viewMonth);
+
+        cells.forEach((cell) => {
+          const numEl  = cell.querySelector('.day-num');
+          const dayNum = numEl ? numEl.textContent : '';
+          const lastRect = targets[dayNum];
+          if (!lastRect) return;
+
+          const firstRect = cell.getBoundingClientRect(); // fresh cell, still at its natural position
+          const dx = lastRect.left - firstRect.left;
+          const dy = lastRect.top  - firstRect.top;
+          const scaleX = lastRect.width  / firstRect.width;
+          const scaleY = lastRect.height / firstRect.height;
+
+          cell.classList.add('flip-animating');
+          cell.style.zIndex          = FlipAnimator.cfg.zIndexWhileFlying;
+          cell.style.transformOrigin = '0 0';
+          cell.style.transition      = 'none';
+          cell.style.transform       = 'translate(' + dx + 'px, ' + dy + 'px) scale(' + scaleX + ', ' + scaleY + ')';
+          FlipAnimator.animateToCircle(cell, scaleX, scaleY, 0);
+
+          // Same "keep .day-num, hide everything else" rule as section 7's
+          // TextFadeChoreography — applied instantly here since this is a
+          // snap, not a flight.
+          Array.from(cell.children).forEach((child) => {
+            if (child.classList.contains('day-num')) return;
+            child.style.transition = 'none';
+            child.style.opacity = '0';
+          });
+        });
+
+        render(); // keep the label in sync with the new month too
+      }
+
+      function init() {
+        DayViewState.onChange((next) => {
+          if (next === DayViewState.STATES.LOCKED) {
+            requestAnimationFrame(() => requestAnimationFrame(show));
+          } else {
+            hide();
+          }
+        });
+
+        ['prevMonth', 'nextMonth'].forEach((id) => {
+          const btn = document.getElementById(id);
+          if (!btn) return;
+          btn.addEventListener('click', () => {
+            if (DayViewState.get() === DayViewState.STATES.LOCKED) snapCurrentCellsToMini();
+          });
+        });
+      }
+
+      return { init, computeRect };
+    })();
+    LockedMonthNav.init();
+    // Back-compat alias — LockedHeaderCard (section 12) reads the nav's
+    // target rect via this name.
+    const MonthNavRelocate = { computeTarget: LockedMonthNav.computeRect };
+
+    /* ============================================================
+       SECTION 9 — Mini-calendar = the flown originals themselves
+       (Day-view feature, build step 9/20. Builds on sections 4-8.)
+
+       Reworked per feedback: a second, separately-rendered "popup"
+       mini-calendar widget was fragile (that's what the section-9
+       alignment bug in the previous pass came from — two independent
+       renderers of the same numbers, at the same rects, that had to
+       be kept in perfect sync by hand). It's also just redundant —
+       sections 4-6 already FLIP the real day-cells (with their real
+       .day-num numbers) exactly onto the mini-calendar target spot
+       and hold them there (FlipAnimator.settleAtTarget). Those flown
+       originals now ARE the persistent mini-calendar; nothing further
+       needs to render on top of them.
+
+       So this section is now just: don't fade the flown cells away.
+       Section 7's TextFadeChoreography still fades out the OTHER
+       per-day clutter that doesn't belong at mini-calendar scale
+       (titles, attachment badges, the wake-up dot) — see the edit
+       there — but leaves .day-num alone, so the numbers stay visible
+       through the whole transition and stay visible at rest, which is
+       what makes this double as the mini-calendar.
+
+       IMPORTANT — per this file's own top-of-file note ("nothing here
+       will be rewriting my working functions inside when you click on
+       a day"): these are the SAME elements/click-handlers as the main
+       calendar (openModal() etc. untouched) — Selection sync (making
+       a click here update the day-showcase instead of opening the
+       modal while locked) is section 12, not this one.
+    ============================================================ */
+
+    /* ============================================================
+       SECTION 10 — Huge day number showcase
+       (Day-view feature, build step 10/20. Builds on sections 4-9.)
+
+       The big number that sits to the LEFT of the mini-calendar once
+       LOCKED, sized to match the mini-calendar's own total height
+       (weekday row + day grid together — see MiniCalendarLayout.cfg
+       for those numbers, reused here so the two stay in sync if that
+       cfg ever changes).
+
+       "Driven by selected day state" (per the spec) needs a place for
+       that state to actually live — SelectedDayState below is that
+       single source of truth (same onChange-listener pattern as
+       DayViewState/DayViewScroll elsewhere in this file). It defaults
+       to today's date so the showcase has something correct to show
+       immediately. Nothing writes to it yet outside that default —
+       section 11 (month selector) only changes which month the
+       mini-calendar shows, not the selection; section 12 (Selection
+       sync) is what wires a mini-calendar day click into
+       SelectedDayState.set(...).
+    ============================================================ */
+    const SelectedDayState = (() => {
+      const now = new Date();
+      let year  = now.getFullYear();
+      let month = now.getMonth();
+      let day   = now.getDate();
+      const listeners = [];
+
+      function get() { return { year, month, day }; }
+
+      function set(y, m, d) {
+        if (y === year && m === month && d === day) return;
+        year = y; month = m; day = d;
+        listeners.forEach((fn) => fn(get()));
+      }
+
+      function onChange(fn) { listeners.push(fn); }
+
+      return { get, set, onChange };
+    })();
+
+    const DayShowcase = (() => {
+      const cfg = {
+        gap:        28,   // px gap between the number's right edge and the mini-calendar's left edge
+        heightFrac: 0.82, // number's font-size as a fraction of the mini-calendar's total height
+        fadeMs:     260,
+      };
+
+      let el = null;
+      let resizeHandler = null;
+
+      // Pure geometry, no DOM required — lets other modules (section 11's
+      // month-nav) position themselves relative to the showcase without
+      // depending on whether its element has actually been built/shown yet.
+      function computeRect() {
+        const layoutCfg   = MiniCalendarLayout.cfg;
+        const container   = MiniCalendarLayout.computeContainerRect();
+        const totalHeight = layoutCfg.headerHeight + layoutCfg.headerGap + container.height;
+        return {
+          top:       layoutCfg.top,
+          height:    totalHeight,
+          rightEdge: container.left - cfg.gap, // showcase's own right boundary, viewport-left-relative px
+        };
+      }
+
+      function ensureBuilt() {
+        if (el) return;
+        el = document.createElement('div');
+        el.id = 'dayShowcase';
+        el.style.cssText =
+          'position:absolute;z-index:520;pointer-events:none;opacity:0;' +
+          'transition:opacity ' + cfg.fadeMs + 'ms ease;' +
+          'display:flex;align-items:center;justify-content:flex-end;' +
+          'font-weight:800;line-height:1;letter-spacing:-1px;' +
+          'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;';
+        document.body.appendChild(el);
+      }
+
+      // Reads the same weekday-row + day-grid dimensions the
+      // mini-calendar itself uses, so "the exact size of the
+      // mini-calendar" (per the spec) stays true even if
+      // MiniCalendarLayout.cfg is ever tuned later.
+      function render() {
+        ensureBuilt();
+        const rect     = computeRect();
+        const isNight  = document.body.classList.contains('night-mode');
+
+        el.style.top      = (rect.top + window.scrollY) + 'px';
+        el.style.height   = rect.height + 'px';
+        el.style.right    = (window.innerWidth - rect.rightEdge) + 'px';
+        el.style.fontSize = (rect.height * cfg.heightFrac) + 'px';
+        el.style.color    = isNight ? '#f5f5f5' : '#111';
+        el.textContent    = String(SelectedDayState.get().day);
+      }
+
+      function show() {
+        render();
+        requestAnimationFrame(() => { if (el) el.style.opacity = '1'; });
+        if (!resizeHandler) {
+          // Same resize-safe pattern as the rest of this feature — only
+          // re-renders while actually visible.
+          resizeHandler = () => { if (el && el.style.opacity === '1') render(); };
+          window.addEventListener('resize', resizeHandler);
+        }
+      }
+
+      function hide() {
+        if (!el) return;
+        el.style.opacity = '0';
+      }
+
+      function init() {
+        DayViewState.onChange((next) => {
+          if (next === DayViewState.STATES.LOCKED) {
+            show();
+          } else {
+            hide();
+          }
+        });
+        // Keeps the number in sync if it's already showing when the
+        // selection changes (only matters once section 12 exists —
+        // harmless no-op cost until then, since nothing calls .set()
+        // besides this module's own default yet).
+        SelectedDayState.onChange(() => {
+          if (el && el.style.opacity === '1') render();
+        });
+      }
+
+      // Live bounding box of the actual rendered element (only meaningful
+      // once ensureBuilt()/render() have run) — more reliable than
+      // re-deriving the number's true width from computeRect() alone,
+      // since the box is intentionally left/width-auto (shrink-to-fit
+      // the digits) and only pinned via `right` + flex justify-end.
+      function getRect() { return el ? el.getBoundingClientRect() : null; }
+
+      return { init, computeRect, getRect };
+    })();
+    DayShowcase.init();
+
+    /* ============================================================
+       SECTION 12 — Locked header card
+       (Polish pass: groups the day-showcase number, month nav, and
+       mini-calendar into one visually cohesive panel while LOCKED,
+       instead of three independently-floating pieces on bare white
+       space. Purely presentational — reuses the exact rects already
+       computed by MiniCalendarLayout / DayShowcase / MonthNavRelocate
+       as its single source of truth, so it can never drift out of
+       sync with where those pieces actually land.
+    ============================================================ */
+    const LockedHeaderCard = (() => {
+      const cfg = { padding: 20, fadeMs: 320 };
+      let el = null;
+
+      function ensureBuilt() {
+        if (el) return;
+        el = document.createElement('div');
+        el.id = 'lockedHeaderCard';
+        el.className = 'locked-header-card';
+        document.body.appendChild(el);
+      }
+
+      function computeRect() {
+        const container  = MiniCalendarLayout.computeContainerRect();
+        const showcaseBox = DayShowcase.getRect();
+        const navTarget   = MonthNavRelocate.computeTarget();
+
+        const gridRight  = container.left + container.width;
+        const gridBottom = container.top + container.height;
+        const navBottom  = navTarget.top + navTarget.height;
+        // Fallback estimate for the showcase's left edge in case it
+        // hasn't rendered yet (shouldn't normally happen — DayShowcase
+        // is shown before this card, see init() below).
+        const showcaseLeft = showcaseBox ? showcaseBox.left : (container.left - 28 - 150);
+
+        const top    = MiniCalendarLayout.cfg.top;
+        const bottom = Math.max(gridBottom, navBottom);
+
+        return {
+          left:   showcaseLeft - cfg.padding,
+          top:    top - cfg.padding,
+          width:  (gridRight - showcaseLeft) + cfg.padding * 2,
+          height: (bottom - top) + cfg.padding * 2,
+        };
+      }
+
+      function render() {
+        ensureBuilt();
+        const r = computeRect();
+        const isNight = document.body.classList.contains('night-mode');
+        el.style.left   = r.left + 'px';
+        el.style.top    = (r.top + window.scrollY) + 'px';
+        el.style.width  = r.width + 'px';
+        el.style.height = r.height + 'px';
+        el.classList.toggle('night', isNight);
+      }
+
+      let resizeHandler = null;
+      function show() {
+        render();
+        requestAnimationFrame(() => { if (el) el.style.opacity = '1'; });
+        if (!resizeHandler) {
+          resizeHandler = () => { if (el && el.style.opacity === '1') render(); };
+          window.addEventListener('resize', resizeHandler);
+        }
+      }
+
+      function hide() {
+        if (el) el.style.opacity = '0';
+      }
+
+      function init() {
+        DayViewState.onChange((next) => {
+          if (next === DayViewState.STATES.LOCKED) {
+            // Double rAF: wait a frame so DayShowcase/MonthNavRelocate
+            // have already rendered/settled at their real positions
+            // (both also react to the same LOCKED transition) before
+            // this measures them.
+            requestAnimationFrame(() => requestAnimationFrame(show));
+          } else {
+            hide();
+          }
+        });
+      }
+
+      return { init, computeRect };
+    })();
+    // The day-showcase, month nav, and mini-calendar are grouped into
+    // one visual shape behind them via LockedHeaderCard below.
+    LockedHeaderCard.init();
+
+    /* ============================================================
+       SECTION 13 — Day time grid (part 1/20: scaffold)
+       New Google-Calendar-style day view. This is stage 2 of a
+       20-stage build:
+         1.  (done) container scaffold, wired to DayViewState,
+             positioned in the empty space under the locked header
+             card, shown/hidden exactly in sync with LOCKED.
+         2.  (done) hour lines, 00:00–24:00, small labels,
+             military time, native scroll (no custom scroll-hijack)
+         3.  (done) current-time red bar
+         4.  (skipped — grid confirmed working, moved straight to gestures)
+         5.  (done) hold-to-create gesture detection on hour lines
+             (fires DayTimeGrid.onHoldCreate(minutes); no visible box
+             yet — see the confirm-flash on the indicator for now)
+         6.  (done) event box element + placeholder styling
+             (fixed a bug along the way: .day-time-grid-inner needed
+             pointer-events:auto — the outer wrapper's pointer-events:
+             none for fade-safety was blocking ALL clicks/holds on the
+             grid, including step 5's gesture)
+         7.  (done) event editor popup shell (type / ⋯ / description / save)
+             — see the EventEditor module below DayTimeGrid.init(); opens
+             automatically on every new box via DayTimeGrid.onBoxCreated
+         8.  (done) prefixed label/type options (Event, Important, etc.)
+             — real dropdown now, 6 options, tap outside to close
+             without closing the whole popup
+         9.  (done) custom label text field — extra row in the same
+             dropdown below the prefixed options; commits on Enter
+             or on blur
+         10. (done) color-picker button (the ⋯) opening a swatch menu
+             — 10-color palette, click-outside-to-close, selection
+             tracked but not yet applied to the box (that's step 11)
+         11. (done) applying the picked color to the box — live update,
+             visible through the dimmed backdrop as you pick a swatch
+         12. (done) wiring the description field to the box — live on
+             every keystroke, onto currentRecord.description; type/color
+             also write onto the record now (currentRecord.type/.color)
+             so step 13's collapse has everything it needs already
+         13. (done) save button -> collapse to a compact box — the
+             box's own label now reflects the chosen type (or custom
+             text) and a brief scale/shadow "settle" pulse plays on
+             the box itself as the popup closes, so the save reads as
+             the box collapsing back into its compact resting state
+         14. event data model (label/color/desc/start/end/day)
+         15. rendering persisted events when a day is opened
+         16. drag-to-move an existing box
+         17. drag-to-resize (expand/contract) an existing box
+         18. click an existing box to reopen it for editing
+         19. delete an event + basic overlap handling
+         20. polish pass (night-mode, touch tuning, edge cases)
+
+       As with everything else added for this feature, this module
+       only reads DayViewState — it never calls .set() and never
+       touches the existing day-cell click handler or FLIP animation.
+    ============================================================ */
+    /* ============================================================
+       Mini-calendar D1 sync indicator (top-right pill).
+       Purely a status light — EventStore below is the only thing
+       that drives it. It never appears for anything outside the
+       mini-calendar's own debounced batch sync.
+    ============================================================ */
+    const SyncIndicator = (() => {
+      let el = null, textEl = null;
+      function ensure() {
+        if (!el) {
+          el = document.getElementById('syncIndicator');
+          textEl = document.getElementById('syncIndicatorText');
+        }
+      }
+      function syncing() {
+        ensure(); if (!el) return;
+        el.className = 'sync-indicator show syncing';
+        textEl.textContent = 'Syncing…';
+      }
+      // Stays visible showing "Synced" and does not auto-hide — it
+      // just waits there until the next batch kicks it back to
+      // "Syncing…".
+      function synced() {
+        ensure(); if (!el) return;
+        el.className = 'sync-indicator show synced';
+        textEl.textContent = 'Synced';
+      }
+      function error() {
+        ensure(); if (!el) return;
+        el.className = 'sync-indicator show error';
+        textEl.textContent = 'Sync failed — retrying';
+      }
+      return { syncing, synced, error };
+    })();
+
+    /* ============================================================
+       SECTION — Event data model (step 14, D1-backed)
+       The real record store, keyed per calendar day. Replaces the
+       step-6 `placeholderBoxes` array (which only existed so boxes
+       had *something* to be positioned from) with records that
+       actually carry id/type/color/description and persist.
+
+       Sync model: NOTHING is written to the device. On load,
+       `loadFromServer()` fetches every mini-calendar event from the
+       `/api/events` D1 endpoint into an in-memory `serverCache` —
+       that's the only copy that exists once the tab is closed.
+
+       Every edit (create/save/remove) just marks that date "dirty"
+       and (re)starts a 4-second idle timer. As long as edits keep
+       coming in — in this date or any other, all within the same
+       mini-calendar session — the timer keeps getting pushed back.
+       The moment 4 full seconds pass with no further edit anywhere,
+       every dirty date accumulated since the last successful sync
+       is sent to D1 in one batched request, and the indicator walks
+       Syncing… → Synced.
+
+       Records are still held *by reference* — DayTimeGrid/EventEditor
+       mutate `record.type` / `.color` / `.description` directly as
+       the person edits (the live-write pattern), and those mutations
+       are already visible to EventStore since it's the same object.
+       `.save(record)` just marks the record's date dirty; it's not
+       a diff and nothing else about the call sites had to change.
+    ============================================================ */
+    const EventStore = (() => {
+      const SYNC_IDLE_MS = 4000; // 4s of no edits anywhere -> flush
+      const byDate = new Map();  // dateKey -> array of live record objects (with .el once rendered)
+      const dirtyDates = new Set();
+      let serverCache = null;    // dateKey -> array of plain (serialized) events, once loaded
+      let loadPromise = null;
+      let syncTimer = null;
+
+      function genId() {
+        if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+        return 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
+      }
+
+      function dateKeyFor(year, month, day) {
+        return year + '-' + String(month + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+      }
+
+      function selectedDateKey() {
+        const sel = SelectedDayState.get();
+        return dateKeyFor(sel.year, sel.month, sel.day);
+      }
+
+      // Strips the DOM element (and anything else non-persistable)
+      // before sending it out — `el` is rebuilt fresh whenever a
+      // day's events get rendered (step 15), never itself serialized.
+      function serialize(record) {
+        return {
+          id: record.id,
+          startMinutes: record.startMinutes,
+          durationMinutes: record.durationMinutes,
+          type: record.type || '',
+          color: record.color || '',
+          description: record.description || '',
+          manualLeftPx: record.manualLeftPx != null ? record.manualLeftPx : null,
+          manualWidthPx: record.manualWidthPx != null ? record.manualWidthPx : null,
+          notify: !!record.notify,
+        };
+      }
+
+      // Kicked off once, immediately, the moment this module loads —
+      // by the time the person actually scrolls into the mini-
+      // calendar (the 1-2s lock-in animation), this has almost
+      // always already resolved.
+      function loadFromServer() {
+        if (loadPromise) return loadPromise;
+        loadPromise = (async () => {
+          try {
+            const r = await fetch('/api/events', { cache: 'no-store' });
+            serverCache = r.ok ? await r.json() : {};
+          } catch {
+            serverCache = {};
+          }
+        })();
+        return loadPromise;
+      }
+      loadFromServer();
+
+      // Resolves once the initial server load has finished (or
+      // failed) — used only by the notification-restore step below,
+      // which needs every date up front rather than lazily per-date.
+      function whenReady() {
+        return loadPromise || loadFromServer();
+      }
+
+      // Everything currently known, server dates merged with
+      // whatever's live in memory (covers dates touched this session
+      // that haven't necessarily round-tripped yet).
+      function getAllSnapshot() {
+        const out = Object.assign({}, serverCache || {});
+        byDate.forEach((list, dateKey) => { out[dateKey] = list.map(serialize); });
+        return out;
+      }
+
+      // Hydrates the in-memory list for a date from the server
+      // snapshot the first time it's touched, then hands back that
+      // same live array on every subsequent call — callers push/
+      // splice it directly rather than going through setters.
+      function getForDate(dateKey) {
+        if (!byDate.has(dateKey)) {
+          const cached = (serverCache && serverCache[dateKey]) || [];
+          byDate.set(dateKey, cached.map((c) => Object.assign({ dateKey, el: null }, c)));
+        }
+        return byDate.get(dateKey);
+      }
+
+      function markDirty(dateKey) {
+        dirtyDates.add(dateKey);
+        clearTimeout(syncTimer);
+        syncTimer = setTimeout(flushDirty, SYNC_IDLE_MS);
+      }
+
+      async function flushDirty() {
+        if (dirtyDates.size === 0) return;
+        const dates = Array.from(dirtyDates);
+        dirtyDates.clear();
+
+        const entries = {};
+        dates.forEach((dk) => { entries[dk] = getForDate(dk).map(serialize); });
+
+        SyncIndicator.syncing();
+        try {
+          const r = await fetch('/api/events', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ entries }),
+          });
+          if (!r.ok) throw new Error('Sync failed: ' + r.status);
+
+          serverCache = serverCache || {};
+          dates.forEach((dk) => { serverCache[dk] = entries[dk]; });
+          SyncIndicator.synced();
+        } catch {
+          // Put the dates back so the next edit (or this retry) picks
+          // them up again instead of silently losing the change.
+          dates.forEach((dk) => dirtyDates.add(dk));
+          SyncIndicator.error();
+          clearTimeout(syncTimer);
+          syncTimer = setTimeout(flushDirty, SYNC_IDLE_MS);
+        }
+      }
+
+      // Sends whatever's dirty right away, skipping the 4s wait —
+      // used when the mini-calendar is exited so a change made just
+      // before closing it doesn't sit unsynced.
+      function flushNow() {
+        clearTimeout(syncTimer);
+        return flushDirty();
+      }
+
+      function create(dateKey, startMinutes, durationMinutes) {
+        const record = {
+          id: genId(),
+          dateKey,
+          startMinutes,
+          durationMinutes,
+          type: '',
+          color: '',
+          description: '',
+          manualLeftPx: null,
+          manualWidthPx: null,
+          notify: false,
+          el: null,
+        };
+        getForDate(dateKey).push(record);
+        markDirty(dateKey);
+        return record;
+      }
+
+      function save(record) {
+        if (!record || !record.dateKey) return;
+        markDirty(record.dateKey);
+      }
+
+      function remove(record) {
+        if (!record || !record.dateKey) return;
+        const list = getForDate(record.dateKey);
+        const idx = list.indexOf(record);
+        if (idx !== -1) list.splice(idx, 1);
+        markDirty(record.dateKey);
+      }
+
+      return {
+        dateKeyFor, selectedDateKey, getForDate, create, save, remove,
+        whenReady, getAllSnapshot, flushNow,
+      };
+    })();
+
+    // The debounced sync only ever fires from mini-calendar edits, so
+    // make sure any pending batch goes out the instant the mini-
+    // calendar (LOCKED) is left, rather than possibly waiting up to
+    // 4s in a state where nothing left will prompt another edit to
+    // naturally trigger it.
+    DayViewState.onChange((next, prev) => {
+      if (prev === DayViewState.STATES.LOCKED && next !== DayViewState.STATES.LOCKED) {
+        EventStore.flushNow();
+      }
+    });
+
+    const DayTimeGrid = (() => {
+      const cfg = {
+        hourHeight: 38,  // px per hour — roughly 1cm, per feedback (was 84)
+        fadeMs:     320, // must match the CSS transition duration below
+      };
+
+      let el = null;
+      let innerEl = null;
+      let resizeHandler = null;
+      let nowLineEl = null;
+      let nowDotEl = null;
+      let nowTimer = null;
+      let holdIndicatorEl = null;
+      let hourLineEls = [];
+      let hourLabelEls = [];
+
+      // Builds the 24 hour lines + labels ONCE — this is static
+      // content (00:00–24:00 never changes), so there's no reason to
+      // rebuild it on every render()/resize like the rect-based
+      // pieces above do.
+      function buildHours() {
+        innerEl = document.createElement('div');
+        innerEl.className = 'day-time-grid-inner';
+        innerEl.style.height = (cfg.hourHeight * 24) + 'px';
+
+        const frag = document.createDocumentFragment();
+        hourLineEls = [];  // index h -> the line element at hour h (0..24)
+        hourLabelEls = []; // index h -> the label element at hour h (0..23)
+        for (let h = 0; h <= 24; h++) {
+          const y = h * cfg.hourHeight;
+
+          // Line at every hour, including a final one at 24:00 so the
+          // last hour (23:00) is visibly bounded too.
+          const line = document.createElement('div');
+          line.className = 'day-time-grid-hour-line';
+          line.style.top = y + 'px';
+          frag.appendChild(line);
+          hourLineEls[h] = line;
+
+          // No label on the trailing 24:00 line — 23 is the last hour
+          // that needs a number.
+          if (h < 24) {
+            const label = document.createElement('div');
+            label.className = 'day-time-grid-hour-label';
+            label.style.top = y + 'px';
+            label.textContent = String(h).padStart(2, '0');
+            frag.appendChild(label);
+            hourLabelEls[h] = label;
+          }
+        }
+        innerEl.appendChild(frag);
+
+        // Current-time indicator (step 3) — built once here alongside
+        // the static hour lines, but its top/visibility are dynamic
+        // (see updateNowLine) rather than set at build time.
+        nowLineEl = document.createElement('div');
+        nowLineEl.className = 'day-time-grid-now-line';
+        nowDotEl = document.createElement('div');
+        nowDotEl.className = 'day-time-grid-now-dot';
+        innerEl.appendChild(nowLineEl);
+        innerEl.appendChild(nowDotEl);
+
+        holdIndicatorEl = document.createElement('div');
+        holdIndicatorEl.className = 'day-time-grid-hold-indicator';
+        innerEl.appendChild(holdIndicatorEl);
+
+        el.appendChild(innerEl);
+      }
+
+      // Only meaningful while the grid is actually showing today's
+      // date — SelectedDayState (see section 12, already in the file)
+      // is the single source of truth for which date is locked open,
+      // so that's what decides whether the red bar should be visible
+      // at all, same as real Google Calendar only drawing it on the
+      // current day's column.
+      function isViewingToday() {
+        const sel = SelectedDayState.get();
+        const now = new Date();
+        return sel.year === now.getFullYear() &&
+               sel.month === now.getMonth() &&
+               sel.day === now.getDate();
+      }
+
+      function updateNowLine() {
+        if (!nowLineEl || !nowDotEl) return;
+        if (!isViewingToday()) {
+          nowLineEl.style.display = 'none';
+          nowDotEl.style.display = 'none';
+          return;
+        }
+        const now = new Date();
+        const minutesIntoDay = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+        const y = (minutesIntoDay / 60) * cfg.hourHeight;
+        nowLineEl.style.top = y + 'px';
+        nowDotEl.style.top = y + 'px';
+        nowLineEl.style.display = 'block';
+        nowDotEl.style.display = 'block';
+      }
+
+      function startNowTimer() {
+        stopNowTimer();
+        updateNowLine();
+        // 30s is frequent enough that the bar never looks stale, cheap
+        // enough not to matter while the grid is visible.
+        nowTimer = setInterval(updateNowLine, 30000);
+      }
+
+      function stopNowTimer() {
+        if (nowTimer) { clearInterval(nowTimer); nowTimer = null; }
+      }
+
+      /* ----------------------------------------------------------
+         Hold-to-create gesture (step 5).
+         A plain tap/click or a touch-drag-to-scroll must NOT create
+         anything — only a genuine press-and-hold on the grid does.
+         So: start a timer on pointerdown, cancel it if the pointer
+         moves more than a few px (that's a scroll/drag, not a hold)
+         or lifts early, and only fire once the timer completes while
+         the pointer is still down and still roughly in place.
+
+         This step only detects the gesture and shows the fill-in
+         progress cue + confirmation flash — it doesn't create an
+         actual event box (that's step 6). Step 6 hooks in via
+         onHoldCreate(fn) below rather than this code reaching
+         forward into box-creation logic that doesn't exist yet.
+      ---------------------------------------------------------- */
+      const holdCfg = {
+        HOLD_MS:        420,  // press duration required to commit
+        MOVE_CANCEL_PX: 10,   // pointer drift past this cancels the hold
+        SNAP_MIN:       60,   // start time snaps to the nearest hour
+        CONFIRM_MS:     260,  // how long the "confirmed" flash stays before fading
+      };
+      let holdTimer     = null;
+      let holdPointerId = null;
+      let holdStartX    = 0;
+      let holdStartY    = 0;
+      const createListeners = [];
+      function onHoldCreate(fn) { createListeners.push(fn); }
+
+      function minutesFromClientY(clientY) {
+        const rect = innerEl.getBoundingClientRect();
+        const localY = clientY - rect.top;
+        const rawMinutes = (localY / cfg.hourHeight) * 60;
+        const snapped = Math.round(rawMinutes / holdCfg.SNAP_MIN) * holdCfg.SNAP_MIN;
+        return Math.max(0, Math.min(24 * 60 - holdCfg.SNAP_MIN, snapped));
+      }
+
+      function positionHoldIndicator(minutes) {
+        const top    = (minutes / 60) * cfg.hourHeight;
+        const height = (holdCfg.SNAP_MIN / 60) * cfg.hourHeight;
+        holdIndicatorEl.style.top    = top + 'px';
+        holdIndicatorEl.style.height = height + 'px';
+      }
+
+      function beginHoldVisual(minutes) {
+        holdIndicatorEl.classList.remove('confirmed');
+        positionHoldIndicator(minutes);
+        // No transition yet on this frame, so the jump to opacity:0
+        // (in case a previous hold left it fading) is instant...
+        holdIndicatorEl.style.transition = 'none';
+        holdIndicatorEl.style.opacity = '0';
+        // eslint-disable-next-line no-unused-expressions
+        holdIndicatorEl.offsetHeight; // force reflow
+        // ...then the fill-in to opacity:1 is animated over exactly
+        // the hold duration, so the indicator itself IS the progress
+        // cue — no separate progress bar needed.
+        holdIndicatorEl.style.transition = 'opacity ' + holdCfg.HOLD_MS + 'ms linear';
+        holdIndicatorEl.style.opacity = '1';
+      }
+
+      function cancelHoldVisual() {
+        holdIndicatorEl.style.transition = 'opacity 140ms ease';
+        holdIndicatorEl.style.opacity = '0';
+        holdIndicatorEl.classList.remove('confirmed');
+      }
+
+      function confirmHoldVisual() {
+        holdIndicatorEl.style.transition = 'opacity 120ms ease';
+        holdIndicatorEl.style.opacity = '1';
+        holdIndicatorEl.classList.add('confirmed');
+        setTimeout(() => {
+          holdIndicatorEl.style.transition = 'opacity 220ms ease';
+          holdIndicatorEl.style.opacity = '0';
+          holdIndicatorEl.classList.remove('confirmed');
+        }, holdCfg.CONFIRM_MS);
+      }
+
+      function clearHoldState() {
+        if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
+        holdPointerId = null;
+        document.removeEventListener('pointermove', onHoldPointerMove);
+        document.removeEventListener('pointerup', onHoldPointerEnd);
+        document.removeEventListener('pointercancel', onHoldPointerEnd);
+      }
+
+      function onHoldPointerMove(e) {
+        if (e.pointerId !== holdPointerId) return;
+        const dx = e.clientX - holdStartX;
+        const dy = e.clientY - holdStartY;
+        if (Math.hypot(dx, dy) > holdCfg.MOVE_CANCEL_PX) {
+          cancelHoldVisual();
+          clearHoldState();
+        }
+      }
+
+      function onHoldPointerEnd(e) {
+        if (e.pointerId !== holdPointerId) return;
+        // Timer already fired and completed the hold — leave the
+        // confirm flash alone, just drop pointer tracking.
+        if (!holdTimer) { clearHoldState(); return; }
+        cancelHoldVisual();
+        clearHoldState();
+      }
+
+      function onHoldPointerDown(e) {
+        // Only the primary pointer/button, and only when nothing else
+        // is mid-hold already.
+        if (holdPointerId !== null) return;
+        if (e.button !== undefined && e.button !== 0) return;
+        // Ignore presses on anything other than the empty grid track
+        // itself (later steps add real event boxes as children here —
+        // those must handle their own press behavior instead of also
+        // starting a create-hold underneath them).
+        if (e.target !== innerEl && e.target !== holdIndicatorEl &&
+            !e.target.classList.contains('day-time-grid-hour-line')) return;
+
+        holdPointerId = e.pointerId;
+        holdStartX = e.clientX;
+        holdStartY = e.clientY;
+        const minutes = minutesFromClientY(e.clientY);
+        beginHoldVisual(minutes);
+
+        document.addEventListener('pointermove', onHoldPointerMove);
+        document.addEventListener('pointerup', onHoldPointerEnd);
+        document.addEventListener('pointercancel', onHoldPointerEnd);
+
+        holdTimer = setTimeout(() => {
+          holdTimer = null;
+          confirmHoldVisual();
+          createListeners.forEach((fn) => fn(minutes));
+        }, holdCfg.HOLD_MS);
+      }
+
+      function initHoldGesture() {
+        innerEl.addEventListener('pointerdown', onHoldPointerDown);
+      }
+
+      /* ----------------------------------------------------------
+         Event box element (step 6, now backed by the step-14 data
+         model). The visual box is created here; the record behind
+         it — id/type/color/description/day — lives in EventStore,
+         keyed to whichever date is currently locked open.
+      ---------------------------------------------------------- */
+      const boxCreateListeners = [];
+      function onBoxCreated(fn) { boxCreateListeners.push(fn); }
+
+      // Step 20 — polish. The type line + box padding/gap take up a
+      // fixed ~19px regardless of box height; whatever vertical room
+      // is left over is how many description lines we can afford to
+      // show before clamping. Recomputed on every resize/reposition
+      // so dragging a box taller reveals more of a long description
+      // instead of it staying stuck at one clipped line forever.
+      function updateDescLines(boxEl, heightPx) {
+        const FIXED_CHROME = 30; // padding (2*2) + time line (~10.35) + type line (~13.75) + gaps (2*1), rounded up
+        const DESC_LINE_H  = 12; // matches .day-time-grid-event-box-desc line-height (10px * 1.2)
+        const lines = Math.max(1, Math.floor((heightPx - FIXED_CHROME) / DESC_LINE_H));
+        boxEl.style.setProperty('--desc-lines', lines);
+      }
+
+      function positionEventBox(boxEl, startMinutes, durationMinutes) {
+        const top    = (startMinutes / 60) * cfg.hourHeight;
+        const height = (durationMinutes / 60) * cfg.hourHeight;
+        boxEl.style.top    = top + 'px';
+        boxEl.style.height = Math.max(height, 15) + 'px';
+        updateDescLines(boxEl, Math.max(height, 15));
+      }
+
+      // Every box, however it's created, gets this same fixed
+      // skeleton: a top handle, the text content wrapper, a bottom
+      // handle. renderBoxFace (EventEditor) only ever touches the
+      // content wrapper, so the handles are permanent — they're
+      // never at risk of being wiped by a text re-render.
+      function buildBoxSkeleton(boxEl) {
+        const topHandle = document.createElement('div');
+        topHandle.className = 'day-time-grid-event-box-handle top';
+        const leftHandle = document.createElement('div');
+        leftHandle.className = 'day-time-grid-event-box-handle left';
+        const contentEl = document.createElement('div');
+        contentEl.className = 'day-time-grid-event-box-content';
+        contentEl.textContent = 'New Event';
+        const rightHandle = document.createElement('div');
+        rightHandle.className = 'day-time-grid-event-box-handle right';
+        const bottomHandle = document.createElement('div');
+        bottomHandle.className = 'day-time-grid-event-box-handle bottom';
+
+        // Permanent bell badge — lives directly on boxEl (not inside
+        // the editor or the content wrapper), so it survives every
+        // editing-open/close cycle and stays visible on the compact
+        // face too. Visibility is purely a CSS class, toggled by
+        // setNotifyBadge() below whenever record.notify changes.
+        const notifyBadge = document.createElement('div');
+        notifyBadge.className = 'day-time-grid-event-box-notify-badge';
+        notifyBadge.innerHTML =
+          '<svg viewBox="0 0 24 24" width="7" height="7" fill="none" stroke="currentColor" ' +
+          'stroke-width="3" stroke-linecap="round" stroke-linejoin="round">' +
+          '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"></path>' +
+          '<path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>';
+
+        boxEl.appendChild(topHandle);
+        boxEl.appendChild(leftHandle);
+        boxEl.appendChild(contentEl);
+        boxEl.appendChild(rightHandle);
+        boxEl.appendChild(bottomHandle);
+        boxEl.appendChild(notifyBadge);
+        return { topHandle, leftHandle, contentEl, rightHandle, bottomHandle, notifyBadge };
+      }
+
+      // Toggles the compact-face bell badge for a record. Safe to
+      // call any time (editor open, closed, or never built yet)
+      // since the badge lives on boxEl itself, not inside the editor.
+      function setNotifyBadge(record, on) {
+        if (!record || !record.el) return;
+        const badge = record.el.querySelector('.day-time-grid-event-box-notify-badge');
+        if (badge) badge.classList.toggle('visible', !!on);
+      }
+
+      function spawnEventBox(startMinutes) {
+        const durationMinutes = holdCfg.SNAP_MIN; // default length — step 17 lets it be resized after
+        const dateKey = EventStore.selectedDateKey();
+        const record  = EventStore.create(dateKey, startMinutes, durationMinutes);
+
+        const boxEl = document.createElement('div');
+        boxEl.className = 'day-time-grid-event-box';
+        const handles = buildBoxSkeleton(boxEl);
+        positionEventBox(boxEl, startMinutes, durationMinutes);
+        innerEl.appendChild(boxEl);
+        record.el = boxEl;
+        setNotifyBadge(record, record.notify);
+        attachBoxDrag(record);
+        attachBoxResize(record, handles);
+        attachBoxWidthResize(record, handles);
+
+        boxCreateListeners.forEach((fn) => fn(record));
+        recomputeOverlapLayout();
+        return record;
+      }
+
+      /* ----------------------------------------------------------
+         Render persisted events (step 15).
+         Boxes created live via spawnEventBox already have their .el
+         attached to the DOM — this is only for the OTHER case: a day
+         gets locked open (or the locked day changes) and whatever
+         events already exist in EventStore for that date need real
+         boxes painted onto the grid, same as Google Calendar showing
+         your existing events the moment you open a day.
+      ---------------------------------------------------------- */
+      let renderedDateKey = null;
+
+      function detachRenderedBoxes(dateKey) {
+        if (!dateKey) return;
+        EventStore.getForDate(dateKey).forEach((record) => {
+          if (record.el) {
+            record.el.remove();
+            record.el = null;
+          }
+        });
+      }
+
+      function renderEventsForDate(dateKey) {
+        if (dateKey === renderedDateKey) return; // already showing this date's boxes
+        detachRenderedBoxes(renderedDateKey);
+
+        EventStore.getForDate(dateKey).forEach((record) => {
+          if (record.el) return; // defensive — shouldn't happen after detach above
+          const boxEl = document.createElement('div');
+          boxEl.className = 'day-time-grid-event-box';
+          const handles = buildBoxSkeleton(boxEl);
+          positionEventBox(boxEl, record.startMinutes, record.durationMinutes);
+          innerEl.appendChild(boxEl);
+          record.el = boxEl;
+          setNotifyBadge(record, record.notify);
+          attachBoxDrag(record);
+          attachBoxResize(record, handles);
+          attachBoxWidthResize(record, handles);
+          EventEditor.renderBoxFace(record);
+        });
+
+        renderedDateKey = dateKey;
+        recomputeOverlapLayout();
+      }
+
+      /* ----------------------------------------------------------
+         Overlap handling (step 19).
+         Classic interval-graph-coloring layout: sort by start time,
+         greedily slot each event into the first column whose
+         previous occupant has already ended, otherwise open a new
+         column. Every event in the same connected cluster of
+         overlaps shares that cluster's column count, so they render
+         as equal-width side-by-side slices — same visual language
+         Google Calendar uses for a double-booked block.
+
+         Runs on the currently-rendered date only, and only touches
+         horizontal placement (left/width) — vertical placement
+         (top/height) stays exactly what positionEventBox already
+         set from startMinutes/durationMinutes.
+      ---------------------------------------------------------- */
+      const overlapCfg = {
+        trackLeft:     34, // must match .day-time-grid-event-box's CSS left
+        trackRightGap: 6,  // must match .day-time-grid-event-box's CSS right
+        colGap:        2,  // px gap between side-by-side columns
+      };
+
+      const widthResizeCfg = {
+        MIN_WIDTH_PX: 20,
+      };
+
+      function trackWidthPx() {
+        return innerEl.clientWidth - overlapCfg.trackLeft - overlapCfg.trackRightGap;
+      }
+
+      // Applies a record's own saved width/left-offset (in px, already
+      // snapped to the cm grid by attachBoxWidthResize) — clamped to
+      // whatever room actually exists right now, since the track can
+      // be narrower after a window resize than it was when the box
+      // was last resized. A record that's never been manually resized
+      // just gets the full track, same as before.
+      function applyManualBoxPosition(record) {
+        const boxEl = record.el;
+        if (!boxEl) return;
+        const tw = trackWidthPx();
+        const leftPx = record.manualLeftPx != null
+          ? Math.max(0, Math.min(record.manualLeftPx, tw - widthResizeCfg.MIN_WIDTH_PX))
+          : 0;
+        const widthPx = record.manualWidthPx != null
+          ? Math.min(record.manualWidthPx, tw - leftPx)
+          : (tw - leftPx);
+        boxEl.style.left  = (overlapCfg.trackLeft + leftPx) + 'px';
+        boxEl.style.width = Math.max(widthPx, widthResizeCfg.MIN_WIDTH_PX) + 'px';
+      }
+
+      function positionEventBoxColumn(record, colIndex, colCount) {
+        const boxEl = record.el;
+        if (colCount <= 1) {
+          applyManualBoxPosition(record);
+          return;
+        }
+        const trackWidth = trackWidthPx();
+        const slice       = trackWidth / colCount;
+        const left        = overlapCfg.trackLeft + slice * colIndex + (colIndex > 0 ? overlapCfg.colGap / 2 : 0);
+        const width        = slice - (colIndex > 0 && colIndex < colCount - 1
+          ? overlapCfg.colGap
+          : overlapCfg.colGap / 2);
+        boxEl.style.left  = left + 'px';
+        boxEl.style.width = Math.max(width, 20) + 'px';
+      }
+
+      function recomputeOverlapLayout() {
+        // DISABLED: no more automatic column-splitting when boxes
+        // land on the same time slot. Boxes just keep whatever
+        // position/width they already have — full track width by
+        // default, or their own manually-resized width/position —
+        // and dragging/resizing is never overridden by collision
+        // handling. Overlapping boxes are simply allowed to overlap.
+        if (!renderedDateKey) return;
+        EventStore.getForDate(renderedDateKey)
+          .filter((r) => r.el)
+          .forEach((record) => applyManualBoxPosition(record));
+      }
+
+      /* ----------------------------------------------------------
+         Quarter-hour expand guide.
+         While actively dragging/resizing, holding the cursor still
+         on the same 15-min slot for expandCfg.holdMs (0.6s) — not
+         just moving through it — expands that whole hour: every
+         hour line/label after it slides down to open up real room,
+         and three tick marks + labels zoom in at :15/:30/:45 inside
+         the newly-opened space. Moving again (even slightly, to a
+         different slot) immediately collapses it and restarts the
+         hold timer on the new spot; releasing the pointer always
+         collapses it straight away.
+      ---------------------------------------------------------- */
+      const expandCfg = {
+        fadeMs:  220, // slide/zoom transition duration
+        holdMs:  600, // must hold still on the same slot this long before it expands
+        extraPx: 54,  // extra vertical room opened up inside the expanded hour
+      };
+      let expandedHour = null;           // integer hour currently expanded, or null
+      let expandEls = [];                // the extra quarter tick/label elements
+      let shiftedEls = [];                // hour lines/labels currently slid down to make room
+      let expandHoldTimer = null;
+      let expandCandidateMinutes = null; // the minute value the pending hold timer is waiting on
+
+      function collapseExpandedHour() {
+        clearTimeout(expandHoldTimer);
+        expandHoldTimer = null;
+        expandCandidateMinutes = null;
+        if (expandedHour === null && !expandEls.length) return;
+        expandedHour = null;
+
+        const dyingQuarters = expandEls;
+        expandEls = [];
+        dyingQuarters.forEach((el) => {
+          el.classList.remove('visible');
+          setTimeout(() => el.remove(), expandCfg.fadeMs);
+        });
+
+        const dyingShift = shiftedEls;
+        shiftedEls = [];
+        dyingShift.forEach((el) => { el.style.transform = ''; });
+      }
+
+      // Actually performs the expand: slides every hour line/label
+      // after `hour` down by extraPx (real, layout-affecting motion —
+      // not just a visual overlay), then zooms in the three quarter
+      // marks spread evenly across the now-larger hour slot.
+      function triggerExpandedHour(hour) {
+        const baseY = hour * cfg.hourHeight;
+        const expandedHeight = cfg.hourHeight + expandCfg.extraPx;
+
+        const toShift = [];
+        for (let h = hour + 1; h <= 24; h++) {
+          if (hourLineEls[h]) toShift.push(hourLineEls[h]);
+          if (hourLabelEls[h]) toShift.push(hourLabelEls[h]);
+        }
+        toShift.forEach((lineOrLabel) => {
+          lineOrLabel.style.transition = 'transform ' + expandCfg.fadeMs + 'ms ease';
+          lineOrLabel.style.transform = 'translateY(' + expandCfg.extraPx + 'px)';
+        });
+        shiftedEls = toShift;
+
+        const els = [];
+        [0.25, 0.5, 0.75].forEach((frac) => {
+          const y  = baseY + frac * expandedHeight;
+          const mm = Math.round(frac * 60);
+          const labelText = String(hour).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
+
+          const line = document.createElement('div');
+          line.className = 'day-time-grid-hour-line day-time-grid-quarter-line';
+          line.style.top = y + 'px';
+          line.style.transition = 'opacity ' + expandCfg.fadeMs + 'ms ease, top ' + expandCfg.fadeMs + 'ms ease';
+          innerEl.appendChild(line);
+          els.push(line);
+
+          const label = document.createElement('div');
+          label.className = 'day-time-grid-hour-label day-time-grid-quarter-label';
+          label.style.top = y + 'px';
+          label.style.transition = 'opacity ' + expandCfg.fadeMs + 'ms ease, transform ' + expandCfg.fadeMs + 'ms ease, top ' + expandCfg.fadeMs + 'ms ease';
+          label.textContent = labelText;
+          innerEl.appendChild(label);
+          els.push(label);
+        });
+
+        requestAnimationFrame(() => els.forEach((el) => el.classList.add('visible')));
+        expandEls = els;
+        expandedHour = hour;
+      }
+
+      // Called on every drag/resize move with whichever minute value
+      // is actively changing. DISABLED: this used to (re)start a hold
+      // timer that, after holdMs with no movement, slid every later
+      // hour line down and zoomed in quarter-marks (triggerExpandedHour)
+      // — that's the "auto correction" that was glitching out whenever
+      // two events landed in the same spot. Left as a no-op rather than
+      // deleted so collapseExpandedHour()/triggerExpandedHour() below
+      // (still called elsewhere) stay harmless no-ops too.
+      function requestExpandForMinutes(minutes) {
+        return;
+      }
+
+      /* ----------------------------------------------------------
+         Drag-to-move (step 16).
+         Press-and-drag anywhere on an existing box slides it to a
+         new time. Deliberately finer-grained than the 60-min hold-
+         to-create snap (SNAP_MIN above) — once a box exists, nudging
+         it should feel closer to Google Calendar's ~15-min drag snap
+         rather than jumping a full hour at a time.
+
+         A plain tap (no meaningful pointer movement) does nothing
+         here — that's reserved for step 18 (click box to reopen).
+         Movement past MOVE_THRESHOLD_PX is what promotes a press
+         into an actual drag.
+      ---------------------------------------------------------- */
+      /* ----------------------------------------------------------
+         Drag-to-move (step 16, now free-directional).
+         Press-and-drag anywhere on an existing box slides it: the
+         vertical component of the drag changes its time (same as
+         before), and the horizontal component slides it sideways
+         within its track — width stays put, only its left offset
+         changes, snapped to the same cm grid the resize handles use.
+         A pure vertical drag only changes time; a pure horizontal
+         drag only changes position; a diagonal drag does both at
+         once, same feel as most calendar apps.
+
+         A plain tap (barely any movement in any direction) does
+         nothing here — that's reserved for step 18 (click box to
+         reopen). Only pointer travel past MOVE_THRESHOLD_PX (measured
+         as straight-line distance, not just one axis) promotes a
+         press into an actual drag; anything short of that is read as
+         a tap and opens the editor instead. Horizontal moves are
+         skipped while overlapping another event and sharing a column
+         — same rule as the width-resize handles, since the automatic
+         side-by-side layout owns horizontal placement there.
+      ---------------------------------------------------------- */
+      const dragCfg = {
+        SNAP_MIN:                15,
+        MOVE_THRESHOLD_PX:       10, // mouse / pen — small and precise
+        TOUCH_MOVE_THRESHOLD_PX: 20, // a finger wobbles more than this on a plain tap
+      };
+
+      function clampStartMinutes(startMinutes, durationMinutes) {
+        const max = 24 * 60 - durationMinutes;
+        return Math.max(0, Math.min(max, startMinutes));
+      }
+
+      function attachBoxDrag(record) {
+        const boxEl = record.el;
+        let dragPointerId   = null;
+        let dragPointerType = 'mouse';
+        let dragging        = false;
+        let startClientX    = 0;
+        let startClientY    = 0;
+        let startMinutesAt  = 0;
+        let startLeftPx     = 0; // horizontal offset (px from track's own left edge) at drag start
+
+        function onMove(e) {
+          if (e.pointerId !== dragPointerId) return;
+          const dx = e.clientX - startClientX;
+          const dy = e.clientY - startClientY;
+
+          if (!dragging) {
+            const threshold = dragPointerType === 'touch'
+              ? dragCfg.TOUCH_MOVE_THRESHOLD_PX
+              : dragCfg.MOVE_THRESHOLD_PX;
+            if (Math.hypot(dx, dy) < threshold) return;
+            dragging = true;
+            boxEl.classList.add('dragging');
+          }
+
+          const deltaMinutes = (dy / cfg.hourHeight) * 60;
+          const rawStart     = startMinutesAt + deltaMinutes;
+          const snapped      = Math.round(rawStart / dragCfg.SNAP_MIN) * dragCfg.SNAP_MIN;
+          record.startMinutes = clampStartMinutes(snapped, record.durationMinutes);
+          positionEventBox(boxEl, record.startMinutes, record.durationMinutes);
+
+          // Horizontal — slide sideways within the track, snapped to
+          // the same px-per-"cm" unit the width-resize handles use.
+          const tw     = trackWidthPx();
+          const cmPx   = cfg.hourHeight;
+          const rawLeft     = startLeftPx + dx;
+          const snappedLeft = Math.round(rawLeft / cmPx) * cmPx;
+          const widthPx     = record.manualWidthPx != null ? record.manualWidthPx : tw;
+          record.manualLeftPx = Math.max(0, Math.min(snappedLeft, tw - widthPx));
+          applyManualBoxPosition(record);
+
+          EventEditor.updateTimeLabel(record);
+          EventEditor.updateFaceTime(record);
+          requestExpandForMinutes(record.startMinutes);
+        }
+
+        function onEnd(e) {
+          if (e.pointerId !== dragPointerId) return;
+          document.removeEventListener('pointermove', onMove);
+          document.removeEventListener('pointerup', onEnd);
+          document.removeEventListener('pointercancel', onEnd);
+          dragPointerId = null;
+          collapseExpandedHour();
+          if (dragging) {
+            boxEl.classList.remove('dragging');
+            EventStore.save(record);
+            if (record.notify) NotificationScheduler.schedule(record);
+            recomputeOverlapLayout();
+          } else if (e.type === 'pointerup') {
+            // No meaningful movement happened between down and up —
+            // that's a tap, not a drag. Step 18: reopen the editor
+            // on the record as it currently stands (pointercancel is
+            // excluded here — an interrupted gesture, e.g. a scroll
+            // stealing the pointer, shouldn't pop the editor open).
+            EventEditor.open(record);
+          }
+          dragging = false;
+        }
+
+        boxEl.addEventListener('pointerdown', (e) => {
+          if (dragPointerId !== null) return;
+          if (e.button !== undefined && e.button !== 0) return;
+          // Don't let this bubble up into the grid's own hold-to-
+          // create listener on innerEl.
+          e.stopPropagation();
+
+          // While this box is in its inline-edit state, clicks on its
+          // own editor controls (textarea, type/color buttons,
+          // dropdowns) should behave like normal form interactions —
+          // not get hijacked into a drag-move or a tap-to-reopen.
+          if (boxEl.classList.contains('editing') && e.target.closest('.day-time-grid-event-box-editor')) {
+            return;
+          }
+
+          const tw = trackWidthPx();
+          const widthPx = record.manualWidthPx != null ? record.manualWidthPx : tw;
+
+          dragPointerId   = e.pointerId;
+          dragPointerType = e.pointerType || 'mouse';
+          startClientX    = e.clientX;
+          startClientY    = e.clientY;
+          startMinutesAt  = record.startMinutes;
+          startLeftPx     = record.manualLeftPx != null
+            ? Math.max(0, Math.min(record.manualLeftPx, tw - widthPx))
+            : 0;
+
+          document.addEventListener('pointermove', onMove);
+          document.addEventListener('pointerup', onEnd);
+          document.addEventListener('pointercancel', onEnd);
+        });
+      }
+
+      /* ----------------------------------------------------------
+         Drag-to-resize (step 17).
+         Same pointer-capture shape as attachBoxDrag, but scoped to
+         the top/bottom handle strips rather than the whole box, and
+         each edge behaves differently:
+           - bottom handle: start time is fixed, duration changes.
+           - top handle: the box's bottom edge is fixed, so moving
+             the top both shifts startMinutes AND changes duration
+             (grow up = earlier start + longer; shrink down = later
+             start + shorter) — the standard calendar-resize feel.
+         Handles call e.stopPropagation() on pointerdown so a press
+         there is claimed before attachBoxDrag's own listener (on the
+         box itself) can treat it as a move.
+      ---------------------------------------------------------- */
+      const resizeCfg = {
+        SNAP_MIN:     15,
+        MIN_DURATION: 15,
+      };
+
+      function attachBoxResize(record, handles) {
+        const boxEl = record.el;
+        let resizePointerId = null;
+        let edge             = null; // 'top' | 'bottom'
+        let startClientY     = 0;
+        let fixedMinutes      = 0;    // the edge that does NOT move
+        let ownMinutesAtStart = 0;    // the edge that DOES move, before drag
+
+        function onMove(e) {
+          if (e.pointerId !== resizePointerId) return;
+          const dy = e.clientY - startClientY;
+          const deltaMinutes = (dy / cfg.hourHeight) * 60;
+          const rawMoving = ownMinutesAtStart + deltaMinutes;
+          const snapped   = Math.round(rawMoving / resizeCfg.SNAP_MIN) * resizeCfg.SNAP_MIN;
+
+          if (edge === 'bottom') {
+            const newEnd = Math.max(fixedMinutes + resizeCfg.MIN_DURATION, Math.min(24 * 60, snapped));
+            record.durationMinutes = newEnd - fixedMinutes;
+          } else {
+            const newStart = Math.min(fixedMinutes - resizeCfg.MIN_DURATION, snapped);
+            const clampedStart = Math.max(0, newStart);
+            record.startMinutes    = clampedStart;
+            record.durationMinutes = fixedMinutes - clampedStart;
+          }
+          positionEventBox(boxEl, record.startMinutes, record.durationMinutes);
+          EventEditor.updateTimeLabel(record);
+          EventEditor.updateFaceTime(record);
+          // Only the edge actually being dragged is what should
+          // drive which hour expands — the fixed edge doesn't move.
+          requestExpandForMinutes(edge === 'bottom' ? (fixedMinutes + record.durationMinutes) : record.startMinutes);
+        }
+
+        function onEnd(e) {
+          if (e.pointerId !== resizePointerId) return;
+          document.removeEventListener('pointermove', onMove);
+          document.removeEventListener('pointerup', onEnd);
+          document.removeEventListener('pointercancel', onEnd);
+          resizePointerId = null;
+          boxEl.classList.remove('resizing');
+          collapseExpandedHour();
+          EventStore.save(record);
+          if (record.notify) NotificationScheduler.schedule(record);
+          recomputeOverlapLayout();
+        }
+
+        function startResize(e, whichEdge) {
+          if (resizePointerId !== null) return;
+          if (e.button !== undefined && e.button !== 0) return;
+          e.stopPropagation();
+
+          resizePointerId = e.pointerId;
+          edge            = whichEdge;
+          startClientY    = e.clientY;
+
+          if (whichEdge === 'bottom') {
+            fixedMinutes      = record.startMinutes;
+            ownMinutesAtStart = record.startMinutes + record.durationMinutes;
+          } else {
+            fixedMinutes      = record.startMinutes + record.durationMinutes;
+            ownMinutesAtStart = record.startMinutes;
+          }
+
+          boxEl.classList.add('resizing');
+          document.addEventListener('pointermove', onMove);
+          document.addEventListener('pointerup', onEnd);
+          document.addEventListener('pointercancel', onEnd);
+        }
+
+        handles.topHandle.addEventListener('pointerdown', (e) => startResize(e, 'top'));
+        handles.bottomHandle.addEventListener('pointerdown', (e) => startResize(e, 'bottom'));
+      }
+
+      /* ----------------------------------------------------------
+         Drag-to-resize width (left/right edges).
+         Same shape as attachBoxResize, but horizontal: dragging the
+         right handle keeps the left edge fixed and changes width;
+         dragging the left handle keeps the right edge fixed and
+         moves the left edge (width follows). Both edges snap to the
+         same px-per-"cm" unit the vertical grid already uses
+         (cfg.hourHeight — that's the unit this app treats as 1cm
+         throughout, not a literal physical centimeter), so the box
+         always lands on a clean grid line on both sides.
+         Ignored while this record is overlapping another event and
+         sharing a column — the automatic equal-slice layout takes
+         over there, and a saved manual width would just fight it.
+      ---------------------------------------------------------- */
+      function attachBoxWidthResize(record, handles) {
+        const boxEl = record.el;
+        let pointerId    = null;
+        let edge         = null; // 'left' | 'right'
+        let startClientX = 0;
+        let fixedPx      = 0; // the edge (px from track's left) that stays put
+        let ownPxAtStart = 0; // the edge (px from track's left) that moves
+
+        function onMove(e) {
+          if (e.pointerId !== pointerId) return;
+          const tw  = trackWidthPx();
+          const dx  = e.clientX - startClientX;
+          const cmPx = cfg.hourHeight;
+          const rawMoving = ownPxAtStart + dx;
+          const snapped   = Math.round(rawMoving / cmPx) * cmPx;
+
+          if (edge === 'right') {
+            const newRight = Math.max(fixedPx + widthResizeCfg.MIN_WIDTH_PX, Math.min(tw, snapped));
+            record.manualLeftPx  = fixedPx;
+            record.manualWidthPx = newRight - fixedPx;
+          } else {
+            const newLeft = Math.min(fixedPx - widthResizeCfg.MIN_WIDTH_PX, snapped);
+            const clampedLeft = Math.max(0, newLeft);
+            record.manualLeftPx  = clampedLeft;
+            record.manualWidthPx = fixedPx - clampedLeft;
+          }
+          applyManualBoxPosition(record);
+        }
+
+        function onEnd(e) {
+          if (e.pointerId !== pointerId) return;
+          document.removeEventListener('pointermove', onMove);
+          document.removeEventListener('pointerup', onEnd);
+          document.removeEventListener('pointercancel', onEnd);
+          pointerId = null;
+          boxEl.classList.remove('resizing');
+          EventStore.save(record);
+        }
+
+        function startResize(e, whichEdge) {
+          if (pointerId !== null) return;
+          if (e.button !== undefined && e.button !== 0) return;
+          e.stopPropagation();
+
+          const tw = trackWidthPx();
+          const leftPx = record.manualLeftPx != null
+            ? Math.max(0, Math.min(record.manualLeftPx, tw - widthResizeCfg.MIN_WIDTH_PX))
+            : 0;
+          const widthPx = record.manualWidthPx != null
+            ? Math.min(record.manualWidthPx, tw - leftPx)
+            : (tw - leftPx);
+
+          pointerId    = e.pointerId;
+          edge         = whichEdge;
+          startClientX = e.clientX;
+
+          if (whichEdge === 'right') {
+            fixedPx      = leftPx;
+            ownPxAtStart = leftPx + widthPx;
+          } else {
+            fixedPx      = leftPx + widthPx;
+            ownPxAtStart = leftPx;
+          }
+
+          boxEl.classList.add('resizing');
+          document.addEventListener('pointermove', onMove);
+          document.addEventListener('pointerup', onEnd);
+          document.addEventListener('pointercancel', onEnd);
+        }
+
+        handles.leftHandle.addEventListener('pointerdown', (e) => startResize(e, 'left'));
+        handles.rightHandle.addEventListener('pointerdown', (e) => startResize(e, 'right'));
+      }
+
+      function ensureBuilt() {
+        if (el) return;
+        el = document.createElement('div');
+        el.id = 'dayTimeGrid';
+        el.className = 'day-time-grid';
+        document.body.appendChild(el);
+        buildHours();
+        initHoldGesture();
+      }
+
+      // Sits directly under the locked header card (day-number +
+      // month-nav + mini-calendar panel), same left edge as the
+      // page, same right edge as that card. No fixed/viewport-
+      // clamped height and no inner scrollbar — its height is just
+      // its real content height (24 hours), so it grows the actual
+      // page and pushes anything below it down, and scrolling to an
+      // hour is real page scroll rather than a scrollbar inside a box.
+      function computeRect() {
+        const card      = LockedHeaderCard.computeRect();
+        const container = MiniCalendarLayout.computeContainerRect();
+        const top       = card.top + card.height + 18;
+        return {
+          left:   0,
+          top:    top,
+          width:  container.left + container.width,
+          height: cfg.hourHeight * 24,
+        };
+      }
+
+      function render() {
+        ensureBuilt();
+        const r = computeRect();
+        const isNight = document.body.classList.contains('night-mode');
+        el.style.left   = r.left + 'px';
+        el.style.top    = (r.top + window.scrollY) + 'px';
+        el.style.width  = r.width + 'px';
+        el.style.height = r.height + 'px';
+        el.classList.toggle('night', isNight);
+        updateNowLine();
+      }
+
+      let hideTimer = null;
+
+      function show() {
+        clearTimeout(hideTimer);
+        ensureBuilt();
+        el.style.display = 'block';
+        render();
+        renderEventsForDate(EventStore.selectedDateKey());
+        requestAnimationFrame(() => { if (el) el.style.opacity = '1'; });
+        if (!resizeHandler) {
+          resizeHandler = () => { if (el && el.style.opacity === '1') { render(); recomputeOverlapLayout(); } };
+          window.addEventListener('resize', resizeHandler);
+        }
+        // Only ticking while the grid is actually on screen — no point
+        // updating a bar nobody can see.
+        startNowTimer();
+      }
+
+      function hide() {
+        if (!el) return;
+        el.style.opacity = '0';
+        // Only fully removed from layout (display:none) AFTER the fade
+        // finishes, so it fades instead of hard-cutting. But it MUST
+        // end up display:none once hidden: while still `display:block`
+        // (even at opacity 0) it's a ~2000px-tall absolutely-positioned
+        // box that still occupies scrollable page space — exactly what
+        // was pushing the settings button/header out of place in the
+        // normal CALENDAR view.
+        clearTimeout(hideTimer);
+        hideTimer = setTimeout(() => { if (el) el.style.display = 'none'; }, cfg.fadeMs);
+        stopNowTimer();
+      }
+
+      function init() {
+        DayViewState.onChange((next) => {
+          if (next === DayViewState.STATES.LOCKED) {
+            // Double rAF: wait for LockedHeaderCard/MiniCalendarLayout
+            // to have settled at their real positions first, same
+            // pattern used elsewhere in this file.
+            requestAnimationFrame(() => requestAnimationFrame(show));
+          } else {
+            hide();
+          }
+        });
+        // If the locked day changes while the grid is already open
+        // (e.g. a future section wires mini-calendar clicks while
+        // LOCKED), keep the red bar's visibility in sync immediately
+        // rather than waiting for the next 30s tick.
+        SelectedDayState.onChange(() => {
+          if (el && el.style.display === 'block') {
+            updateNowLine();
+            renderEventsForDate(EventStore.selectedDateKey());
+          }
+        });
+        // A completed hold (step 5) now actually produces a box
+        // (step 6) rather than just flashing the indicator.
+        onHoldCreate(spawnEventBox);
+      }
+
+      return { init, computeRect, onHoldCreate, onBoxCreated, recomputeOverlapLayout, setNotifyBadge };
+    })();
+    DayTimeGrid.init();
+
+    /* ============================================================
+       SECTION — Notification scheduler (bell toggle).
+       Best-effort local reminders via the browser Notification API.
+       IMPORTANT limitation, stated plainly: there's no push server
+       or service worker wired up here, so a scheduled reminder only
+       fires if this tab/browser is still open in memory when the
+       event's start time arrives — closing the tab or the browser
+       cancels it, same as any plain setTimeout would. It is NOT a
+       true background web-push notification that survives the
+       browser being closed. Good enough for "remind me later today
+       while I've got this open," not for "wake my phone up
+       tomorrow."
+    ============================================================ */
+    const NotificationScheduler = (() => {
+      const timers = new Map(); // record.id -> setTimeout id
+      const MAX_DELAY_MS = 20 * 24 * 60 * 60 * 1000; // setTimeout delay overflow guard
+
+      function supported() {
+        return typeof Notification !== 'undefined';
+      }
+
+      function permissionGranted() {
+        return supported() && Notification.permission === 'granted';
+      }
+
+      function requestPermission() {
+        if (!supported()) return Promise.resolve('unsupported');
+        if (Notification.permission === 'granted' || Notification.permission === 'denied') {
+          return Promise.resolve(Notification.permission);
+        }
+        return Notification.requestPermission();
+      }
+
+      // record.dateKey is "YYYY-MM-DD"; combine with startMinutes to
+      // get the real local Date the event starts at.
+      function eventDateTime(record) {
+        const [y, m, d] = record.dateKey.split('-').map(Number);
+        const dt = new Date(y, m - 1, d);
+        dt.setMinutes(dt.getMinutes() + record.startMinutes);
+        return dt;
+      }
+
+      function fire(record) {
+        timers.delete(record.id);
+        if (!permissionGranted()) return;
+        const title = record.type || 'Event reminder';
+        const body = record.description || 'Starting now';
+        try {
+          new Notification(title, { body, tag: 'habitcal-' + record.id });
+        } catch { /* ignore — some browsers reject Notification() outside a user gesture in edge cases */ }
+      }
+
+      function unschedule(record) {
+        if (!record) return;
+        const id = timers.get(record.id);
+        if (id != null) { clearTimeout(id); timers.delete(record.id); }
+      }
+
+      // (Re)schedules a single record. Called whenever notify is
+      // turned on, and whenever a notify-on record's time changes
+      // (drag/resize) so the reminder always tracks the current
+      // start time rather than firing at a stale one.
+      function schedule(record) {
+        unschedule(record);
+        if (!record || !record.notify || !permissionGranted()) return;
+        const delay = eventDateTime(record).getTime() - Date.now();
+        if (delay <= 0 || delay > MAX_DELAY_MS) return; // already past, or too far out to time reliably
+        const id = setTimeout(() => fire(record), delay);
+        timers.set(record.id, id);
+      }
+
+      return { requestPermission, schedule, unschedule, permissionGranted, supported };
+    })();
+
+    /* ============================================================
+       SECTION — Inline task editor (revision).
+       No shared floating popup anymore. Each event box builds its
+       own small editor sub-tree the first time it's opened (cached
+       on record._editor so reopening doesn't rebuild), and that
+       editor lives inside the box's own element — toggled via the
+       box's 'editing' class. Only one record can be "open" at a
+       time (module-level currentRecord); opening a second one
+       commits and closes whichever was open first.
+    ============================================================ */
+    const EventEditor = (() => {
+      let currentRecord = null;
+
+      // Prefixed label set, same three defaults as before, plus the
+      // custom-name field appended below them in the same dropdown.
+      const PREFIXED_TYPES = ['Important', 'Task', 'Personal'];
+
+      // Default swatch palette for the color picker.
+      const COLOR_SWATCHES = [
+        '#3b82f6', '#e6362a', '#f59e0b', '#10b981', '#14b8a6',
+        '#8b5cf6', '#ec4899', '#64748b', '#78350f', '#111827',
+      ];
+
+      // Builds the editor sub-tree for one record and appends it into
+      // that record's own box element. Runs once per record — later
+      // opens just reuse record._editor.
+      function buildInlineEditor(record) {
+        const boxEl = record.el;
+
+        const editorEl = document.createElement('div');
+        editorEl.className = 'day-time-grid-event-box-editor';
+
+        const topRow = document.createElement('div');
+        topRow.className = 'day-time-grid-event-box-editor-toprow';
+
+        const typeWrap = document.createElement('div');
+        typeWrap.className = 'day-time-grid-event-box-type-wrap';
+
+        const typeBtn = document.createElement('button');
+        typeBtn.type = 'button';
+        typeBtn.className = 'day-time-grid-event-box-type-btn';
+        typeBtn.innerHTML = '<span></span>';
+        const typeLabelEl = typeBtn.querySelector('span');
+        typeBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          typeMenu.classList.toggle('open');
+        });
+
+        const typeMenu = document.createElement('div');
+        typeMenu.className = 'day-time-grid-event-box-type-menu';
+        PREFIXED_TYPES.forEach((label) => {
+          const opt = document.createElement('button');
+          opt.type = 'button';
+          opt.className = 'day-time-grid-event-box-type-option';
+          opt.textContent = label;
+          opt.addEventListener('click', (e) => {
+            e.stopPropagation();
+            selectType(record, label);
+            customInput.value = '';
+            typeMenu.classList.remove('open');
+          });
+          typeMenu.appendChild(opt);
+        });
+
+        const typeDivider = document.createElement('div');
+        typeDivider.className = 'day-time-grid-event-box-type-divider';
+        typeMenu.appendChild(typeDivider);
+
+        // Custom label — types anything and it becomes the selected
+        // label. Commits on Enter or on blur, same as a normal field.
+        const customInput = document.createElement('input');
+        customInput.type = 'text';
+        customInput.className = 'day-time-grid-event-box-type-custom-input';
+        customInput.placeholder = 'Custom label…';
+        customInput.addEventListener('click', (e) => e.stopPropagation());
+        const commitCustom = () => {
+          const val = customInput.value.trim();
+          if (val) {
+            selectType(record, val);
+            typeMenu.classList.remove('open');
+          }
+        };
+        customInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') { e.preventDefault(); commitCustom(); }
+        });
+        customInput.addEventListener('blur', commitCustom);
+        typeMenu.appendChild(customInput);
+
+        typeWrap.appendChild(typeBtn);
+        typeWrap.appendChild(typeMenu);
+        topRow.appendChild(typeWrap);
+
+        // Time-range readout — sits to the right of the type field,
+        // shows "start – end" for whatever this box is currently set
+        // to. Pure display (not editable here); it's kept in sync by
+        // updateTimeLabel() below, called from open() and whenever a
+        // drag/resize changes record.startMinutes/durationMinutes.
+        const timeLabelEl = document.createElement('div');
+        timeLabelEl.className = 'day-time-grid-event-box-time-label';
+        topRow.appendChild(timeLabelEl);
+
+        const descEl = document.createElement('textarea');
+        descEl.className = 'day-time-grid-event-box-desc-input';
+        descEl.placeholder = 'Describe your goal or task…';
+        descEl.addEventListener('input', () => {
+          record.description = descEl.value;
+          EventStore.save(record);
+          syncEditingHeight(record);
+        });
+
+        // Color badge — now lives in the row itself (type → time →
+        // color → trash), not tucked away in the box's corner.
+        // Clicking it still opens the swatch grid below it.
+        const colorWrap = document.createElement('div');
+        colorWrap.className = 'day-time-grid-event-box-color-wrap';
+
+        const colorBtn = document.createElement('button');
+        colorBtn.type = 'button';
+        colorBtn.className = 'day-time-grid-event-box-color-btn';
+        colorBtn.setAttribute('aria-label', 'Color');
+        colorBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          colorMenu.classList.toggle('open');
+        });
+
+        const colorMenu = document.createElement('div');
+        colorMenu.className = 'day-time-grid-event-box-color-menu';
+
+        const colorGrid = document.createElement('div');
+        colorGrid.className = 'day-time-grid-event-box-color-grid';
+        COLOR_SWATCHES.forEach((hex) => {
+          const sw = document.createElement('button');
+          sw.type = 'button';
+          sw.className = 'day-time-grid-event-box-color-swatch';
+          sw.style.background = hex;
+          sw.dataset.hex = hex;
+          sw.setAttribute('aria-label', hex);
+          sw.addEventListener('click', (e) => {
+            e.stopPropagation();
+            selectColor(record, hex);
+            colorMenu.classList.remove('open');
+          });
+          colorGrid.appendChild(sw);
+        });
+        colorMenu.appendChild(colorGrid);
+
+        colorWrap.appendChild(colorBtn);
+        colorWrap.appendChild(colorMenu);
+
+        // Trash icon — sits right after the color picker in the row,
+        // always visible instead of buried inside a dropdown.
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.className = 'day-time-grid-event-box-delete-inline-btn';
+        deleteBtn.setAttribute('aria-label', 'Delete event');
+        deleteBtn.title = 'Delete event';
+        deleteBtn.innerHTML =
+          '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" ' +
+          'stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">' +
+          '<polyline points="3 6 5 6 21 6"></polyline>' +
+          '<path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>' +
+          '<path d="M10 11v6"></path><path d="M14 11v6"></path>' +
+          '<path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>';
+        deleteBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          deleteRecord(record);
+        });
+
+        // Notify bell — sits right before the color picker (type →
+        // time → bell → color → trash). Toggling it on requests
+        // browser notification permission (if not already granted)
+        // and schedules a local reminder for this event's start
+        // time; toggling off cancels that reminder. See
+        // NotificationScheduler above for the "tab must stay open"
+        // caveat.
+        const notifyBtn = document.createElement('button');
+        notifyBtn.type = 'button';
+        notifyBtn.className = 'day-time-grid-event-box-notify-btn';
+        notifyBtn.setAttribute('aria-label', 'Notify me');
+        notifyBtn.title = 'Send a notification when this starts';
+        notifyBtn.innerHTML =
+          '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" ' +
+          'stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">' +
+          '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"></path>' +
+          '<path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>';
+        notifyBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          toggleNotify(record);
+        });
+        topRow.appendChild(notifyBtn);
+
+        topRow.appendChild(colorWrap);
+        topRow.appendChild(deleteBtn);
+
+        editorEl.appendChild(topRow);
+        editorEl.appendChild(descEl);
+        boxEl.appendChild(editorEl);
+
+        record._editor = {
+          editorEl, typeWrap, typeBtn, typeLabelEl, typeMenu, customInput,
+          descEl, colorWrap, colorBtn, colorMenu, timeLabelEl, deleteBtn, notifyBtn,
+        };
+      }
+
+      // Formats a minutes-since-midnight value as "9:05 AM" style text.
+      function formatClockTime(totalMinutes) {
+        let h = Math.floor(totalMinutes / 60) % 24;
+        const m = Math.round(totalMinutes % 60);
+        const period = h >= 12 ? 'PM' : 'AM';
+        let h12 = h % 12;
+        if (h12 === 0) h12 = 12;
+        return h12 + ':' + String(m).padStart(2, '0') + ' ' + period;
+      }
+
+      // Keeps the "when" readout next to the type field in sync with
+      // whatever the box is currently set to — called once when the
+      // editor opens, and again on every drag/resize move so it live-
+      // updates as the box is repositioned or resized.
+      // Measures how tall the editor's actual content needs — the
+      // top row of controls plus whatever the description really
+      // wraps to — and only grows the box past its own time-slot
+      // height when that content genuinely doesn't fit. An empty
+      // description with a short event never gets pushed to some
+      // flat "big enough for anything" size; it only grows exactly
+      // as much as the text in it requires.
+      function syncEditingHeight(record) {
+        const boxEl = record && record.el;
+        const ed = record && record._editor;
+        if (!boxEl || !ed || !boxEl.classList.contains('editing')) return;
+
+        const topRow = ed.editorEl.querySelector('.day-time-grid-event-box-editor-toprow');
+        const topRowH = topRow ? topRow.getBoundingClientRect().height : 0;
+        const TOPROW_MARGIN_BOTTOM = 4; // matches .day-time-grid-event-box-editor-toprow
+        const EDITOR_PADDING_V     = 6 + 8; // matches .day-time-grid-event-box-editor padding
+
+        // Measure the textarea's real wrapped content height —
+        // temporarily take it out of the flex layout so scrollHeight
+        // reflects the text itself, not whatever space flex handed it.
+        const desc = ed.descEl;
+        const prevFlex   = desc.style.flex;
+        const prevHeight = desc.style.height;
+        desc.style.flex   = 'none';
+        desc.style.height = 'auto';
+        const descContentH = desc.scrollHeight;
+        desc.style.flex   = prevFlex;
+        desc.style.height = prevHeight;
+
+        const MIN_DESC_H = 16; // just enough room for one line, even when empty
+        const neededDescH = Math.max(descContentH, MIN_DESC_H);
+
+        const requiredTotal = EDITOR_PADDING_V + topRowH + TOPROW_MARGIN_BOTTOM + neededDescH;
+
+        // Never shrink below the height this box already has for its
+        // actual time slot — only grow past it, and only as far as
+        // the content genuinely needs.
+        const naturalHeight = parseFloat(boxEl.style.height) || 0;
+        const finalHeight = Math.max(naturalHeight, requiredTotal);
+
+        boxEl.style.minHeight = finalHeight + 'px';
+      }
+
+      function updateTimeLabel(record) {
+        if (!record || !record._editor || !record._editor.timeLabelEl) return;
+        const start = record.startMinutes;
+        const end = record.startMinutes + record.durationMinutes;
+        record._editor.timeLabelEl.textContent = formatClockTime(start) + ' – ' + formatClockTime(end);
+      }
+
+      // Cheap per-frame update for the compact box's time line — unlike
+      // renderBoxFace() (which rebuilds the whole content wrapper) this
+      // only touches the one text node, so it's safe to call on every
+      // pointermove while dragging/resizing without any extra churn.
+      function updateFaceTime(record) {
+        if (!record || !record.el) return;
+        const timeEl = record.el.querySelector('.day-time-grid-event-box-facetime');
+        if (!timeEl) return;
+        timeEl.textContent =
+          formatClockTime(record.startMinutes) + ' – ' + formatClockTime(record.startMinutes + record.durationMinutes);
+      }
+
+      function selectType(record, label) {
+        record.type = label;
+        EventStore.save(record);
+        const ed = record._editor;
+        if (!ed) return;
+        ed.typeLabelEl.textContent = label;
+        Array.from(ed.typeMenu.querySelectorAll('.day-time-grid-event-box-type-option')).forEach((opt) => {
+          opt.classList.toggle('selected', opt.textContent === label);
+        });
+      }
+
+      function selectColor(record, hex) {
+        record.color = hex;
+        record.el.style.background = hex;
+        EventStore.save(record);
+        const ed = record._editor;
+        if (!ed) return;
+        ed.colorBtn.style.background = hex;
+        Array.from(ed.colorMenu.querySelectorAll('.day-time-grid-event-box-color-swatch')).forEach((sw) => {
+          sw.classList.toggle('selected', sw.dataset.hex === hex);
+        });
+      }
+
+      // Reflects record.notify onto both the editor's bell button
+      // (filled amber when on) and the always-visible badge on the
+      // box's own corner (so it still reads once the editor closes).
+      function syncNotifyUI(record) {
+        const ed = record._editor;
+        if (ed && ed.notifyBtn) ed.notifyBtn.classList.toggle('active', !!record.notify);
+        DayTimeGrid.setNotifyBadge(record, record.notify);
+      }
+
+      // Turning the bell on asks for browser notification permission
+      // the first time (a no-op if already granted/denied); if the
+      // person denies it, the toggle stays off rather than silently
+      // pretending it's on. Turning it off just cancels whatever
+      // reminder was scheduled.
+      // The bell is a plain on/off checkbox first — it flips and the
+      // badge appears immediately, no matter what. Browser
+      // notification permission is requested in the background
+      // *in addition to* that (so the reminder can actually fire),
+      // but a slow/blocked/unsupported permission response no longer
+      // holds the checkbox itself hostage — that was the bug where
+      // clicking the bell looked like it did nothing.
+      function toggleNotify(record) {
+        record.notify = !record.notify;
+        EventStore.save(record);
+        syncNotifyUI(record);
+
+        // Click feedback — a quick ring wiggle so pressing the bell
+        // visibly does something even in the split second before the
+        // permission prompt (if any) shows up.
+        const ed = record._editor;
+        if (ed && ed.notifyBtn) {
+          const btn = ed.notifyBtn;
+          btn.classList.remove('ringing');
+          void btn.offsetWidth; // force reflow so repeated clicks restart the animation
+          btn.classList.add('ringing');
+          setTimeout(() => btn.classList.remove('ringing'), 420);
+        }
+
+        if (record.notify) {
+          NotificationScheduler.requestPermission().then((permission) => {
+            if (permission === 'granted') NotificationScheduler.schedule(record);
+          });
+        } else {
+          NotificationScheduler.unschedule(record);
+        }
+      }
+
+      // Paints a record's current type/description/color onto its
+      // compact box face. Pure rendering, no side effects — used both
+      // when editing ends AND when DayTimeGrid repaints persisted
+      // events on open (nothing to "just save" there, it's already
+      // sitting in storage).
+      //
+      // Only ever touches .day-time-grid-event-box-content, never
+      // record.el directly — record.el also carries the resize
+      // handles and (once built) the editor, as siblings of that
+      // wrapper, and those must never get wiped by a text re-render.
+      function renderBoxFace(record) {
+        if (!record || !record.el) return;
+        const contentEl = record.el.querySelector('.day-time-grid-event-box-content');
+        if (!contentEl) return;
+        const desc = (record.description || '').trim();
+
+        contentEl.textContent = ''; // clear whatever was there (incl. the initial "New Event")
+
+        // Always-visible time line — sits above the type/label, on
+        // both the compact box and while editing, so the "when" is
+        // never hidden away inside the popup.
+        const timeLine = document.createElement('div');
+        timeLine.className = 'day-time-grid-event-box-facetime';
+        timeLine.textContent =
+          formatClockTime(record.startMinutes) + ' – ' + formatClockTime(record.startMinutes + record.durationMinutes);
+        contentEl.appendChild(timeLine);
+
+        const typeLine = document.createElement('div');
+        typeLine.className = 'day-time-grid-event-box-type';
+        typeLine.textContent = record.type || 'New Event';
+        contentEl.appendChild(typeLine);
+
+        if (desc) {
+          const descLine = document.createElement('div');
+          descLine.className = 'day-time-grid-event-box-desc';
+          descLine.textContent = desc;
+          contentEl.appendChild(descLine);
+        }
+
+        if (record.color) record.el.style.background = record.color;
+      }
+
+      // The actual "collapse back to a compact box" step, run whenever
+      // editing ends (data's already been saved live field-by-field —
+      // this repaints the compact face and plays the settle pulse so
+      // closing the editor visibly reads as the box locking shut).
+      function commitRecordToBox(record) {
+        if (!record || !record.el) return;
+        EventStore.save(record);
+        renderBoxFace(record);
+
+        record.el.classList.remove('just-saved');
+        // Force reflow so re-triggering the animation on repeated
+        // edits actually restarts it instead of being a no-op because
+        // the class never left.
+        void record.el.offsetWidth;
+        record.el.classList.add('just-saved');
+        setTimeout(() => {
+          if (record.el) record.el.classList.remove('just-saved');
+        }, 320);
+      }
+
+      function open(record) {
+        if (currentRecord && currentRecord !== record) close();
+        if (!record._editor) buildInlineEditor(record);
+        currentRecord = record;
+        const ed = record._editor;
+
+        // Reopening an existing box has to show what's actually saved
+        // on it, not wipe it back to defaults. A brand-new box simply
+        // has no type/color/description yet, so this still lands on
+        // the same first-option defaults it always did.
+        ed.descEl.value = record.description || '';
+
+        const initialType = record.type || PREFIXED_TYPES[0];
+        selectType(record, initialType);
+        ed.customInput.value = PREFIXED_TYPES.includes(initialType) ? '' : initialType;
+        ed.typeMenu.classList.remove('open');
+
+        selectColor(record, record.color || COLOR_SWATCHES[0]);
+        ed.colorMenu.classList.remove('open');
+
+        syncNotifyUI(record);
+
+        updateTimeLabel(record);
+
+        record.el.classList.add('editing');
+        syncEditingHeight(record);
+        // Let the box-create confirm-flash finish before stealing
+        // focus — avoids the keyboard popping up mid-animation on
+        // mobile.
+        setTimeout(() => ed.descEl.focus(), 260);
+      }
+
+      function close() {
+        if (!currentRecord) return;
+        const record = currentRecord;
+        commitRecordToBox(record);
+        if (record.el) {
+          record.el.classList.remove('editing');
+          record.el.style.minHeight = '';
+        }
+        if (record._editor) {
+          record._editor.typeMenu.classList.remove('open');
+          record._editor.colorMenu.classList.remove('open');
+        }
+        currentRecord = null;
+      }
+
+      // Removes the record from EventStore (and its localStorage-
+      // backed serialization), detaches the box from the grid, then
+      // asks DayTimeGrid to relayout whatever's left — deleting an
+      // event can free up column space for whatever it used to
+      // overlap with.
+      function deleteRecord(record) {
+        if (!record) return;
+        const wasCurrent = record === currentRecord;
+        NotificationScheduler.unschedule(record);
+        EventStore.remove(record);
+        if (record.el) {
+          record.el.remove();
+          record.el = null;
+        }
+        DayTimeGrid.recomputeOverlapLayout();
+        if (wasCurrent) currentRecord = null;
+      }
+
+      // Tapping anywhere outside the currently-open box closes it
+      // (committing whatever was typed). Tapping inside the box but
+      // outside an open dropdown closes just that dropdown, same
+      // convention as every other menu in this file.
+      document.addEventListener('click', (e) => {
+        if (!currentRecord || !currentRecord._editor) return;
+        const ed = currentRecord._editor;
+        if (ed.typeMenu.classList.contains('open') && !ed.typeWrap.contains(e.target)) {
+          ed.typeMenu.classList.remove('open');
+        }
+        if (ed.colorMenu.classList.contains('open') && !ed.colorWrap.contains(e.target)) {
+          ed.colorMenu.classList.remove('open');
+        }
+        if (currentRecord.el && !currentRecord.el.contains(e.target)) {
+          close();
+        }
+      });
+
+      // Escape backs out one layer at a time: an open dropdown closes
+      // first, and only a second Escape (or a first one with nothing
+      // open) closes the editor itself.
+      document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape' || !currentRecord || !currentRecord._editor) return;
+        const ed = currentRecord._editor;
+        if (ed.typeMenu.classList.contains('open')) {
+          ed.typeMenu.classList.remove('open');
+          return;
+        }
+        if (ed.colorMenu.classList.contains('open')) {
+          ed.colorMenu.classList.remove('open');
+          return;
+        }
+        close();
+      });
+
+      return { open, close, renderBoxFace, updateTimeLabel, updateFaceTime };
+    })();
+
+    // Every newly-created box (step 6) immediately opens the editor —
+    // matches the spec: hold -> box appears -> popup opens to name/
+    // style it.
+    DayTimeGrid.onBoxCreated((record) => EventEditor.open(record));
+
+    /* ============================================================
+       SETTINGS-BUTTON FADE (bugfix addendum to the day-time-grid work)
+       #openSettingsBtn is a normal in-flow element sitting right
+       below the calendar grid in the DOM (a sibling of .app-layout,
+       not inside .calendar-main) — CalendarInteractionLock never
+       touched it, and previously that was fine because nothing sat
+       on top of it. Now that DayTimeGrid is a ~900px-tall absolute
+       box starting under the locked header card, it visually
+       overlaps that button while LOCKED/TRANSITIONING (the "randomly
+       here" bug). This ONLY fades its opacity + disables pointer
+       events while day view isn't plain CALENDAR — it does not touch
+       #openSettingsBtn's click handler or any other existing code.
+    ============================================================ */
+    const SettingsButtonFade = (() => {
+      let btnEl = null;
+      function apply(state) {
+        if (!btnEl) return;
+        const isCalendar = state === DayViewState.STATES.CALENDAR;
+        btnEl.style.opacity = isCalendar ? '' : '0';
+        btnEl.style.pointerEvents = isCalendar ? '' : 'none';
+        btnEl.style.transition = 'opacity 220ms ease';
+      }
+      function init() {
+        btnEl = document.getElementById('openSettingsBtn');
+        apply(DayViewState.get());
+        DayViewState.onChange((next) => apply(next));
+      }
+      return { init };
+    })();
+    SettingsButtonFade.init();
+
+    /* ============================================================
+       NOTIFICATION RESTORE ON LOAD.
+       setTimeout-based reminders (NotificationScheduler) only live
+       in memory, so a page reload would otherwise silently drop any
+       reminder that hadn't fired yet. This walks every stored event
+       across every date, not just the one currently on screen, and
+       re-schedules the ones that still have notify=true and a start
+       time still in the future. Only actually arms a timer if
+       permission is already granted — it never prompts on its own,
+       since that has to happen from a real click (the bell toggle).
+    ============================================================ */
+    (function restoreScheduledNotifications() {
+      if (!NotificationScheduler.supported() || !NotificationScheduler.permissionGranted()) return;
+      try {
+        const all = JSON.parse(localStorage.getItem('habitcal_events_cache') || '{}');
+        Object.keys(all).forEach((dateKey) => {
+          (all[dateKey] || []).forEach((rec) => {
+            if (rec && rec.notify) NotificationScheduler.schedule(Object.assign({ dateKey }, rec));
+          });
+        });
+      } catch { /* ignore malformed/missing storage */ }
     })();
   </script>
 </body>
