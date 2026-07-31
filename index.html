@@ -1148,8 +1148,9 @@
        Only ever shown while the mini-calendar (day-time-grid) is
        what's producing writes — see SyncIndicator / EventStore in
        the script. It appears the moment a debounced batch actually
-       starts uploading, then switches to "Synced" and stays put
-       (per spec: it doesn't auto-hide) until the next batch begins. */
+       starts uploading, then switches to "Synced" and auto-hides
+       itself 1 second later (see SyncIndicator.synced() in the
+       script), unless the next batch begins first. */
     .sync-indicator {
       position: fixed; top: 14px; right: 16px;
       display: flex; align-items: center; gap: 7px;
@@ -3066,10 +3067,9 @@
         EXIT_THRESHOLD:   900,   // total upward wheel delta (in LOCKED) to start unlocking
         MAX_ACCUM:        1400,  // clamp so a single big scroll gesture can't overshoot wildly
         DECAY_IDLE_MS:    550,   // pause this long with no wheel input -> accumulator bleeds back to 0
-        // Placeholder only — the real 1-2s animation is built in section 4-8.
-        // This timer just stands in for "however long that animation takes"
-        // so the state machine can be tested end-to-end right now.
-        TRANSITION_MS:    1600,
+        // Drives the actual lock-in/unlock (mini-calendar) animation
+        // length everywhere it's read from below (section 4-8 FLIP code).
+        TRANSITION_MS:    700,
       };
 
       const { STATES } = DayViewState;
@@ -3151,8 +3151,41 @@
         renderDebug();
       }
 
+      // Phones don't fire 'wheel' events — a finger drag on the
+      // screen is the mobile equivalent of a mouse-wheel scroll, so
+      // this feeds the exact same handleWheel()/accumulator path
+      // with a synthetic { deltaY } built from touch movement.
+      // Dragging the finger UP the screen (the normal "scroll down"
+      // gesture) yields a positive deltaY, matching wheel's sign
+      // convention; dragging down yields negative. Only one finger
+      // is tracked, and passive:true is kept throughout so normal
+      // page/touch scrolling is never prevented — same guarantee
+      // section 3's comment makes for real wheel scrolling.
+      let lastTouchY = null;
+
+      function handleTouchStart(e) {
+        if (!e.touches || e.touches.length !== 1) { lastTouchY = null; return; }
+        lastTouchY = e.touches[0].clientY;
+      }
+
+      function handleTouchMove(e) {
+        if (lastTouchY == null || !e.touches || e.touches.length !== 1) return;
+        const currentY = e.touches[0].clientY;
+        const deltaY = lastTouchY - currentY;
+        lastTouchY = currentY;
+        if (deltaY !== 0) handleWheel({ deltaY });
+      }
+
+      function handleTouchEnd() {
+        lastTouchY = null;
+      }
+
       function init() {
         window.addEventListener('wheel', handleWheel, { passive: true });
+        window.addEventListener('touchstart', handleTouchStart, { passive: true });
+        window.addEventListener('touchmove', handleTouchMove, { passive: true });
+        window.addEventListener('touchend', handleTouchEnd, { passive: true });
+        window.addEventListener('touchcancel', handleTouchEnd, { passive: true });
         // Temporary visual readout for testing sections 1-2 only.
         // Will be removed once section 4+ replaces it with the real
         // mini-calendar / day-view transition.
@@ -4424,6 +4457,7 @@
     ============================================================ */
     const SyncIndicator = (() => {
       let el = null, textEl = null;
+      let hideTimer = null;
       function ensure() {
         if (!el) {
           el = document.getElementById('syncIndicator');
@@ -4432,19 +4466,26 @@
       }
       function syncing() {
         ensure(); if (!el) return;
+        clearTimeout(hideTimer);
         el.className = 'sync-indicator show syncing';
         textEl.textContent = 'Syncing…';
       }
-      // Stays visible showing "Synced" and does not auto-hide — it
-      // just waits there until the next batch kicks it back to
-      // "Syncing…".
+      // Shows "Synced" for 1 second, then fades itself back out — a
+      // fresh syncing()/synced() call before that timer fires just
+      // restarts it, so back-to-back batches never get cut off mid-
+      // display.
       function synced() {
         ensure(); if (!el) return;
+        clearTimeout(hideTimer);
         el.className = 'sync-indicator show synced';
         textEl.textContent = 'Synced';
+        hideTimer = setTimeout(() => {
+          el.classList.remove('show');
+        }, 1000);
       }
       function error() {
         ensure(); if (!el) return;
+        clearTimeout(hideTimer);
         el.className = 'sync-indicator show error';
         textEl.textContent = 'Sync failed — retrying';
       }
