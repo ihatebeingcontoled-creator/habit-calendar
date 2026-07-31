@@ -10,12 +10,16 @@
  *
  *  Requires:
  *    DB              → D1 binding (same one used by habits.js)
- *    Run 4-create-files-table.sql in the D1 console once before using this.
+ *    Table `files` (see schema.sql) — id INTEGER, date, name, type,
+ *    size, data (base64 TEXT), uploaded.
  *
  *  Files are capped at 500KB raw on upload — server enforces it.
  *
- *  NOTE: unchanged by the Habit Calendar layout/swipe rework — files are
- *  independent of the habit counter/pip restructure.
+ *  MERGE NOTE: an AI rewrite of this file existed (using a `habit_files`
+ *  table + raw BLOB storage instead of base64 TEXT). It was NOT merged
+ *  in — switching storage format would orphan/break every file already
+ *  uploaded to the live `files` table. This is the original, unchanged
+ *  aside from this note.
  */
 
 const CORS = {
