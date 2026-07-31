@@ -8,21 +8,9 @@
  * POST   /api/habits?resource=settings     → overwrites the settings JSON blob (full object, one row)
  *
  * D1 binding name: DB
+ * Tables: habits, habit_targets, habit_settings (see schema.sql)
  *
- * D1 schema — run migrations in order via the D1 Console:
- *   1-create-table.sql        → base table
- *   2-seed-data.sql           → seed rows
- *   3-add-title-column.sql    → adds title
- *   4-create-files-table.sql  → files table
- *   5-add-new-columns.sql     → adds pullups + all skill columns + maxGreen
- *   6-add-breath-hold.sql     → adds breathHold column
- *   7-convert-to-counters.sql → converts booleans to numeric counters + pips
- *   8-create-targets-table.sql→ adds habit_targets table (see bottom of this file's notes)
- *   9-wake-at-5.sql            → drops maxGreen, adds wokeAt5 column
- *   10-create-settings-table.sql → adds habit_settings table (single JSON blob row, id=1)
- *   11-add-extra-note.sql      → adds nExtra column (free-typing note, no daily requirement)
- *
- * Field model (post-migration 7):
+ * Field model:
  *   Counters (uncapped, no minimum below 0):
  *     pushupsCount, readPagesCount, pullupsCount, oneHandPushupsCount,
  *     breathHoldSeconds
@@ -31,17 +19,23 @@
  *   Plain fields:
  *     title, nDay, nRead, nExtra, wokeAt5
  *
- * Targets (post-migration 8), table habit_targets:
+ * Targets, table habit_targets:
  *   id INTEGER PK, field TEXT, value INTEGER, effectiveFrom TEXT (YYYY-MM-DD)
  *   One row per "change" — the value in effect for a given date is the
  *   most recent row with effectiveFrom <= that date (see index.html
  *   getTargetForDate). UNIQUE(field, effectiveFrom) so re-saving the
  *   same field+date overwrites instead of duplicating.
  *
- * Settings (post-migration 10), table habit_settings:
+ * Settings, table habit_settings:
  *   Single-row table (id fixed at 1) holding the whole settings object
  *   as a JSON string in `data`. index.html reads/writes it wholesale —
  *   there's only ever one row, so it's the same settings on every device.
+ *
+ * MERGE NOTE: an AI rewrite of this file existed (using a `habit_days`
+ * table instead of `habits`, and dropping CORS + validation/clamping).
+ * It was NOT merged in — `habit_days` is empty/unused, all your real
+ * day data lives in `habits`, and the old validation is worth keeping.
+ * This is the original, unchanged aside from this note.
  */
 
 const CORS = {
