@@ -262,6 +262,13 @@
          without it, the hold-to-create gesture (step 5) never receives
          a single pointerdown. */
       pointer-events: auto;
+      /* A long-press here is the hold-to-create gesture, not a text
+         selection — without these, iOS/Android intercept the hold
+         partway through and pop up their native Select/Copy/Share
+         callout instead of letting the create-a-box gesture finish. */
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
     }
     /* Kept deliberately tiny — the spec calls for the hour labels to
        take up the least amount of space possible, so this is a narrow
@@ -395,6 +402,9 @@
       z-index: 5;
       box-sizing: border-box;
       touch-action: none;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
     }
     /* Step 17 — the actual text lives in here, not directly on the
        box. renderBoxFace only ever touches .day-time-grid-event-box-
@@ -3065,12 +3075,30 @@
       const cfg = {
         UNLOCK_THRESHOLD: 900,   // total downward wheel delta (in CALENDAR) to start locking in
         EXIT_THRESHOLD:   900,   // total upward wheel delta (in LOCKED) to start unlocking
+        // On a phone, a "scroll" is a finger drag across a small
+        // screen — 900px of accumulated drag feels like it never
+        // triggers. These lower phone-only thresholds are used
+        // instead whenever the viewport matches the same
+        // max-width:640px phone breakpoint the rest of the app
+        // already uses (see the title-limit check above).
+        MOBILE_UNLOCK_THRESHOLD: 300,
+        MOBILE_EXIT_THRESHOLD:   300,
         MAX_ACCUM:        1400,  // clamp so a single big scroll gesture can't overshoot wildly
         DECAY_IDLE_MS:    550,   // pause this long with no wheel input -> accumulator bleeds back to 0
         // Drives the actual lock-in/unlock (mini-calendar) animation
         // length everywhere it's read from below (section 4-8 FLIP code).
         TRANSITION_MS:    700,
       };
+
+      function isPhoneViewport() {
+        return window.matchMedia('(max-width: 640px)').matches;
+      }
+      function unlockThreshold() {
+        return isPhoneViewport() ? cfg.MOBILE_UNLOCK_THRESHOLD : cfg.UNLOCK_THRESHOLD;
+      }
+      function exitThreshold() {
+        return isPhoneViewport() ? cfg.MOBILE_EXIT_THRESHOLD : cfg.EXIT_THRESHOLD;
+      }
 
       const { STATES } = DayViewState;
       let accum = 0;      // builds while in CALENDAR, scrolling down
@@ -3111,7 +3139,7 @@
           return;
         }
         const value     = state === STATES.CALENDAR ? accum : exitAccum;
-        const threshold = state === STATES.CALENDAR ? cfg.UNLOCK_THRESHOLD : cfg.EXIT_THRESHOLD;
+        const threshold = state === STATES.CALENDAR ? unlockThreshold() : exitThreshold();
         debugEl.textContent =
           '[scroll debug] mode: ' + state + '   ' + Math.round(value) + ' / ' + threshold;
       }
@@ -3133,7 +3161,7 @@
           } else if (e.deltaY < 0) {
             accum = Math.max(0, accum + e.deltaY);
           }
-          if (accum >= cfg.UNLOCK_THRESHOLD) {
+          if (accum >= unlockThreshold()) {
             startTransition('forward');
           }
         } else if (state === STATES.LOCKED) {
@@ -3142,7 +3170,7 @@
           } else if (e.deltaY > 0) {
             exitAccum = Math.max(0, exitAccum - e.deltaY);
           }
-          if (exitAccum >= cfg.EXIT_THRESHOLD) {
+          if (exitAccum >= exitThreshold()) {
             startTransition('backward');
           }
         }
@@ -4722,6 +4750,15 @@
         innerEl = document.createElement('div');
         innerEl.className = 'day-time-grid-inner';
         innerEl.style.height = (cfg.hourHeight * 24) + 'px';
+
+        // CSS (-webkit-touch-callout / user-select: none) handles this
+        // on most browsers, but some mobile browsers still fire a
+        // native text-selection/context callout on a long-press
+        // regardless — these two are a belt-and-suspenders JS backstop
+        // so the hold-to-create/drag gesture never gets hijacked into
+        // "Select / Copy / Share".
+        innerEl.addEventListener('contextmenu', (e) => e.preventDefault());
+        innerEl.addEventListener('selectstart', (e) => e.preventDefault());
 
         const frag = document.createDocumentFragment();
         hourLineEls = [];  // index h -> the line element at hour h (0..24)
