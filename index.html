@@ -5943,6 +5943,17 @@
           resizePointerId = null;
           boxEl.classList.remove('resizing');
           collapseExpandedHour();
+
+          // Two quick taps on a resize handle (top or bottom strip),
+          // same as two taps on the box body, always opens the
+          // editor — this is what actually carries the "double-tap
+          // to edit" gesture on phones, where the resize handles are
+          // often the easiest/only place to land a precise tap.
+          if (e.type === 'pointerup' && isDoubleTap(boxEl)) {
+            EventEditor.open(record);
+            return;
+          }
+
           EventStore.save(record);
           if (record.notify) NotificationScheduler.schedule(record);
           recomputeOverlapLayout();
@@ -6026,6 +6037,15 @@
           document.removeEventListener('pointercancel', onEnd);
           pointerId = null;
           boxEl.classList.remove('resizing');
+
+          // Same phone-friendly double-tap override as the top/bottom
+          // resize handles — two fast taps on a left/right handle
+          // opens the editor instead of just re-saving the width.
+          if (e.type === 'pointerup' && isDoubleTap(boxEl)) {
+            EventEditor.open(record);
+            return;
+          }
+
           EventStore.save(record);
         }
 
