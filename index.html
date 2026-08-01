@@ -96,6 +96,27 @@
     .day-cell.empty { cursor: default; background: transparent; border-color: transparent; }
     .day-cell.today { border-color: #111; border-width: 2px; background: #fff; }
 
+    /* Mini-calendar day selection (LOCKED state only). The mini-
+       calendar's cells are the very same .day-cell elements as the
+       full month grid (just FLIP-animated into a compact corner —
+       see MiniCalendarLayout above), and their parent .calendar-main
+       gets pointer-events:none the moment we're not in the plain
+       CALENDAR state (see CalendarInteractionLock). This re-opens
+       pointer-events on just the cells themselves while locked, so
+       tapping a day in the mini-calendar can select it (wired in
+       renderCalendar's click handler) without also re-enabling any
+       of the now-hidden full-grid chrome around them. */
+    .calendar-main.day-view-locked .day-cell:not(.empty) {
+      pointer-events: auto;
+      cursor: pointer;
+    }
+    .day-cell.selected-mini-day {
+      box-shadow: 0 0 0 2px #fff, 0 0 0 4px #3b82f6;
+    }
+    body.night-mode .day-cell.selected-mini-day {
+      box-shadow: 0 0 0 2px #1c1c1e, 0 0 0 4px #60a5fa;
+    }
+
     .day-cell.lvl-0 {
       box-shadow: 0 0 0 2px #c61215, 0 0 6px 2px rgba(198,18,21,0.5);
       border-color: #c61215; background: #ffe6e6;
@@ -606,6 +627,43 @@
       flex: 1;
       min-width: 0;
       text-align: left;
+      cursor: pointer;
+      border-radius: 4px;
+      padding: 2px 3px;
+      margin: -2px -3px;
+      transition: background 0.15s;
+    }
+    .day-time-grid-event-box-time-label:hover { background: rgba(255,255,255,0.16); }
+
+    /* Exact-time editor — swapped in for the plain time-label text on
+       tap. Two native <input type="time"> fields (start/end), so
+       typing or using the picker sets the EXACT minute with no
+       snapping at all. Dragging/resizing the box itself still snaps
+       to 15-minute steps as before — this is only for when you
+       deliberately open the time field to set something in-between. */
+    .day-time-grid-event-box-time-edit {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      flex: 1;
+      min-width: 0;
+    }
+    .day-time-grid-event-box-time-edit input[type="time"] {
+      font-size: 10px;
+      font-weight: 600;
+      font-family: inherit;
+      color: #111;
+      background: #fff;
+      border: none;
+      border-radius: 4px;
+      padding: 1px 3px;
+      width: 68px;
+      min-width: 0;
+    }
+    .day-time-grid-event-box-time-edit-sep {
+      color: rgba(255,255,255,0.8);
+      font-size: 10px;
+      flex-shrink: 0;
     }
     .day-time-grid-event-box-type-btn::after {
       content: '';
@@ -695,19 +753,27 @@
     .day-time-grid-event-box-color-wrap {
       position: relative;
       flex-shrink: 0;
+      display: flex; /* avoids the ~4px inline-block descender gap that was
+                         making this wrapper taller than the other buttons'
+                         and pushing the swatch 2px out of vertical center */
     }
     .day-time-grid-event-box-color-btn {
       width: 20px; height: 20px;
-      border-radius: 50%;
+      flex-shrink: 0;
       border: none;
+      border-radius: 6px;
+      background: rgba(255,255,255,0.16);
+      color: rgba(255,255,255,0.9);
+      display: flex;
+      align-items: center;
+      justify-content: center;
       padding: 0;
       cursor: pointer;
-      box-shadow: 0 0 0 2px rgba(255,255,255,0.9), 0 0 0 3.5px rgba(0,0,0,0.18);
+      position: relative;
+      transition: background 0.15s, color 0.15s;
     }
-    .day-time-grid.night .day-time-grid-event-box-color-btn {
-      box-shadow: 0 0 0 2px #1c1c1e, 0 0 0 3.5px rgba(255,255,255,0.35);
-    }
-
+    .day-time-grid-event-box-color-btn:hover { background: rgba(255,255,255,0.26); }
+    .day-time-grid-event-box-color-btn svg { display: block; }
     .day-time-grid-event-box-color-menu {
       position: absolute;
       top: calc(100% + 6px);
@@ -777,8 +843,9 @@
 
     /* Notify bell — sits right before the color picker in the top
        row (type → time → bell → color → trash). Toggles on/off like
-       a checkbox; active state is filled amber to read as "on" at a
-       glance. */
+       a checkbox; active state matches the lock button's (same
+       white-fill "on" look) so the two read as a consistent pair
+       instead of two different accent colors. */
     .day-time-grid-event-box-notify-btn {
       width: 20px; height: 20px;
       flex-shrink: 0;
@@ -795,7 +862,7 @@
     }
     .day-time-grid-event-box-notify-btn:hover { background: rgba(255,255,255,0.26); }
     .day-time-grid-event-box-notify-btn.active {
-      background: #f4c439;
+      background: #fff;
       color: #111;
     }
     @keyframes notify-bell-ring {
@@ -813,14 +880,16 @@
        the permanent box skeleton (built once, alongside the resize
        handles), so it stays visible on the compact face even while
        the inline editor is closed. Hidden by default; only shown
-       once a record has notifications turned on. */
+       once a record has notifications turned on. Sits on the right;
+       the lock badge (below) sits just to its left when both are
+       visible, rather than opposite corners. */
     .day-time-grid-event-box-notify-badge {
       position: absolute;
       top: 2px; right: 2px;
       width: 12px; height: 12px;
       border-radius: 50%;
-      background: #f4c439;
-      color: #111;
+      background: #111;
+      color: #fff;
       display: none;
       align-items: center;
       justify-content: center;
@@ -837,6 +906,67 @@
     .day-time-grid.night .day-time-grid-event-box-notify-badge {
       box-shadow: 0 0 0 1.5px #1c1c1e;
     }
+
+    /* Lock button — sits directly to the left of the notify bell in
+       the editor toprow (type → time → lock → bell → color → trash).
+       Same visual language as the bell (identical active-state fill)
+       so the two read as a consistent pair. */
+    .day-time-grid-event-box-lock-btn {
+      width: 20px; height: 20px;
+      flex-shrink: 0;
+      border: none;
+      border-radius: 6px;
+      background: rgba(255,255,255,0.16);
+      color: rgba(255,255,255,0.9);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .day-time-grid-event-box-lock-btn:hover { background: rgba(255,255,255,0.26); }
+    .day-time-grid-event-box-lock-btn.active {
+      background: #fff;
+      color: #111;
+    }
+    .day-time-grid-event-box-lock-btn svg { display: block; }
+
+    /* Small persistent padlock badge on the box's own corner — sits
+       on the right, just to the left of the notify badge (so both
+       badges cluster on the same side once the editor is closed,
+       instead of opposite corners). Only shown once a record is
+       locked. */
+    .day-time-grid-event-box-lock-badge {
+      position: absolute;
+      top: 2px; right: 18px;
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      background: #111;
+      color: #fff;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 8;
+      box-shadow: 0 0 0 1.5px rgba(255,255,255,0.9);
+      pointer-events: none;
+    }
+    .day-time-grid-event-box-lock-badge.visible { display: flex; }
+    .day-time-grid-event-box.editing .day-time-grid-event-box-lock-badge { display: none; }
+    .day-time-grid.night .day-time-grid-event-box-lock-badge {
+      box-shadow: 0 0 0 1.5px #1c1c1e;
+    }
+
+    /* While a box is locked: resize handles go inert (no cursor, no
+       pointer events) and the box itself shows a "not draggable"
+       cursor instead of the usual grab/move affordance. Dragging is
+       actually blocked in JS (attachBoxDrag/attachBoxResize) — this
+       is just the visual match for that. */
+    .day-time-grid-event-box.locked .day-time-grid-event-box-handle {
+      pointer-events: none;
+      opacity: 0.15;
+    }
+    .day-time-grid-event-box.locked:not(.editing) { cursor: default; }
 
     .day-num { position: absolute; top: 7px; left: 9px; font-size: 11.5px; font-weight: 700; color: #aaa; z-index: 5; }
     .day-cell.today .day-num { color: #111; }
@@ -2197,6 +2327,7 @@
 
         const cell = document.createElement('div');
         cell.className = 'day-cell' + (isToday ? ' today' : '');
+        cell.dataset.day = String(d);
 
         const lvl = completionLevel(entry);
         if (lvl !== null) cell.classList.add('lvl-' + lvl);
@@ -2237,11 +2368,42 @@
           cell.appendChild(dot);
         }
 
-        cell.addEventListener('click', () => openModal(dateStr));
+        cell.addEventListener('click', () => {
+          // While the mini-calendar (day-view) is showing, tapping a
+          // day selects it instead of opening the habit-tracking
+          // modal — see SelectedDayState + DayTimeGrid's reaction to
+          // it. Mid-transition, do nothing (avoids acting on a cell
+          // that's still mid-FLIP-animation).
+          const state = DayViewState.get();
+          if (state === DayViewState.STATES.LOCKED) {
+            SelectedDayState.set(viewYear, viewMonth, d);
+            return;
+          }
+          if (state === DayViewState.STATES.CALENDAR) {
+            openModal(dateStr);
+          }
+        });
         grid.appendChild(cell);
       }
 
       computeMonthStats();
+      applyMiniDaySelectionHighlight();
+    }
+
+    // Puts the blue selection ring on whichever .day-cell matches
+    // SelectedDayState — only meaningful when that selection falls in
+    // the month currently being displayed (the mini-calendar never
+    // shows more than one month at a time, so a selection in some
+    // other month simply shows no ring here until you navigate to it).
+    function applyMiniDaySelectionHighlight() {
+      document.querySelectorAll('.day-cell.selected-mini-day').forEach((c) => {
+        c.classList.remove('selected-mini-day');
+      });
+      const sel = SelectedDayState.get();
+      if (sel.year !== viewYear || sel.month !== viewMonth) return;
+      const grid = document.getElementById('daysGrid');
+      const match = grid && grid.querySelector('.day-cell[data-day="' + sel.day + '"]');
+      if (match) match.classList.add('selected-mini-day');
     }
 
     function autoSize(el) {
@@ -3409,7 +3571,10 @@
         topMobile:  -14,   // phones: pull the whole locked block (number + nav + grid)
                             // further up than desktop, since the shorter viewport means
                             // it otherwise sits low enough to crowd the day-time-grid
-                            // (hour rows) that starts right below it.
+                            // (hour rows) that starts right below it. (Pushing this more
+                            // negative clips the first calendar row off the top of the
+                            // screen — the fix instead shrinks the cells themselves via
+                            // cellAspectMobile/gapMobile and widens the clearance below.)
         showcaseSpace: 178, // reserved width for the day-showcase number + its gap
                             // (see DayShowcase's own cfg.gap:28 + ~150px for a bold
                             // 2-digit number), so the mini-calendar starts right after it
@@ -3417,7 +3582,10 @@
         horizontalMargin: 12, // min breathing room kept clear on either edge of the viewport
         rows:       6,     // fixed max weeks-per-month, so target size never shifts
         gap:        3,     // px gap between cells
+        gapMobile:  2,     // tighter cell gap on phones, shaves a little more height off the grid
         cellAspect: 0.82,  // cell height = cell width * this (slightly short, like Google Calendar)
+        cellAspectMobile: 0.74, // shorter cells on phones — trims total mini-calendar
+                            // height so there's more clearance above the hour grid
         headerHeight: 14,  // px height of the Pr/An/Tr/... weekday label row
         headerGap:    4,   // px gap between the weekday labels and the day grid below
         headerGapMobile: 2, // tighter version of headerGap for phones (see topMobile)
@@ -3438,10 +3606,12 @@
         const maxGroupWidth = cfg.showcaseSpace + cfg.width;
         const availableTotal = window.innerWidth - cfg.horizontalMargin * 2;
         const groupWidth = Math.min(maxGroupWidth, availableTotal);
-        const width  = Math.max(140, groupWidth - cfg.showcaseSpace);
-        const cellW  = (width - cfg.gap * 6) / 7;
-        const cellH  = cellW * cfg.cellAspect;
-        const height = cellH * cfg.rows + cfg.gap * (cfg.rows - 1);
+        const width      = Math.max(140, groupWidth - cfg.showcaseSpace);
+        const gap        = isPhoneVP() ? cfg.gapMobile : cfg.gap;
+        const cellAspect = isPhoneVP() ? cfg.cellAspectMobile : cfg.cellAspect;
+        const cellW  = (width - gap * 6) / 7;
+        const cellH  = cellW * cellAspect;
+        const height = cellH * cfg.rows + gap * (cfg.rows - 1);
         const groupLeft = (window.innerWidth - groupWidth) / 2; // centers the whole group
         const left   = groupLeft + cfg.showcaseSpace;
         const top    = currentTop() + cfg.headerHeight + currentHeaderGap(); // day grid starts below the weekday labels
@@ -3453,6 +3623,7 @@
       // it does in the full calendar — just scaled down.
       function computeTargets(year, month) {
         const container   = computeContainerRect();
+        const gap          = isPhoneVP() ? cfg.gapMobile : cfg.gap;
         const firstDow     = new Date(year, month, 1).getDay();
         const firstMonIdx  = mondayIdx(firstDow);
         const daysInMonth  = new Date(year, month + 1, 0).getDate();
@@ -3463,8 +3634,8 @@
           const col = idx % 7;
           const row = Math.floor(idx / 7);
           targets[d] = {
-            left:   container.left + col * (container.cellW + cfg.gap),
-            top:    container.top  + row * (container.cellH + cfg.gap),
+            left:   container.left + col * (container.cellW + gap),
+            top:    container.top  + row * (container.cellH + gap),
             width:  container.cellW,
             height: container.cellH,
           };
@@ -4225,6 +4396,13 @@
       return { get, set, onChange };
     })();
 
+    // Registered here (rather than back in renderCalendar, where the
+    // function itself lives) because SelectedDayState doesn't exist
+    // yet at that point in the script — this runs after its const
+    // declaration above, so the reference is safe.
+    SelectedDayState.onChange(applyMiniDaySelectionHighlight);
+    applyMiniDaySelectionHighlight(); // apply once for the initial render too
+
     const DayShowcase = (() => {
       const cfg = {
         gap:        28,   // px gap between the number's right edge and the mini-calendar's left edge
@@ -4576,6 +4754,7 @@
           manualLeftPx: record.manualLeftPx != null ? record.manualLeftPx : null,
           manualWidthPx: record.manualWidthPx != null ? record.manualWidthPx : null,
           notify: !!record.notify,
+          locked: !!record.locked,
         };
       }
 
@@ -4681,6 +4860,7 @@
           manualLeftPx: null,
           manualWidthPx: null,
           notify: false,
+          locked: false,
           el: null,
         };
         getForDate(dateKey).push(record);
@@ -5035,13 +5215,25 @@
           '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"></path>' +
           '<path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>';
 
+        // Permanent padlock badge — same idea as the bell badge above,
+        // opposite corner. Shown via setLockedState() whenever
+        // record.locked changes.
+        const lockBadge = document.createElement('div');
+        lockBadge.className = 'day-time-grid-event-box-lock-badge';
+        lockBadge.innerHTML =
+          '<svg viewBox="0 0 24 24" width="7" height="7" fill="none" stroke="currentColor" ' +
+          'stroke-width="3" stroke-linecap="round" stroke-linejoin="round">' +
+          '<rect x="4" y="10" width="16" height="10" rx="2"></rect>' +
+          '<path d="M7 10V7a5 5 0 0 1 10 0v3"></path></svg>';
+
         boxEl.appendChild(topHandle);
         boxEl.appendChild(leftHandle);
         boxEl.appendChild(contentEl);
         boxEl.appendChild(rightHandle);
         boxEl.appendChild(bottomHandle);
         boxEl.appendChild(notifyBadge);
-        return { topHandle, leftHandle, contentEl, rightHandle, bottomHandle, notifyBadge };
+        boxEl.appendChild(lockBadge);
+        return { topHandle, leftHandle, contentEl, rightHandle, bottomHandle, notifyBadge, lockBadge };
       }
 
       // Toggles the compact-face bell badge for a record. Safe to
@@ -5050,6 +5242,17 @@
       function setNotifyBadge(record, on) {
         if (!record || !record.el) return;
         const badge = record.el.querySelector('.day-time-grid-event-box-notify-badge');
+        if (badge) badge.classList.toggle('visible', !!on);
+      }
+
+      // Toggles the compact-face padlock badge AND the box's own
+      // .locked class (which is what actually disables the resize
+      // handles visually — attachBoxDrag/attachBoxResize check
+      // record.locked directly, independent of this class).
+      function setLockedState(record, on) {
+        if (!record || !record.el) return;
+        record.el.classList.toggle('locked', !!on);
+        const badge = record.el.querySelector('.day-time-grid-event-box-lock-badge');
         if (badge) badge.classList.toggle('visible', !!on);
       }
 
@@ -5065,6 +5268,7 @@
         innerEl.appendChild(boxEl);
         record.el = boxEl;
         setNotifyBadge(record, record.notify);
+        setLockedState(record, record.locked);
         attachBoxDrag(record);
         attachBoxResize(record, handles);
         attachBoxWidthResize(record, handles);
@@ -5108,6 +5312,7 @@
           innerEl.appendChild(boxEl);
           record.el = boxEl;
           setNotifyBadge(record, record.notify);
+          setLockedState(record, record.locked);
           attachBoxDrag(record);
           attachBoxResize(record, handles);
           attachBoxWidthResize(record, handles);
@@ -5353,6 +5558,9 @@
 
         function onMove(e) {
           if (e.pointerId !== dragPointerId) return;
+          if (record.locked) return; // locked boxes don't move — a plain
+                                      // tap still reaches onEnd below and
+                                      // opens the editor as normal.
           const dx = e.clientX - startClientX;
           const dy = e.clientY - startClientY;
 
@@ -5508,6 +5716,7 @@
 
         function startResize(e, whichEdge) {
           if (resizePointerId !== null) return;
+          if (record.locked) return;
           if (e.button !== undefined && e.button !== 0) return;
           e.stopPropagation();
 
@@ -5588,6 +5797,7 @@
 
         function startResize(e, whichEdge) {
           if (pointerId !== null) return;
+          if (record.locked) return;
           if (e.button !== undefined && e.button !== 0) return;
           e.stopPropagation();
 
@@ -5641,7 +5851,9 @@
       function computeRect() {
         const card      = LockedHeaderCard.computeRect();
         const container = MiniCalendarLayout.computeContainerRect();
-        const top       = card.top + card.height + 18;
+        const clearance = isPhoneVP() ? 30 : 18; // extra gap on phones so the hour
+                                                  // grid never crowds the mini-calendar's last row
+        const top       = card.top + card.height + clearance;
         return {
           left:   0,
           top:    top,
@@ -5721,7 +5933,7 @@
         onHoldCreate(spawnEventBox);
       }
 
-      return { init, computeRect, onHoldCreate, onBoxCreated, recomputeOverlapLayout, setNotifyBadge };
+      return { init, computeRect, onHoldCreate, onBoxCreated, recomputeOverlapLayout, setNotifyBadge, setLockedState, positionEventBox };
     })();
     DayTimeGrid.init();
 
@@ -5893,12 +6105,64 @@
 
         // Time-range readout — sits to the right of the type field,
         // shows "start – end" for whatever this box is currently set
-        // to. Pure display (not editable here); it's kept in sync by
-        // updateTimeLabel() below, called from open() and whenever a
-        // drag/resize changes record.startMinutes/durationMinutes.
+        // to. Tapping it swaps in exact HH:MM inputs (timeEditEl,
+        // below) so you can type a precise time instead of only
+        // getting whatever drag/resize's 15-minute snap lands on.
+        // Kept in sync by updateTimeLabel() below, called from open()
+        // and whenever a drag/resize changes
+        // record.startMinutes/durationMinutes.
         const timeLabelEl = document.createElement('div');
         timeLabelEl.className = 'day-time-grid-event-box-time-label';
         topRow.appendChild(timeLabelEl);
+
+        // Exact-time editor — hidden until the label above is tapped.
+        // Two native <input type="time"> fields; committing either one
+        // (Enter or blur) sets record.startMinutes/durationMinutes to
+        // the EXACT value typed, with no 15-minute snapping at all —
+        // that snapping only ever applies to dragging/resizing the
+        // box itself (see attachBoxDrag/attachBoxResize's SNAP_MIN),
+        // which is untouched by this.
+        const timeEditEl = document.createElement('div');
+        timeEditEl.className = 'day-time-grid-event-box-time-edit';
+        timeEditEl.style.display = 'none';
+        const startInput = document.createElement('input');
+        startInput.type = 'time';
+        startInput.step = '60'; // 1-minute granularity (no seconds field)
+        const sep = document.createElement('span');
+        sep.className = 'day-time-grid-event-box-time-edit-sep';
+        sep.textContent = '–';
+        const endInput = document.createElement('input');
+        endInput.type = 'time';
+        endInput.step = '60';
+        [startInput, endInput].forEach((inp) => {
+          inp.addEventListener('click', (e) => e.stopPropagation());
+          inp.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); commitExactTime(record); }
+            if (e.key === 'Escape') { e.preventDefault(); closeExactTimeEdit(record); }
+          });
+          inp.addEventListener('blur', () => {
+            // Let a click on the *other* time input (or the sep) through
+            // without closing/committing mid-edit; only commit once
+            // focus actually leaves both fields.
+            setTimeout(() => {
+              const ed = record._editor;
+              if (!ed) return;
+              const active = document.activeElement;
+              if (active !== ed.startInput && active !== ed.endInput) {
+                commitExactTime(record);
+              }
+            }, 0);
+          });
+        });
+        timeEditEl.appendChild(startInput);
+        timeEditEl.appendChild(sep);
+        timeEditEl.appendChild(endInput);
+        topRow.appendChild(timeEditEl);
+
+        timeLabelEl.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openExactTimeEdit(record);
+        });
 
         const descEl = document.createElement('textarea');
         descEl.className = 'day-time-grid-event-box-desc-input';
@@ -5919,6 +6183,15 @@
         colorBtn.type = 'button';
         colorBtn.className = 'day-time-grid-event-box-color-btn';
         colorBtn.setAttribute('aria-label', 'Color');
+        colorBtn.title = 'Pick a color';
+        colorBtn.innerHTML =
+          '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" ' +
+          'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+          '<path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L19 8l-3-3 2.5-2.5z"></path>' +
+          '<path d="M16 5l3 3"></path>' +
+          '<path d="M9.5 12.5L4 18c-1 1-1 3-2 4 1-1 3-1 4-2l5.5-5.5"></path>' +
+          '<path d="M6.5 15.5l2 2"></path>' +
+          '<path d="M13 8l3 3"></path></svg>';
         colorBtn.addEventListener('click', (e) => {
           e.stopPropagation();
           colorMenu.classList.toggle('open');
@@ -5967,6 +6240,29 @@
           deleteRecord(record);
         });
 
+        // Lock button — sits directly to the left of the notify bell
+        // (type → time → lock → bell → color → trash). Toggling it on
+        // freezes the box in place: attachBoxDrag/attachBoxResize/
+        // attachBoxWidthResize (DayTimeGrid) all check record.locked
+        // and refuse to start a move/resize while it's set, so the
+        // box can no longer be dragged or have its edges dragged —
+        // tapping it to reopen the editor (like this) still works.
+        const lockBtn = document.createElement('button');
+        lockBtn.type = 'button';
+        lockBtn.className = 'day-time-grid-event-box-lock-btn';
+        lockBtn.setAttribute('aria-label', 'Lock in place');
+        lockBtn.title = 'Lock this box in place';
+        lockBtn.innerHTML =
+          '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" ' +
+          'stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">' +
+          '<rect x="4" y="10" width="16" height="10" rx="2"></rect>' +
+          '<path d="M7 10V7a5 5 0 0 1 10 0v3"></path></svg>';
+        lockBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          toggleLocked(record);
+        });
+        topRow.appendChild(lockBtn);
+
         // Notify bell — sits right before the color picker (type →
         // time → bell → color → trash). Toggling it on requests
         // browser notification permission (if not already granted)
@@ -5999,7 +6295,8 @@
 
         record._editor = {
           editorEl, typeWrap, typeBtn, typeLabelEl, typeMenu, customInput,
-          descEl, colorWrap, colorBtn, colorMenu, timeLabelEl, deleteBtn, notifyBtn,
+          descEl, colorWrap, colorBtn, colorMenu, timeLabelEl, timeEditEl, startInput, endInput,
+          deleteBtn, notifyBtn, lockBtn,
         };
       }
 
@@ -6011,6 +6308,85 @@
         let h12 = h % 12;
         if (h12 === 0) h12 = 12;
         return h12 + ':' + String(m).padStart(2, '0') + ' ' + period;
+      }
+
+      // "9:05 AM" style is nice to read but <input type="time"> needs
+      // 24-hour "HH:MM" for both its value and its parsed input.
+      function minutesToHHMM(totalMinutes) {
+        const h = Math.floor(totalMinutes / 60) % 24;
+        const m = Math.round(totalMinutes % 60);
+        return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+      }
+      function hhmmToMinutes(hhmm) {
+        const parts = String(hhmm).split(':');
+        const h = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10);
+        if (Number.isNaN(h) || Number.isNaN(m)) return null;
+        return h * 60 + m;
+      }
+
+      // Swaps the plain "start – end" label for the two live <input
+      // type="time"> fields, pre-filled with the record's current
+      // exact values (down to the minute, whatever they are —
+      // there's nothing to snap here, this just mirrors what's
+      // already stored).
+      function openExactTimeEdit(record) {
+        const ed = record._editor;
+        if (!ed) return;
+        ed.startInput.value = minutesToHHMM(record.startMinutes);
+        ed.endInput.value   = minutesToHHMM(record.startMinutes + record.durationMinutes);
+        ed.timeLabelEl.style.display = 'none';
+        ed.timeEditEl.style.display  = 'flex';
+        ed.startInput.focus();
+        // .focus() alone doesn't reliably pop the native wheel picker on
+        // iOS Safari — showPicker() is the explicit call that forces it
+        // open (iOS 16.4+ / modern Chrome). Wrapped defensively since
+        // showPicker isn't universal everywhere and can throw if called
+        // outside a direct user-gesture stack.
+        try { ed.startInput.showPicker && ed.startInput.showPicker(); } catch (err) {}
+      }
+
+      function closeExactTimeEdit(record) {
+        const ed = record._editor;
+        if (!ed) return;
+        ed.timeEditEl.style.display  = 'none';
+        ed.timeLabelEl.style.display = '';
+      }
+
+      // Commits whatever's typed in the two fields EXACTLY as entered
+      // — no rounding to a 15-minute grid. That snapping only applies
+      // to dragging/resizing the box itself (attachBoxDrag/
+      // attachBoxResize's own SNAP_MIN, untouched by this); typing an
+      // exact time here is the deliberate way to land on a minute
+      // in-between those steps.
+      function commitExactTime(record) {
+        const ed = record._editor;
+        if (!ed) return;
+        const startMin = hhmmToMinutes(ed.startInput.value);
+        const endMin   = hhmmToMinutes(ed.endInput.value);
+
+        if (startMin !== null) {
+          let duration = record.durationMinutes;
+          if (endMin !== null) {
+            duration = endMin - startMin;
+            // End before/equal to start (e.g. typed backwards, or an
+            // overnight span this app doesn't otherwise support) —
+            // rather than silently accepting a negative/zero length,
+            // just hold the box's existing duration.
+            if (duration <= 0) duration = record.durationMinutes;
+          }
+          record.startMinutes    = Math.max(0, Math.min(24 * 60 - 5, startMin));
+          record.durationMinutes = Math.max(5, duration);
+
+          if (record.el) {
+            DayTimeGrid.positionEventBox(record.el, record.startMinutes, record.durationMinutes);
+            DayTimeGrid.recomputeOverlapLayout();
+          }
+          EventStore.save(record);
+        }
+
+        updateTimeLabel(record);
+        closeExactTimeEdit(record);
       }
 
       // Keeps the "when" readout next to the type field in sync with
@@ -6096,7 +6472,6 @@
         EventStore.save(record);
         const ed = record._editor;
         if (!ed) return;
-        ed.colorBtn.style.background = hex;
         Array.from(ed.colorMenu.querySelectorAll('.day-time-grid-event-box-color-swatch')).forEach((sw) => {
           sw.classList.toggle('selected', sw.dataset.hex === hex);
         });
@@ -6147,6 +6522,19 @@
         } else {
           NotificationScheduler.unschedule(record);
         }
+      }
+
+      // Locking a box just flips a flag: attachBoxDrag/attachBoxResize/
+      // attachBoxWidthResize (in DayTimeGrid) all check record.locked
+      // directly and bail out of the actual drag before anything
+      // moves, so this function itself only needs to persist the
+      // flag and refresh the button + corner badge + handle styling.
+      function toggleLocked(record) {
+        record.locked = !record.locked;
+        EventStore.save(record);
+        const ed = record._editor;
+        if (ed && ed.lockBtn) ed.lockBtn.classList.toggle('active', !!record.locked);
+        DayTimeGrid.setLockedState(record, record.locked);
       }
 
       // Paints a record's current type/description/color onto its
@@ -6232,6 +6620,7 @@
         ed.colorMenu.classList.remove('open');
 
         syncNotifyUI(record);
+        if (ed.lockBtn) ed.lockBtn.classList.toggle('active', !!record.locked);
 
         updateTimeLabel(record);
 
@@ -6246,6 +6635,9 @@
       function close() {
         if (!currentRecord) return;
         const record = currentRecord;
+        if (record._editor && record._editor.timeEditEl.style.display !== 'none') {
+          commitExactTime(record);
+        }
         commitRecordToBox(record);
         if (record.el) {
           record.el.classList.remove('editing');
@@ -6288,6 +6680,9 @@
         }
         if (ed.colorMenu.classList.contains('open') && !ed.colorWrap.contains(e.target)) {
           ed.colorMenu.classList.remove('open');
+        }
+        if (ed.timeEditEl.style.display !== 'none' && !ed.timeEditEl.contains(e.target)) {
+          commitExactTime(currentRecord);
         }
         if (currentRecord.el && !currentRecord.el.contains(e.target)) {
           close();
