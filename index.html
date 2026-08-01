@@ -604,6 +604,15 @@
     .day-time-grid-event-box-editor {
       display: none;
       position: relative;
+      /* Resize handles (.day-time-grid-event-box-handle) sit at
+         z-index:10 with an oversized touch hit-area (72px tall on
+         coarse pointers — see the @media(pointer:coarse) block below)
+         that overlaps most of a small box's editor. Without this,
+         they were physically in front of the type/time/lock/notify/
+         color/delete controls and the description field, eating taps
+         meant for editing. This puts the whole editor above them
+         instead, so every control in it is reachable again. */
+      z-index: 15;
       height: 100%;
       flex-direction: column;
       padding: 6px 8px 8px;
@@ -5821,6 +5830,26 @@
           document.addEventListener('pointermove', onMove);
           document.addEventListener('pointerup', onEnd);
           document.addEventListener('pointercancel', onEnd);
+        });
+
+        // A double-click always means "open this," full stop — even if
+        // the two taps that made it up jittered past the move/resize
+        // threshold (a real risk on trackpads/touch, where a "tap" is
+        // rarely 100% still) and got read as a tiny drag or resize on
+        // one or both clicks. Listening at the box level (rather than
+        // only on the box's own pointerdown) means this also fires for
+        // dblclicks that land on a resize handle: handles only
+        // stopPropagation() on pointerdown (to claim the gesture ahead
+        // of attachBoxDrag), not on click/dblclick, so this still sees
+        // it. Bypasses the tap-vs-drag heuristic entirely instead of
+        // trying to out-guess it.
+        boxEl.addEventListener('dblclick', (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          dragPointerId = null;
+          dragging = false;
+          boxEl.classList.remove('dragging', 'resizing');
+          EventEditor.open(record);
         });
       }
 
