@@ -4302,7 +4302,19 @@
       function init() {
         DayViewState.onChange((next) => {
           if (next === DayViewState.STATES.LOCKED) {
-            requestAnimationFrame(() => requestAnimationFrame(show));
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+              // Same trick as flipping forward and back by hand — done
+              // automatically the instant the mini calendar opens, so
+              // it always lands in the right spot without you having
+              // to nudge it yourself.
+              const nextBtn = document.getElementById('nextMonth');
+              const prevBtn = document.getElementById('prevMonth');
+              if (nextBtn && prevBtn) {
+                nextBtn.click();
+                prevBtn.click();
+              }
+              show();
+            }));
           } else {
             hide();
           }
@@ -5950,6 +5962,50 @@
        while I've got this open," not for "wake my phone up
        tomorrow."
     ============================================================ */
+    const PUSH_VAPID_PUBLIC_KEY = 'BErnkjeG5N9MkEGsAyvaTPjxTA57nXE0yHx-L4mHyB1vpalKS36I3ZYpB1nvvEeYPKIFb8u3DgJ6cRkVEcpxa_s';
+
+    const PushNotifications = (() => {
+      function urlBase64ToUint8Array(base64String) {
+        const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+        const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+        const raw = atob(base64);
+        const out = new Uint8Array(raw.length);
+        for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+        return out;
+      }
+
+      async function init() {
+        if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+        try {
+          const reg = await navigator.serviceWorker.register('/sw.js');
+          if (Notification.permission === 'granted') await ensureSubscribed(reg);
+        } catch (err) { /* not supported in this browser, ignore */ }
+      }
+
+      async function ensureSubscribed(reg) {
+        if (!('serviceWorker' in navigator) || !('PushManager' in window)) return null;
+        reg = reg || await navigator.serviceWorker.ready;
+        let sub = await reg.pushManager.getSubscription();
+        if (!sub) {
+          sub = await reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(PUSH_VAPID_PUBLIC_KEY),
+          });
+        }
+        try {
+          await fetch('/api/push-subscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(sub.toJSON()),
+          });
+        } catch (err) { /* offline — will retry next time notify is toggled on */ }
+        return sub;
+      }
+
+      return { init, ensureSubscribed };
+    })();
+    PushNotifications.init();
+
     const NotificationScheduler = (() => {
       const timers = new Map(); // record.id -> setTimeout id
       const MAX_DELAY_MS = 20 * 24 * 60 * 60 * 1000; // setTimeout delay overflow guard
@@ -6517,7 +6573,10 @@
 
         if (record.notify) {
           NotificationScheduler.requestPermission().then((permission) => {
-            if (permission === 'granted') NotificationScheduler.schedule(record);
+            if (permission === 'granted') {
+              NotificationScheduler.schedule(record);
+              PushNotifications.ensureSubscribed();
+            }
           });
         } else {
           NotificationScheduler.unschedule(record);
