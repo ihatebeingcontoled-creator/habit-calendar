@@ -194,6 +194,26 @@ export async function onRequestPost({ env }) {
     const { results: subs } = await env.DB.prepare('SELECT * FROM push_subscriptions').all();
     report.subscriptions = subs.length;
 
+    // Sanity-check the VAPID keys themselves before ever touching a
+    // subscription — this is the one thing shared across every push,
+    // so if it's malformed, every send fails identically regardless
+    // of recipient (which is exactly what we're seeing).
+    try {
+      const pubBytes = b64urlToBytes(env.VAPID_PUBLIC_KEY);
+      const privBytes = b64urlToBytes(env.VAPID_PRIVATE_KEY);
+      report.vapidCheck = {
+        publicKeyDecodedBytes: pubBytes.length,   // must be exactly 65
+        publicKeyFirstByteHex: pubBytes.length ? pubBytes[0].toString(16) : null, // must be '4'
+        privateKeyDecodedBytes: privBytes.length, // must be exactly 32
+        publicKeyRawLength: env.VAPID_PUBLIC_KEY.length,
+        privateKeyRawLength: env.VAPID_PRIVATE_KEY.length,
+        publicKeyHasWhitespace: /\s/.test(env.VAPID_PUBLIC_KEY),
+        privateKeyHasWhitespace: /\s/.test(env.VAPID_PRIVATE_KEY),
+      };
+    } catch (err) {
+      report.vapidCheck = { error: 'Could not even base64-decode the VAPID keys: ' + err.message };
+    }
+
     if (!subs.length) {
       report.ok = false;
       report.error = 'No rows in push_subscriptions at all. That means no device has ever successfully subscribed — ' +
