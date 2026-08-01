@@ -5724,6 +5724,25 @@
         TOUCH_MOVE_THRESHOLD_PX: 20, // a finger wobbles more than this on a plain tap
       };
 
+      // Manual double-tap detection, shared by the drag/resize/width-
+      // resize pointerup handlers below. Native 'dblclick' (still
+      // wired separately in attachBoxDrag) is unreliable on touch —
+      // some mobile browsers won't synthesize it once touch-action:
+      // none and pointer capture are involved the way they are here —
+      // so this is the one that actually has to carry phones. Keyed
+      // by the box element itself (not by which handle/edge caught
+      // the second tap), so two quick taps that land on, say, the box
+      // body then a resize handle still count as a double-tap on the
+      // SAME box.
+      const DOUBLE_TAP_MS = 350;
+      const lastTapAt = new WeakMap();
+      function isDoubleTap(boxEl) {
+        const now = Date.now();
+        const prev = lastTapAt.get(boxEl) || 0;
+        lastTapAt.set(boxEl, now);
+        return (now - prev) < DOUBLE_TAP_MS;
+      }
+
       function clampStartMinutes(startMinutes, durationMinutes) {
         const max = 24 * 60 - durationMinutes;
         return Math.max(0, Math.min(max, startMinutes));
@@ -5784,8 +5803,21 @@
           document.removeEventListener('pointercancel', onEnd);
           dragPointerId = null;
           collapseExpandedHour();
-          if (dragging) {
-            boxEl.classList.remove('dragging');
+
+          const wasDragging = dragging;
+          dragging = false;
+          boxEl.classList.remove('dragging');
+
+          // Two taps within DOUBLE_TAP_MS always opens the editor,
+          // full stop — even if this second pointer sequence moved
+          // enough to register as a drag along the way. Checked
+          // before the wasDragging branch below so it can override it.
+          if (e.type === 'pointerup' && isDoubleTap(boxEl)) {
+            EventEditor.open(record);
+            return;
+          }
+
+          if (wasDragging) {
             EventStore.save(record);
             if (record.notify) NotificationScheduler.schedule(record);
             recomputeOverlapLayout();
@@ -5797,7 +5829,6 @@
             // stealing the pointer, shouldn't pop the editor open).
             EventEditor.open(record);
           }
-          dragging = false;
         }
 
         boxEl.addEventListener('pointerdown', (e) => {
