@@ -61,6 +61,14 @@
     @media (max-width: 760px) {
       .app-layout { flex-direction: column; }
       .legend-panel { order: 1; width: 100%; }
+      /* .app-layout's align-items:flex-start controls the CROSS axis —
+         which becomes horizontal once flex-direction switches to
+         column here. Without this, calendar-main (month nav/weekdays/
+         day grid) shrinks to its own content width and sits flush
+         left instead of stretching to match legend-panel's explicit
+         100% above, which is what made everything but the header/
+         stats read as "not centered" on phones. */
+      .calendar-main { width: 100%; }
     }
 
     .app-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 36px; }
@@ -532,13 +540,13 @@
        centered on the same visual line, it just has way more room
        around it to actually land a tap/drag on a phone. */
     @media (pointer: coarse) {
-      .day-time-grid-event-box-handle { height: 24px; }
-      .day-time-grid-event-box-handle.top    { top: -10px; }
-      .day-time-grid-event-box-handle.bottom { bottom: -10px; }
+      .day-time-grid-event-box-handle { height: 72px; }
+      .day-time-grid-event-box-handle.top    { top: -34px; }
+      .day-time-grid-event-box-handle.bottom { bottom: -34px; }
       .day-time-grid-event-box-handle.left,
-      .day-time-grid-event-box-handle.right  { width: 24px; }
-      .day-time-grid-event-box-handle.left   { left: -10px; }
-      .day-time-grid-event-box-handle.right  { right: -10px; }
+      .day-time-grid-event-box-handle.right  { width: 72px; }
+      .day-time-grid-event-box-handle.left   { left: -34px; }
+      .day-time-grid-event-box-handle.right  { right: -34px; }
     }
     .day-time-grid-event-box.resizing {
       z-index: 20;
@@ -946,6 +954,145 @@
       color: #111;
     }
     .day-time-grid-event-box-lock-btn svg { display: block; }
+
+    /* Collapsible controls wrapper (time, lock, notify, color,
+       delete). While the box has room, this stays `display: contents`
+       so it's invisible as a box and its children sit directly in
+       the toprow's flex row — visually identical to before this
+       existed. Once the box is too narrow (JS flips it into the "…"
+       menu instead, see COMPACT_WIDTH_PX/applyCompactState), the rule
+       below (scoped to being inside the menu) takes over instead. */
+    .day-time-grid-event-box-options-group {
+      display: contents;
+    }
+
+    /* "…" button — hidden by default (JS shows it via inline style
+       once the box is too narrow to hold everything). Same 20px
+       icon-button language as the rest of the row. */
+    .day-time-grid-event-box-more-wrap {
+      position: relative;
+      flex-shrink: 0;
+      /* Only has an effect when it's the sole remaining item after
+         optionsGroup (display:contents) has been moved out into the
+         menu — pins the "…" button to the row's right edge instead
+         of it drifting up next to the type field. When optionsGroup
+         is still in the row, its own flex:1 time-label already
+         consumes the leftover space, so this margin has nothing left
+         to grab and changes nothing in the expanded layout. */
+      margin-left: auto;
+    }
+    .day-time-grid-event-box-more-btn {
+      width: 20px; height: 20px;
+      flex-shrink: 0;
+      border: none;
+      border-radius: 6px;
+      background: rgba(255,255,255,0.16);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .day-time-grid-event-box-more-btn:hover { background: rgba(255,255,255,0.26); }
+    .day-time-grid-event-box-more-btn svg { display: block; }
+
+    /* Dropdown the options-group lands in once it's moved out of the
+       toprow. Light card like the type/color menus, anchored under
+       the "…" button. */
+    .day-time-grid-event-box-more-menu {
+      position: absolute;
+      top: calc(100% + 6px);
+      right: 0;
+      background: #fff;
+      border: 1.5px solid #ececec;
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.22);
+      padding: 10px;
+      display: none;
+      z-index: 30;
+    }
+    .day-time-grid-event-box-more-menu.open { display: block; }
+    .day-time-grid.night .day-time-grid-event-box-more-menu {
+      background: #2c2c2e; border-color: #3a3a3c;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.55);
+    }
+
+    /* Inside the menu, the options-group becomes an actual flex
+       container: the time readout/editor takes its own full-width
+       row up top, and the four icon buttons wrap into a row beneath
+       it — same controls, just laid out for a vertical dropdown
+       instead of a horizontal toprow. */
+    .day-time-grid-event-box-more-menu .day-time-grid-event-box-options-group {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      width: 150px;
+    }
+    .day-time-grid-event-box-more-menu .day-time-grid-event-box-time-label,
+    .day-time-grid-event-box-more-menu .day-time-grid-event-box-time-edit {
+      flex: 0 0 100%;
+    }
+
+    /* The icon buttons (lock/notify/color/delete) and the time label
+       were all styled for sitting on the box's own colored
+       background — translucent white on white doesn't read once
+       they're inside this light dropdown card, so they get a neutral
+       gray treatment here instead. Active/hover states keep the same
+       meaning, just recolored to match. */
+    .day-time-grid-event-box-more-menu .day-time-grid-event-box-time-label {
+      color: #333;
+    }
+    .day-time-grid-event-box-more-menu .day-time-grid-event-box-time-label:hover {
+      background: #f2f2f2;
+    }
+    .day-time-grid-event-box-more-menu .day-time-grid-event-box-time-edit-sep {
+      color: #555;
+    }
+    .day-time-grid-event-box-more-menu .day-time-grid-event-box-lock-btn,
+    .day-time-grid-event-box-more-menu .day-time-grid-event-box-notify-btn,
+    .day-time-grid-event-box-more-menu .day-time-grid-event-box-color-btn,
+    .day-time-grid-event-box-more-menu .day-time-grid-event-box-delete-inline-btn {
+      background: #f2f2f2;
+      color: #333;
+    }
+    .day-time-grid-event-box-more-menu .day-time-grid-event-box-lock-btn:hover,
+    .day-time-grid-event-box-more-menu .day-time-grid-event-box-notify-btn:hover,
+    .day-time-grid-event-box-more-menu .day-time-grid-event-box-color-btn:hover {
+      background: #e4e4e4;
+    }
+    .day-time-grid-event-box-more-menu .day-time-grid-event-box-lock-btn.active,
+    .day-time-grid-event-box-more-menu .day-time-grid-event-box-notify-btn.active {
+      background: #111;
+      color: #fff;
+    }
+    .day-time-grid-event-box-more-menu .day-time-grid-event-box-delete-inline-btn:hover {
+      background: #dc2626;
+      color: #fff;
+    }
+    .day-time-grid.night .day-time-grid-event-box-more-menu .day-time-grid-event-box-time-label {
+      color: #eee;
+    }
+    .day-time-grid.night .day-time-grid-event-box-more-menu .day-time-grid-event-box-time-label:hover {
+      background: #3a3a3c;
+    }
+    .day-time-grid.night .day-time-grid-event-box-more-menu .day-time-grid-event-box-time-edit-sep {
+      color: #ccc;
+    }
+    .day-time-grid.night .day-time-grid-event-box-more-menu .day-time-grid-event-box-lock-btn,
+    .day-time-grid.night .day-time-grid-event-box-more-menu .day-time-grid-event-box-notify-btn,
+    .day-time-grid.night .day-time-grid-event-box-more-menu .day-time-grid-event-box-color-btn,
+    .day-time-grid.night .day-time-grid-event-box-more-menu .day-time-grid-event-box-delete-inline-btn {
+      background: #3a3a3c;
+      color: #eee;
+    }
+    .day-time-grid.night .day-time-grid-event-box-more-menu .day-time-grid-event-box-lock-btn.active,
+    .day-time-grid.night .day-time-grid-event-box-more-menu .day-time-grid-event-box-notify-btn.active {
+      background: #f5f5f5;
+      color: #111;
+    }
 
     /* Small persistent padlock badge on the box's own corner — sits
        on the right, just to the left of the notify badge (so both
@@ -6105,6 +6252,47 @@
         '#8b5cf6', '#ec4899', '#64748b', '#78350f', '#111827',
       ];
 
+      // Below this box width, the top row can no longer fit the type
+      // field alongside time/lock/notify/color/delete without things
+      // clipping or wrapping — so those five collapse into a single
+      // "…" button instead. One shared ResizeObserver (rather than
+      // one per box) watches every open editor's box and flips
+      // .compact-options on/off as it's dragged/resized or as the
+      // overlap layout changes its width.
+      const COMPACT_WIDTH_PX = 270;
+      const compactRecordByEl = new WeakMap();
+      const compactObserver = (typeof ResizeObserver !== 'undefined')
+        ? new ResizeObserver((entries) => {
+            entries.forEach((entry) => {
+              const record = compactRecordByEl.get(entry.target);
+              if (record) applyCompactState(record, entry.contentRect.width);
+            });
+          })
+        : null;
+
+      // Moves the collapsible controls (time, lock, notify, color,
+      // delete) between the top row and the "…" menu. Reparenting the
+      // real nodes — rather than cloning them — means every listener,
+      // and the color menu's own nested dropdown, keep working
+      // untouched no matter which side of the toggle they're
+      // currently living on.
+      function applyCompactState(record, width) {
+        const ed = record._editor;
+        if (!ed) return;
+        const isCompact = width < COMPACT_WIDTH_PX;
+        if (ed.isCompact === isCompact) return;
+        ed.isCompact = isCompact;
+
+        if (isCompact) {
+          ed.moreMenu.appendChild(ed.optionsGroup);
+          ed.moreWrap.style.display = 'flex';
+        } else {
+          ed.moreMenu.classList.remove('open');
+          ed.topRow.insertBefore(ed.optionsGroup, ed.moreWrap);
+          ed.moreWrap.style.display = 'none';
+        }
+      }
+
       // Builds the editor sub-tree for one record and appends it into
       // that record's own box element. Runs once per record — later
       // opens just reuse record._editor.
@@ -6174,6 +6362,15 @@
         typeWrap.appendChild(typeMenu);
         topRow.appendChild(typeWrap);
 
+        // Holds time/lock/notify/color/delete. In the top row it's
+        // `display: contents` (see CSS) so it's invisible as a box —
+        // its children just sit in the row exactly as if they'd been
+        // appended directly. When the box gets too narrow, this same
+        // group gets moved wholesale into the "…" menu instead, where
+        // a different CSS rule turns it into a real flex column.
+        const optionsGroup = document.createElement('div');
+        optionsGroup.className = 'day-time-grid-event-box-options-group';
+
         // Time-range readout — sits to the right of the type field,
         // shows "start – end" for whatever this box is currently set
         // to. Tapping it swaps in exact HH:MM inputs (timeEditEl,
@@ -6184,7 +6381,7 @@
         // record.startMinutes/durationMinutes.
         const timeLabelEl = document.createElement('div');
         timeLabelEl.className = 'day-time-grid-event-box-time-label';
-        topRow.appendChild(timeLabelEl);
+        optionsGroup.appendChild(timeLabelEl);
 
         // Exact-time editor — hidden until the label above is tapped.
         // Two native <input type="time"> fields; committing either one
@@ -6228,7 +6425,7 @@
         timeEditEl.appendChild(startInput);
         timeEditEl.appendChild(sep);
         timeEditEl.appendChild(endInput);
-        topRow.appendChild(timeEditEl);
+        optionsGroup.appendChild(timeEditEl);
 
         timeLabelEl.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -6332,7 +6529,7 @@
           e.stopPropagation();
           toggleLocked(record);
         });
-        topRow.appendChild(lockBtn);
+        optionsGroup.appendChild(lockBtn);
 
         // Notify bell — sits right before the color picker (type →
         // time → bell → color → trash). Toggling it on requests
@@ -6355,20 +6552,62 @@
           e.stopPropagation();
           toggleNotify(record);
         });
-        topRow.appendChild(notifyBtn);
+        optionsGroup.appendChild(notifyBtn);
 
-        topRow.appendChild(colorWrap);
-        topRow.appendChild(deleteBtn);
+        optionsGroup.appendChild(colorWrap);
+        optionsGroup.appendChild(deleteBtn);
+        topRow.appendChild(optionsGroup);
+
+        // "…" button — only ever shown once the box is too narrow to
+        // hold the full row (applyCompactState above flips this on).
+        // Sits after optionsGroup in the DOM so that when the group
+        // gets moved out into moreMenu, this is the one thing left
+        // behind in the top row next to the type field.
+        const moreWrap = document.createElement('div');
+        moreWrap.className = 'day-time-grid-event-box-more-wrap';
+        moreWrap.style.display = 'none';
+
+        const moreBtn = document.createElement('button');
+        moreBtn.type = 'button';
+        moreBtn.className = 'day-time-grid-event-box-more-btn';
+        moreBtn.setAttribute('aria-label', 'More options');
+        moreBtn.title = 'Time, lock, notify, color, delete';
+        moreBtn.innerHTML =
+          '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">' +
+          '<circle cx="5" cy="12" r="2.1"></circle>' +
+          '<circle cx="12" cy="12" r="2.1"></circle>' +
+          '<circle cx="19" cy="12" r="2.1"></circle></svg>';
+        moreBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          moreMenu.classList.toggle('open');
+        });
+
+        const moreMenu = document.createElement('div');
+        moreMenu.className = 'day-time-grid-event-box-more-menu';
+
+        moreWrap.appendChild(moreBtn);
+        moreWrap.appendChild(moreMenu);
+        topRow.appendChild(moreWrap);
 
         editorEl.appendChild(topRow);
         editorEl.appendChild(descEl);
         boxEl.appendChild(editorEl);
 
         record._editor = {
-          editorEl, typeWrap, typeBtn, typeLabelEl, typeMenu, customInput,
+          editorEl, topRow, typeWrap, typeBtn, typeLabelEl, typeMenu, customInput,
           descEl, colorWrap, colorBtn, colorMenu, timeLabelEl, timeEditEl, startInput, endInput,
           deleteBtn, notifyBtn, lockBtn,
+          optionsGroup, moreWrap, moreBtn, moreMenu, isCompact: false,
         };
+
+        // Wire this box into the shared ResizeObserver so its "…"
+        // state tracks its actual rendered width — width changes
+        // whenever it's dragged/resized or the overlap layout gives
+        // it more or less room, not just on initial open.
+        if (compactObserver) {
+          compactRecordByEl.set(boxEl, record);
+          compactObserver.observe(boxEl);
+        }
       }
 
       // Formats a minutes-since-midnight value as "9:05 AM" style text.
@@ -6692,6 +6931,7 @@
 
         selectColor(record, record.color || COLOR_SWATCHES[0]);
         ed.colorMenu.classList.remove('open');
+        ed.moreMenu.classList.remove('open');
 
         syncNotifyUI(record);
         if (ed.lockBtn) ed.lockBtn.classList.toggle('active', !!record.locked);
@@ -6720,6 +6960,7 @@
         if (record._editor) {
           record._editor.typeMenu.classList.remove('open');
           record._editor.colorMenu.classList.remove('open');
+          record._editor.moreMenu.classList.remove('open');
         }
         currentRecord = null;
       }
@@ -6735,6 +6976,7 @@
         NotificationScheduler.unschedule(record);
         EventStore.remove(record);
         if (record.el) {
+          if (compactObserver) compactObserver.unobserve(record.el);
           record.el.remove();
           record.el = null;
         }
@@ -6754,6 +6996,9 @@
         }
         if (ed.colorMenu.classList.contains('open') && !ed.colorWrap.contains(e.target)) {
           ed.colorMenu.classList.remove('open');
+        }
+        if (ed.moreMenu.classList.contains('open') && !ed.moreWrap.contains(e.target)) {
+          ed.moreMenu.classList.remove('open');
         }
         if (ed.timeEditEl.style.display !== 'none' && !ed.timeEditEl.contains(e.target)) {
           commitExactTime(currentRecord);
@@ -6775,6 +7020,10 @@
         }
         if (ed.colorMenu.classList.contains('open')) {
           ed.colorMenu.classList.remove('open');
+          return;
+        }
+        if (ed.moreMenu.classList.contains('open')) {
+          ed.moreMenu.classList.remove('open');
           return;
         }
         close();
