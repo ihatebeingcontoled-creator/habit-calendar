@@ -6,14 +6,6 @@
   <title>Habit Calendar</title>
   <link rel="icon" type="image/png" href="/favicon.png" />
   <link rel="apple-touch-icon" href="/favicon.png" />
-  <link rel="manifest" href="/manifest.json" />
-  <!-- iOS only delivers Web Push to a site added to the Home Screen —
-       these three tags are what make "Add to Home Screen" install it
-       as a standalone app instead of just bookmarking the Safari tab. -->
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <meta name="apple-mobile-web-app-title" content="Habit Calendar" />
-  <meta name="theme-color" content="#ffffff" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -1765,6 +1757,9 @@
 
       <button type="button" class="targets-btn" id="editTargetsBtn" style="margin-top:8px; padding:9px 14px; font-size:12px;">⚙ Edit Daily Targets</button>
 
+      <button type="button" class="targets-btn" id="testPushBtn" style="margin-top:8px; padding:9px 14px; font-size:12px;">🔔 Send Test Notification</button>
+      <div id="testPushResult" style="margin-top:6px; font-size:11px; line-height:1.5; white-space:pre-wrap; word-break:break-word; color:#555;"></div>
+
       <button class="save-btn" id="settingsSaveBtn" style="margin-top:10px;">Save Settings</button>
     </div>
   </div>
@@ -3279,6 +3274,37 @@
 
     document.getElementById('settingsSaveBtn').addEventListener('click', () => {
       commitSettingsSave();
+    });
+
+    // Fires a real push immediately (bypasses event timing entirely) so we
+    // can see, right here in the UI, exactly what happens — including the
+    // raw HTTP status Apple/the push service returned for each subscription.
+    // This is a debugging tool: it does NOT depend on the cron/push-check
+    // schedule at all, it just calls the same send logic directly.
+    document.getElementById('testPushBtn').addEventListener('click', async () => {
+      const out = document.getElementById('testPushResult');
+      const btn = document.getElementById('testPushBtn');
+      btn.disabled = true;
+      out.textContent = 'Requesting notification permission...';
+      try {
+        const perm = await NotificationScheduler.requestPermission();
+        out.textContent = 'Permission: ' + perm + '\nRegistering push subscription...';
+        if (perm !== 'granted') {
+          out.textContent += '\n\n❌ Notifications are not allowed for this app in your browser/OS settings. That alone would explain everything — fix that first.';
+          btn.disabled = false;
+          return;
+        }
+        const sub = await PushNotifications.ensureSubscribed();
+        out.textContent += sub ? '\nSubscribed OK. Sending test push...' : '\n⚠ Could not create a subscription (unsupported browser or offline). Sending test push anyway...';
+
+        const res = await fetch('/api/test-push', { method: 'POST' });
+        const data = await res.json().catch(() => ({ error: 'Non-JSON response, HTTP ' + res.status }));
+        out.textContent = JSON.stringify(data, null, 2);
+      } catch (err) {
+        out.textContent = '❌ Error: ' + (err && err.message ? err.message : String(err));
+      } finally {
+        btn.disabled = false;
+      }
     });
 
     // All of these only touch the staged pendingSettings copy — nothing is
@@ -6212,7 +6238,7 @@
        while I've got this open," not for "wake my phone up
        tomorrow."
     ============================================================ */
-    const PUSH_VAPID_PUBLIC_KEY = 'BKJft-_kPfyty-9kmylCLRL804mvkXMgsntdYVYjXhyP6ZZ6cyQpruC2MfGO3zeK6zv0rO6cgef6o7W-atxaFg8';
+    const PUSH_VAPID_PUBLIC_KEY = 'BErnkjeG5N9MkEGsAyvaTPjxTA57nXE0yHx-L4mHyB1vpalKS36I3ZYpB1nvvEeYPKIFb8u3DgJ6cRkVEcpxa_s';
 
     const PushNotifications = (() => {
       function urlBase64ToUint8Array(base64String) {
