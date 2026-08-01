@@ -6250,6 +6250,12 @@
         return out;
       }
 
+      function bytesToBase64Url(bytes) {
+        let bin = '';
+        for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+        return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      }
+
       async function init() {
         if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
         try {
@@ -6262,6 +6268,24 @@
         if (!('serviceWorker' in navigator) || !('PushManager' in window)) return null;
         reg = reg || await navigator.serviceWorker.ready;
         let sub = await reg.pushManager.getSubscription();
+
+        // A subscription can exist but have been created under an OLD
+        // VAPID key (e.g. after rotating keys server-side). That old
+        // subscription is permanently unusable — the push service will
+        // reject every send with a key-mismatch error — but the browser
+        // has no way to know that on its own, so we compare keys
+        // ourselves and force a real re-subscribe when they differ.
+        if (sub) {
+          try {
+            const currentKeyBuf = sub.options && sub.options.applicationServerKey;
+            const currentKey = currentKeyBuf ? bytesToBase64Url(new Uint8Array(currentKeyBuf)) : null;
+            if (currentKey && currentKey !== PUSH_VAPID_PUBLIC_KEY) {
+              await sub.unsubscribe();
+              sub = null;
+            }
+          } catch (err) { /* if we can't tell, fall through and reuse what we have */ }
+        }
+
         if (!sub) {
           sub = await reg.pushManager.subscribe({
             userVisibleOnly: true,
