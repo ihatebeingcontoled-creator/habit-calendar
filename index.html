@@ -525,6 +525,21 @@
     .day-time-grid-event-box-handle.left  { left: 0; }
     .day-time-grid-event-box-handle.right { right: 0; }
     .day-time-grid-event-box-handle:hover  { background: rgba(255,255,255,0.28); }
+
+    /* Touch devices get a much bigger hit area (closer to Apple's
+       44px minimum) without changing anything for mouse users — the
+       handle straddles the box edge (half in, half out) so it stays
+       centered on the same visual line, it just has way more room
+       around it to actually land a tap/drag on a phone. */
+    @media (pointer: coarse) {
+      .day-time-grid-event-box-handle { height: 24px; }
+      .day-time-grid-event-box-handle.top    { top: -10px; }
+      .day-time-grid-event-box-handle.bottom { bottom: -10px; }
+      .day-time-grid-event-box-handle.left,
+      .day-time-grid-event-box-handle.right  { width: 24px; }
+      .day-time-grid-event-box-handle.left   { left: -10px; }
+      .day-time-grid-event-box-handle.right  { right: -10px; }
+    }
     .day-time-grid-event-box.resizing {
       z-index: 20;
       box-shadow: 0 6px 16px rgba(0,0,0,0.28);
