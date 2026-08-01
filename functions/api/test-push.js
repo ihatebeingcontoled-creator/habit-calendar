@@ -160,10 +160,24 @@ async function encryptPayload(payloadText, p256dhB64, authB64) {
 }
 
 async function sendPush(sub, payloadObj, env) {
-  const body = await encryptPayload(JSON.stringify(payloadObj), sub.p256dh, sub.auth);
-  const authorization = await createVapidAuthHeader(
-    sub.endpoint, env.VAPID_PUBLIC_KEY, env.VAPID_PRIVATE_KEY, env.VAPID_SUBJECT
-  );
+  let body;
+  try {
+    body = await encryptPayload(JSON.stringify(payloadObj), sub.p256dh, sub.auth);
+  } catch (err) {
+    err.step = 'encryptPayload (receiver p256dh/auth)';
+    err.p256dhLen = (() => { try { return b64urlToBytes(sub.p256dh).length; } catch { return 'decode failed'; } })();
+    err.authLen = (() => { try { return b64urlToBytes(sub.auth).length; } catch { return 'decode failed'; } })();
+    throw err;
+  }
+  let authorization;
+  try {
+    authorization = await createVapidAuthHeader(
+      sub.endpoint, env.VAPID_PUBLIC_KEY, env.VAPID_PRIVATE_KEY, env.VAPID_SUBJECT
+    );
+  } catch (err) {
+    err.step = 'createVapidAuthHeader (shared VAPID key)';
+    throw err;
+  }
   return fetch(sub.endpoint, {
     method: 'POST',
     headers: {
@@ -242,6 +256,9 @@ export async function onRequestPost({ env }) {
       } catch (err) {
         entry.result = 'threw an error';
         entry.error = err && err.message ? err.message : String(err);
+        entry.failedAt = err && err.step ? err.step : 'unknown';
+        if (err && err.p256dhLen !== undefined) entry.p256dhDecodedBytes = err.p256dhLen; // must be 65
+        if (err && err.authLen !== undefined) entry.authDecodedBytes = err.authLen;       // must be 16
       }
       report.results.push(entry);
     }
