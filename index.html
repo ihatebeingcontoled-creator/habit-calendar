@@ -1110,7 +1110,7 @@
        locked. */
     .day-time-grid-event-box-lock-badge {
       position: absolute;
-      top: 2px; right: 18px;
+      top: 2px; right: 2px;
       width: 12px; height: 12px;
       border-radius: 50%;
       background: #111;
@@ -1121,6 +1121,15 @@
       z-index: 8;
       box-shadow: 0 0 0 1.5px rgba(255,255,255,0.9);
       pointer-events: none;
+      transition: right 0.15s ease;
+    }
+    /* Only shift the lock badge left, to make room, when the notify
+       badge is ALSO visible (it comes right before the lock badge in
+       the DOM, so the general-sibling combinator below only matches
+       while notify is showing). Otherwise the lock badge sits in the
+       notify badge's own corner slot instead of leaving it empty. */
+    .day-time-grid-event-box-notify-badge.visible ~ .day-time-grid-event-box-lock-badge {
+      right: 18px;
     }
     .day-time-grid-event-box-lock-badge.visible { display: flex; }
     .day-time-grid-event-box.editing .day-time-grid-event-box-lock-badge { display: none; }
@@ -1138,6 +1147,21 @@
       opacity: 0.15;
     }
     .day-time-grid-event-box.locked:not(.editing) { cursor: default; }
+
+    /* Locked boxes can't be dragged or resized, so there's no reason
+       to swallow touch gestures on them the way an unlocked
+       (draggable) box has to. Unlocked boxes need touch-action: none
+       so a finger-drag on the box always reaches our own pointermove
+       handler instead of the browser trying to pan the page. Locked
+       boxes don't need that — letting the browser recognize a
+       vertical swipe as its own pan means a scroll gesture starting
+       on a locked box actually scrolls (the browser takes over and
+       fires pointercancel, which onEnd already treats as "not a
+       tap" — see attachBoxDrag), while a real stationary tap still
+       resolves as a normal tap/click and opens the editor. */
+    .day-time-grid-event-box.locked:not(.editing) {
+      touch-action: pan-y;
+    }
 
     .day-num { position: absolute; top: 7px; left: 9px; font-size: 11.5px; font-weight: 700; color: #aaa; z-index: 5; }
     .day-cell.today .day-num { color: #111; }
@@ -2984,8 +3008,33 @@
       updateWakeBtn();
     });
 
+    // Locks the background page in place while the day-entry modal is
+    // open, so a scroll/swipe that misses the modal's own scrollable
+    // content (e.g. lands on the backdrop, or chains past the top/
+    // bottom of the modal) can't scroll the calendar behind it. The
+    // scroll position is restored exactly on unlock rather than just
+    // toggling overflow, since fixing body position resets scrollY.
+    let lockedScrollY = 0;
+    function lockBodyScroll() {
+      lockedScrollY = window.scrollY || window.pageYOffset || 0;
+      document.body.style.position = 'fixed';
+      document.body.style.top = -lockedScrollY + 'px';
+      document.body.style.left = '0';
+      document.body.style.right = '0';
+      document.body.style.width = '100%';
+    }
+    function unlockBodyScroll() {
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.left = '';
+      document.body.style.right = '';
+      document.body.style.width = '';
+      window.scrollTo(0, lockedScrollY);
+    }
+
     function openModal(dateStr) {
       activeDate = dateStr;
+      lockBodyScroll();
 
       const [y, m, d] = dateStr.split('-');
       document.getElementById('modalTitle').textContent =
@@ -3039,6 +3088,7 @@
       document.getElementById('overlay').classList.remove('open');
       activeDate = null;
       initialFormSnapshot = null;
+      unlockBodyScroll();
     }
 
     function attemptCloseModal() {
@@ -3496,6 +3546,19 @@
       }
 
       function handleWheel(e) {
+        // While the day-entry editor is open (e.g. typing in the
+        // pushups counter), scrolling is meant for whatever's inside
+        // that editor, not for the mini-calendar exit gesture. Bail
+        // out completely — don't accumulate, don't decay, don't
+        // touch DayViewState — so the scroll trigger only ever
+        // counts when the person is back on the main menu with
+        // nothing open. activeDate is non-null exactly while that
+        // modal (openModal/closeModal, further down this file) is open.
+        if (typeof activeDate !== 'undefined' && activeDate !== null) return;
+        // Also skip while a day-time-grid box (a different, newer
+        // editor) is open, for the same reason.
+        if (typeof EventEditor !== 'undefined' && EventEditor.isOpen()) return;
+
         const state = DayViewState.get();
 
         if (state === STATES.TRANSITIONING) {
@@ -7167,7 +7230,9 @@
         close();
       });
 
-      return { open, close, renderBoxFace, updateTimeLabel, updateFaceTime };
+      function isOpen() { return !!currentRecord; }
+
+      return { open, close, renderBoxFace, updateTimeLabel, updateFaceTime, isOpen };
     })();
 
     // Every newly-created box (step 6) immediately opens the editor —
