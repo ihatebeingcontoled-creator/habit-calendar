@@ -158,6 +158,8 @@ async function encryptPayload(payloadText, p256dhB64, authB64) {
   return concatBytes(header, ciphertext);
 }
 
+function pad(n) { return String(n).padStart(2, '0'); }
+
 async function sendPush(sub, payloadObj, env) {
   const body = await encryptPayload(JSON.stringify(payloadObj), sub.p256dh, sub.auth);
   const authorization = await createVapidAuthHeader(
@@ -188,7 +190,10 @@ export async function onRequestGet({ env }) {
       const hh = Math.floor(ev.startMinutes / 60);
       const mi = ev.startMinutes % 60;
       const eventMs = zonedTimeToUtc(y, mo, d, hh, mi, 'Europe/Vilnius');
-      if (eventMs <= nowMs && eventMs > nowMs - 90 * 1000) due.push(ev);
+      if (eventMs <= nowMs && eventMs > nowMs - 90 * 1000) {
+        ev.timeLabel = `${pad(hh)}:${pad(mi)}`;
+        due.push(ev);
+      }
     }
     if (!due.length) return json({ ok: true, sent: 0 });
 
@@ -205,7 +210,10 @@ export async function onRequestGet({ env }) {
     let sentCount = 0;
     const markStmts = [];
     for (const ev of toSend) {
-      const payload = { title: ev.type || 'Reminder', body: ev.description || 'Starting now' };
+      const payload = {
+        title: ev.type || 'Reminder',
+        body: ev.description ? `${ev.timeLabel} — ${ev.description}` : ev.timeLabel,
+      };
       for (const sub of subs) {
         try {
           const res = await sendPush(sub, payload, env);
