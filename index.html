@@ -577,6 +577,29 @@
       100% { transform: scale(1);     box-shadow: 0 1px 4px rgba(0,0,0,0.5); }
     }
 
+    /* Talk-to-AI live add — pop-in flourish for a box that appears
+       on a day you're already looking at, straight from a voice
+       command. Punchier than just-saved (starts from 0 scale/opacity
+       plus a brief color ring) since nobody tapped anything here —
+       this animation IS the only cue that something just showed up
+       on its own. */
+    .day-time-grid-event-box.ai-pop-in {
+      animation: event-box-ai-pop-in 480ms cubic-bezier(.34, 1.56, .64, 1);
+    }
+    @keyframes event-box-ai-pop-in {
+      0%   { transform: scale(0.5); opacity: 0; box-shadow: 0 0 0 0 rgba(59,130,246,0.6); }
+      55%  { transform: scale(1.06); opacity: 1; box-shadow: 0 0 0 6px rgba(59,130,246,0.25); }
+      100% { transform: scale(1);   opacity: 1; box-shadow: 0 1px 3px rgba(0,0,0,0.18); }
+    }
+    .day-time-grid.night .day-time-grid-event-box.ai-pop-in {
+      animation-name: event-box-ai-pop-in-night;
+    }
+    @keyframes event-box-ai-pop-in-night {
+      0%   { transform: scale(0.5); opacity: 0; box-shadow: 0 0 0 0 rgba(96,165,250,0.6); }
+      55%  { transform: scale(1.06); opacity: 1; box-shadow: 0 0 0 6px rgba(96,165,250,0.3); }
+      100% { transform: scale(1);   opacity: 1; box-shadow: 0 1px 4px rgba(0,0,0,0.5); }
+    }
+
     /* ============================================================
        INLINE TASK EDITOR (revision).
        No more separate popup/card — editing happens right inside the
@@ -5726,27 +5749,59 @@
         });
       }
 
+      // Builds and mounts the DOM box for a single record. Shared by
+      // the full-date render below and by renderNewEventsForDate,
+      // which paints just the freshly-added record(s) into a date
+      // that's already showing — e.g. right after the talk-to-AI
+      // widget saves a new event while you're looking at that day.
+      // `animate: true` plays a pop-in flourish so a box that
+      // appeared on its own (nobody tapped anything) still reads as
+      // "something just happened" rather than silently existing.
+      function paintEventBox(record, { animate = false } = {}) {
+        const boxEl = document.createElement('div');
+        boxEl.className = 'day-time-grid-event-box';
+        const handles = buildBoxSkeleton(boxEl);
+        positionEventBox(boxEl, record.startMinutes, record.durationMinutes);
+        innerEl.appendChild(boxEl);
+        record.el = boxEl;
+        setNotifyBadge(record, record.notify);
+        setLockedState(record, record.locked);
+        attachBoxDrag(record);
+        attachBoxResize(record, handles);
+        attachBoxWidthResize(record, handles);
+        EventEditor.renderBoxFace(record);
+        if (animate) {
+          boxEl.classList.add('ai-pop-in');
+          boxEl.addEventListener('animationend', () => boxEl.classList.remove('ai-pop-in'), { once: true });
+        }
+      }
+
       function renderEventsForDate(dateKey) {
         if (dateKey === renderedDateKey) return; // already showing this date's boxes
         detachRenderedBoxes(renderedDateKey);
 
         EventStore.getForDate(dateKey).forEach((record) => {
           if (record.el) return; // defensive — shouldn't happen after detach above
-          const boxEl = document.createElement('div');
-          boxEl.className = 'day-time-grid-event-box';
-          const handles = buildBoxSkeleton(boxEl);
-          positionEventBox(boxEl, record.startMinutes, record.durationMinutes);
-          innerEl.appendChild(boxEl);
-          record.el = boxEl;
-          setNotifyBadge(record, record.notify);
-          setLockedState(record, record.locked);
-          attachBoxDrag(record);
-          attachBoxResize(record, handles);
-          attachBoxWidthResize(record, handles);
-          EventEditor.renderBoxFace(record);
+          paintEventBox(record);
         });
 
         renderedDateKey = dateKey;
+        recomputeOverlapLayout();
+      }
+
+      // Paints just the given records (skipping any that already have
+      // a box) into the date currently showing, with the pop-in
+      // animation. No-ops if `dateKey` isn't the date actually locked
+      // open right now — renderEventsForDate already handles painting
+      // everything the normal way whenever the open date changes, so
+      // this only needs to cover the "already looking at this day
+      // when new records land" case.
+      function renderNewEventsForDate(dateKey, records) {
+        if (dateKey !== renderedDateKey) return;
+        records.forEach((record) => {
+          if (record.el) return;
+          paintEventBox(record, { animate: true });
+        });
         recomputeOverlapLayout();
       }
 
@@ -6431,7 +6486,7 @@
         onHoldCreate(spawnEventBox);
       }
 
-      return { init, computeRect, onHoldCreate, onBoxCreated, recomputeOverlapLayout, setNotifyBadge, setLockedState, positionEventBox, renderEventsForDate };
+      return { init, computeRect, onHoldCreate, onBoxCreated, recomputeOverlapLayout, setNotifyBadge, setLockedState, positionEventBox, renderEventsForDate, renderNewEventsForDate };
     })();
     DayTimeGrid.init();
 
@@ -7810,13 +7865,14 @@
       async function saveEvents(events) {
         // EventStore's serverCache loads asynchronously on page load;
         // if the widget is used before that fetch resolves,
-        // getAllSnapshot() below would see an empty cache for any
-        // date not currently open and the merge would wipe existing
-        // events for that date instead of merging with them. Wait for
-        // it first — this is a no-op once already loaded.
+        // getForDate()/getAllSnapshot() below would see an empty
+        // cache for any date not yet touched and the merge would
+        // wipe existing events for that date instead of merging with
+        // them. Wait for it first — this is a no-op once loaded.
         await EventStore.whenReady();
 
-        const entries = {};
+        const touchedDates = new Set();
+        const newRecordsByDate = {}; // just the ones created this call, for the pop-in paint below
         const openDateKey = (() => {
           try {
             if (DayViewState.get() !== DayViewState.STATES.LOCKED) return null;
@@ -7829,6 +7885,7 @@
           const record = {
             id: (window.crypto && crypto.randomUUID) ? crypto.randomUUID()
                 : 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8),
+            dateKey: ev.dateKey,
             startMinutes: ev.startMinutes,
             durationMinutes: ev.durationMinutes,
             type: ev.title || '',
@@ -7838,27 +7895,30 @@
             manualWidthPx: null,
             notify: false,
             locked: false,
+            el: null,
           };
-          if (!entries[ev.dateKey]) entries[ev.dateKey] = [];
-          entries[ev.dateKey].push(record);
-
-          // Live-inject if this date is the one currently open.
-          if (ev.dateKey === openDateKey) {
-            const list = EventStore.getForDate(ev.dateKey);
-            list.push(Object.assign({ dateKey: ev.dateKey, el: null }, record));
-          }
+          // Push straight into EventStore's own live array for this
+          // date — the SAME array everything else in the app reads
+          // from (getForDate lazily hydrates it from serverCache on
+          // first touch, then hands back that live array every call
+          // after). Doing it this way, instead of building a separate
+          // local list, means the date is correctly cached the moment
+          // we confirm — not just when it happens to be the day
+          // currently open — so navigating there later (even without
+          // a reload) already shows the new event.
+          EventStore.getForDate(ev.dateKey).push(record);
+          touchedDates.add(ev.dateKey);
+          (newRecordsByDate[ev.dateKey] = newRecordsByDate[ev.dateKey] || []).push(record);
         });
 
-        // Merge with whatever's already saved for those dates rather
-        // than clobbering it — /api/events DELETEs-then-inserts per
-        // date it receives, so existing boxes must be included too.
-        const existing = EventStore.getAllSnapshot();
-        Object.keys(entries).forEach((dateKey) => {
-          const already = (existing[dateKey] || []).filter(
-            (e) => !entries[dateKey].some((n) => n.id === e.id)
-          );
-          entries[dateKey] = already.concat(entries[dateKey]);
-        });
+        // getAllSnapshot() serializes every date currently held in
+        // EventStore (server-loaded dates plus whatever's live in
+        // memory), so pulling the touched dates back out of it gives
+        // us the already-merged, deduped list /api/events expects —
+        // it DELETEs-then-inserts per date it receives.
+        const snapshot = EventStore.getAllSnapshot();
+        const entries = {};
+        touchedDates.forEach((dateKey) => { entries[dateKey] = snapshot[dateKey] || []; });
 
         await fetch('/api/events', {
           method: 'POST',
@@ -7866,10 +7926,14 @@
           body: JSON.stringify({ entries }),
         });
 
-        // If we live-injected into the open day, re-render it so the
-        // new boxes actually show up without waiting on a reload.
-        if (openDateKey && entries[openDateKey] && typeof DayTimeGrid !== 'undefined' && DayTimeGrid.renderEventsForDate) {
-          DayTimeGrid.renderEventsForDate(openDateKey);
+        // If the day currently open is one we just added to, paint
+        // in only the new box(es) with the pop-in animation — using
+        // renderNewEventsForDate rather than renderEventsForDate,
+        // since the date is already the one rendered and a plain
+        // re-render would no-op instead of showing the new box at
+        // all.
+        if (openDateKey && newRecordsByDate[openDateKey] && typeof DayTimeGrid !== 'undefined' && DayTimeGrid.renderNewEventsForDate) {
+          DayTimeGrid.renderNewEventsForDate(openDateKey, newRecordsByDate[openDateKey]);
         }
       }
 
