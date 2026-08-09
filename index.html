@@ -98,7 +98,20 @@
       aspect-ratio: 1; min-height: 78px; border-radius: 13px; border: 2px solid #3b82f6;
       background: #fafafa; cursor: pointer; display: flex; flex-direction: column;
       align-items: center; justify-content: center; padding: 22px 6px 8px; position: relative;
-      transition: transform 0.15s, box-shadow 0.2s, background 0.15s; user-select: none; overflow: hidden;
+      /* Zero-width/zero-alpha placeholder ring, structurally identical
+         (same 4 shadow layers, same order) to the .lvl-N and
+         .fully-complete box-shadows below. Keeping the layer count and
+         order identical lets the browser interpolate every value in
+         each layer (spread, blur, color alpha) instead of just
+         swapping instantly, so the ring grows from nothing up to full
+         thickness/glow rather than popping in already-formed. */
+      box-shadow:
+        0 0 0 0px rgba(59,130,246,0),
+        0 0 0px 0px rgba(59,130,246,0),
+        inset 0 0 0px 0px rgba(34,211,238,0),
+        inset 0 0 0px 0px rgba(34,211,238,0);
+      transition: transform 0.15s, box-shadow 0.32s ease, background 0.15s, border-color 0.32s ease;
+      user-select: none; overflow: hidden;
     }
     .day-cell:hover:not(.empty) { background: #f3f3f3; transform: translateY(-2px); }
     .day-cell.empty { cursor: default; background: transparent; border-color: transparent; }
@@ -126,47 +139,58 @@
     }
 
     .day-cell.lvl-0 {
-      box-shadow: 0 0 0 2px #c61215, 0 0 6px 2px rgba(198,18,21,0.5);
+      box-shadow: 0 0 0 2px #c61215, 0 0 6px 2px rgba(198,18,21,0.5),
+        inset 0 0 0px 0px rgba(34,211,238,0), inset 0 0 0px 0px rgba(34,211,238,0);
       border-color: #c61215; background: #ffe6e6;
     }
     .day-cell.lvl-1 {
-      box-shadow: 0 0 0 2px #cd361a, 0 0 6px 2px rgba(205,54,26,0.45);
+      box-shadow: 0 0 0 2px #cd361a, 0 0 6px 2px rgba(205,54,26,0.45),
+        inset 0 0 0px 0px rgba(34,211,238,0), inset 0 0 0px 0px rgba(34,211,238,0);
       border-color: #cd361a;
     }
     .day-cell.lvl-2 {
-      box-shadow: 0 0 0 2px #d55821, 0 0 6px 2px rgba(213,88,33,0.45);
+      box-shadow: 0 0 0 2px #d55821, 0 0 6px 2px rgba(213,88,33,0.45),
+        inset 0 0 0px 0px rgba(34,211,238,0), inset 0 0 0px 0px rgba(34,211,238,0);
       border-color: #d55821;
     }
     .day-cell.lvl-3 {
-      box-shadow: 0 0 0 2px #e17c29, 0 0 6px 2px rgba(225,124,41,0.45);
+      box-shadow: 0 0 0 2px #e17c29, 0 0 6px 2px rgba(225,124,41,0.45),
+        inset 0 0 0px 0px rgba(34,211,238,0), inset 0 0 0px 0px rgba(34,211,238,0);
       border-color: #e17c29;
     }
     .day-cell.lvl-4 {
-      box-shadow: 0 0 0 2px #e8a22e, 0 0 6px 2px rgba(232,162,46,0.45);
+      box-shadow: 0 0 0 2px #e8a22e, 0 0 6px 2px rgba(232,162,46,0.45),
+        inset 0 0 0px 0px rgba(34,211,238,0), inset 0 0 0px 0px rgba(34,211,238,0);
       border-color: #e8a22e;
     }
     .day-cell.lvl-5 {
-      box-shadow: 0 0 0 2px #f4c439, 0 0 6px 2px rgba(244,196,57,0.45);
+      box-shadow: 0 0 0 2px #f4c439, 0 0 6px 2px rgba(244,196,57,0.45),
+        inset 0 0 0px 0px rgba(34,211,238,0), inset 0 0 0px 0px rgba(34,211,238,0);
       border-color: #f4c439;
     }
     .day-cell.lvl-6 {
-      box-shadow: 0 0 0 2px #fce83e, 0 0 6px 2px rgba(252,232,62,0.5);
+      box-shadow: 0 0 0 2px #fce83e, 0 0 6px 2px rgba(252,232,62,0.5),
+        inset 0 0 0px 0px rgba(34,211,238,0), inset 0 0 0px 0px rgba(34,211,238,0);
       border-color: #fce83e;
     }
     .day-cell.lvl-7 {
-      box-shadow: 0 0 0 2px #e9f038, 0 0 6px 2px rgba(233,240,56,0.5);
+      box-shadow: 0 0 0 2px #e9f038, 0 0 6px 2px rgba(233,240,56,0.5),
+        inset 0 0 0px 0px rgba(34,211,238,0), inset 0 0 0px 0px rgba(34,211,238,0);
       border-color: #e9f038;
     }
     .day-cell.lvl-8 {
-      box-shadow: 0 0 0 2px #caf32d, 0 0 6px 2px rgba(202,243,45,0.5);
+      box-shadow: 0 0 0 2px #caf32d, 0 0 6px 2px rgba(202,243,45,0.5),
+        inset 0 0 0px 0px rgba(34,211,238,0), inset 0 0 0px 0px rgba(34,211,238,0);
       border-color: #caf32d;
     }
     .day-cell.lvl-9 {
-      box-shadow: 0 0 0 2px #adf623, 0 0 6px 2px rgba(173,246,35,0.55);
+      box-shadow: 0 0 0 2px #adf623, 0 0 6px 2px rgba(173,246,35,0.55),
+        inset 0 0 0px 0px rgba(34,211,238,0), inset 0 0 0px 0px rgba(34,211,238,0);
       border-color: #adf623;
     }
     .day-cell.lvl-10 {
-      box-shadow: 0 0 0 2px rgba(34,197,94,0.82), 0 0 6px 2px rgba(34,197,94,0.48);
+      box-shadow: 0 0 0 2px rgba(34,197,94,0.82), 0 0 6px 2px rgba(34,197,94,0.48),
+        inset 0 0 0px 0px rgba(34,211,238,0), inset 0 0 0px 0px rgba(34,211,238,0);
       border-color: rgba(34,197,94,0.6); background: #dcfce7;
     }
 
@@ -174,27 +198,36 @@
       box-shadow:
         0 0 0 2px rgba(34,197,94,0.82),
         0 0 6px 2px rgba(34,197,94,0.48),
-        inset 0 0 0 3px #22d3ee,
-        inset 0 0 8px 2px rgba(34,211,238,0.55);
+        inset 0 0 0px 0px rgba(34,211,238,0),
+        inset 0 0 0px 0px rgba(34,211,238,0);
+    }
+    /* The cyan "fully complete" pulse used to live on this same
+       box-shadow property, animated via keyframes. That's what caused
+       the glitch transitioning back out of fully-complete: removing
+       the class had to cut an in-flight keyframe animation on
+       box-shadow at whatever random point the pulse was at, and hand
+       off to the transition mid-frame — a CSS animation and a CSS
+       transition fighting over the same property on the same frame.
+       Moving the pulse to its own pseudo-element, animating only its
+       opacity, means the ring's own box-shadow is always a plain,
+       un-animated value that the transition can ease cleanly in both
+       directions, while the cyan glow fades in/out independently. */
+    .day-cell::after {
+      content: '';
+      position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+      box-shadow: inset 0 0 0 3px #22d3ee, inset 0 0 8px 2px rgba(34,211,238,0.55);
+      opacity: 0;
+      transition: opacity 0.32s ease;
+    }
+    .day-cell.fully-complete::after {
+      opacity: 1;
       animation: cyan-ring-pulse 2.2s ease-in-out infinite;
     }
     @keyframes cyan-ring-pulse {
-      0%, 100% {
-        box-shadow:
-          0 0 0 2px rgba(34,197,94,0.82),
-          0 0 6px 2px rgba(34,197,94,0.48),
-          inset 0 0 0 3px #22d3ee,
-          inset 0 0 8px 2px rgba(34,211,238,0.55);
-      }
-      50% {
-        box-shadow:
-          0 0 0 2px rgba(34,197,94,0.82),
-          0 0 6px 2px rgba(34,197,94,0.48),
-          inset 0 0 0 3px #67e8f9,
-          inset 0 0 10px 3px rgba(34,211,238,0.75);
-      }
+      0%, 100% { opacity: 1; }
+      50%      { opacity: 0.6; }
     }
-    @media (prefers-reduced-motion: reduce) { .day-cell.fully-complete { animation: none; } }
+    @media (prefers-reduced-motion: reduce) { .day-cell.fully-complete::after { animation: none; } }
 
     /* Mini-calendar (locked/day-view) presentation — the day-cells
        are the same real elements, just shrunk via FlipAnimator. At
@@ -228,6 +261,7 @@
       animation: none !important;
       box-shadow: 0 0 0 1.5px rgba(34,197,94,0.85), inset 0 0 0 1.5px #22d3ee !important;
     }
+    .day-cell.flip-animating::after { opacity: 0 !important; animation: none !important; }
     /* Today no longer gets its own ring override here — it used to
        (a black ring, then later transparent), but that box-shadow
        always beat the lvl-N/fully-complete rules above since it came
@@ -2701,65 +2735,131 @@
       const firstDow     = new Date(viewYear, viewMonth, 1).getDay();
       const firstMonIdx  = mondayIdx(firstDow);
       const daysInMonth  = new Date(viewYear, viewMonth + 1, 0).getDate();
+      const gridKey      = viewYear + '-' + viewMonth;
+      const expectedCount = firstMonIdx + daysInMonth;
 
-      grid.innerHTML = '';
+      // Reuse the existing .day-cell elements when we're re-rendering
+      // the SAME month (e.g. after checking off a habit) instead of
+      // wiping the grid and recreating every cell from scratch. A
+      // brand-new element has no "previous" box-shadow/border-color
+      // for the browser to transition from, so it just appears already
+      // at its final ring color/thickness — that's the snap. Reusing
+      // the node means changing its classes is a real style change on
+      // a persisted element, which the transitions on .day-cell can
+      // actually animate.
+      // We only take this path for the plain grid: if the mini-
+      // calendar FLIP animation is mid-flight or a swipe card is being
+      // dragged, fall back to the original full rebuild so we never
+      // touch a cell whose identity/position something else currently
+      // depends on.
+      const canReuse = grid.dataset.gridKey === gridKey
+        && grid.children.length === expectedCount
+        && !grid.querySelector('.flip-animating, .settling, .is-dragging');
 
-      for (let i = 0; i < firstMonIdx; i++) {
-        const blank = document.createElement('div');
-        blank.className = 'day-cell empty';
-        grid.appendChild(blank);
+      // Any renderCalendar() call while the mini-calendar is LOCKED —
+      // not just a month switch, but also e.g. saving a habit target,
+      // uploading/deleting a file, or a background sync — rebuilds the
+      // grid into plain, full-size square cells sitting at their
+      // normal in-document position, because canReuse is always false
+      // once cells carry .flip-animating (the check right above this
+      // comment intentionally bails out of reuse for exactly that
+      // state). Without re-parking them back into the mini layout
+      // afterward, that plain rebuilt grid would just stay visible
+      // that way — which reads as the ring "snapping to square" and
+      // "flying up" from the mini position back to the full grid's
+      // position. Hiding the grid for the duration and re-parking
+      // every caller of renderCalendar(), not just navigateMonth,
+      // fixes this at the source.
+      const isLocked = !canReuse
+        && typeof DayViewState !== 'undefined'
+        && DayViewState.get() === DayViewState.STATES.LOCKED;
+      if (isLocked) grid.style.visibility = 'hidden';
+
+      if (!canReuse) {
+        grid.innerHTML = '';
+        for (let i = 0; i < firstMonIdx; i++) {
+          const blank = document.createElement('div');
+          blank.className = 'day-cell empty';
+          grid.appendChild(blank);
+        }
+        for (let d = 1; d <= daysInMonth; d++) {
+          grid.appendChild(document.createElement('div'));
+        }
+        grid.dataset.gridKey = gridKey;
       }
 
       for (let d = 1; d <= daysInMonth; d++) {
-        const dateStr = viewYear + '-' + pad(viewMonth + 1) + '-' + pad(d);
-        const entry   = habitsData[dateStr];
-        const isToday = today.getFullYear() === viewYear &&
-                        today.getMonth()    === viewMonth &&
-                        today.getDate()     === d;
+        fillDayCell(grid.children[firstMonIdx + (d - 1)], d, today);
+      }
 
-        const cell = document.createElement('div');
-        cell.className = 'day-cell' + (isToday ? ' today' : '');
-        cell.dataset.day = String(d);
+      if (isLocked && typeof LockedMonthNav !== 'undefined') {
+        LockedMonthNav.snapCurrentCellsToMini();
+      }
+      if (isLocked) grid.style.visibility = '';
 
-        const lvl = completionLevel(entry);
-        if (lvl !== null) cell.classList.add('lvl-' + lvl);
-        if (isFullyComplete(entry)) cell.classList.add('fully-complete');
+      computeMonthStats();
+      applyMiniDaySelectionHighlight();
+    }
 
-        const num = document.createElement('div');
-        num.className = 'day-num';
-        num.textContent = d;
-        cell.appendChild(num);
+    // Populates (or repopulates) a single day-cell element in place.
+    // Used both for freshly-created cells and for cells being reused
+    // across a same-month re-render (see renderCalendar above).
+    function fillDayCell(cell, d, today) {
+      const dateStr = viewYear + '-' + pad(viewMonth + 1) + '-' + pad(d);
+      const entry   = habitsData[dateStr];
+      const isToday = today.getFullYear() === viewYear &&
+                      today.getMonth()    === viewMonth &&
+                      today.getDate()     === d;
 
-        const filesForDay = allFiles[dateStr] || [];
-        if (filesForDay.length > 0) {
-          const badge = document.createElement('div');
-          badge.className = 'attach-badge';
-          badge.innerHTML = '📎' + filesForDay.length;
-          cell.appendChild(badge);
-        }
+      cell.className = 'day-cell' + (isToday ? ' today' : '');
+      cell.dataset.day = String(d);
 
-        const rawTitle = entry && entry.title ? String(entry.title).trim() : '';
-        const isMobileView = window.matchMedia('(max-width: 640px)').matches;
-        const limitEnabled = isMobileView ? settings.mobileTitleLimitEnabled : settings.desktopTitleLimitEnabled;
-        const limit        = isMobileView ? settings.mobileTitleLimit        : settings.desktopTitleLimit;
-        const titleText = (limitEnabled && rawTitle.length > limit)
-          ? rawTitle.slice(0, limit) + '…'
-          : rawTitle;
-        if (titleText) {
-          const tEl = document.createElement('div');
-          tEl.className = 'day-title';
-          tEl.textContent = titleText;
-          cell.appendChild(tEl);
-        }
+      const lvl = completionLevel(entry);
+      if (lvl !== null) cell.classList.add('lvl-' + lvl);
+      if (isFullyComplete(entry)) cell.classList.add('fully-complete');
 
-        if (entry && entry.wokeAt5) {
-          const dot = document.createElement('div');
-          dot.className = 'wake-5am-dot';
-          dot.title = t('wakeUpDone');
-          dot.textContent = '⏰';
-          cell.appendChild(dot);
-        }
+      cell.innerHTML = '';
 
+      const num = document.createElement('div');
+      num.className = 'day-num';
+      num.textContent = d;
+      cell.appendChild(num);
+
+      const filesForDay = allFiles[dateStr] || [];
+      if (filesForDay.length > 0) {
+        const badge = document.createElement('div');
+        badge.className = 'attach-badge';
+        badge.innerHTML = '📎' + filesForDay.length;
+        cell.appendChild(badge);
+      }
+
+      const rawTitle = entry && entry.title ? String(entry.title).trim() : '';
+      const isMobileView = window.matchMedia('(max-width: 640px)').matches;
+      const limitEnabled = isMobileView ? settings.mobileTitleLimitEnabled : settings.desktopTitleLimitEnabled;
+      const limit        = isMobileView ? settings.mobileTitleLimit        : settings.desktopTitleLimit;
+      const titleText = (limitEnabled && rawTitle.length > limit)
+        ? rawTitle.slice(0, limit) + '…'
+        : rawTitle;
+      if (titleText) {
+        const tEl = document.createElement('div');
+        tEl.className = 'day-title';
+        tEl.textContent = titleText;
+        cell.appendChild(tEl);
+      }
+
+      if (entry && entry.wokeAt5) {
+        const dot = document.createElement('div');
+        dot.className = 'wake-5am-dot';
+        dot.title = t('wakeUpDone');
+        dot.textContent = '⏰';
+        cell.appendChild(dot);
+      }
+
+      // Bind the click handler once per element — on a reused cell it's
+      // already bound from creation, and d/dateStr for a given grid
+      // position never change while the month stays the same.
+      if (!cell.dataset.clickBound) {
+        cell.dataset.clickBound = '1';
         cell.addEventListener('click', () => {
           // While the mini-calendar (day-view) is showing, tapping a
           // day selects it instead of opening the habit-tracking
@@ -2775,11 +2875,7 @@
             openModal(dateStr);
           }
         });
-        grid.appendChild(cell);
       }
-
-      computeMonthStats();
-      applyMiniDaySelectionHighlight();
     }
 
     // Puts the blue selection ring on whichever .day-cell matches
@@ -3340,17 +3436,37 @@
       btn.textContent = t('saveDay');
     });
 
-    document.getElementById('prevMonth').addEventListener('click', () => {
-      viewMonth--;
+    // Changes the visible month, whether the plain calendar or the
+    // locked mini-calendar is showing. While locked, a month switch
+    // has to: rebuild the grid's cells (new month = new day numbers),
+    // then instantly re-park them at their mini-calendar targets
+    // (LockedMonthNav.snapCurrentCellsToMini). Those freshly rebuilt
+    // cells briefly exist as plain, full-size, square .day-cells sitting
+    // at their normal in-document position before that re-park happens —
+    // even though the actual re-park is synchronous and instant (0ms),
+    // that in-between DOM state was visible for a frame, which is what
+    // read as a "snap to square" + a "fly up" jump (the plain cells'
+    // natural position is above/outside the mini target). Hiding the
+    // grid for the duration of the rebuild+re-park removes that frame
+    // entirely, so all a viewer ever sees is circular mini-cells before
+    // and circular mini-cells after.
+    function navigateMonth(delta) {
+      viewMonth += delta;
       if (viewMonth < 0)  { viewMonth = 11; viewYear--; }
-      renderCalendar();
-    });
-
-    document.getElementById('nextMonth').addEventListener('click', () => {
-      viewMonth++;
       if (viewMonth > 11) { viewMonth = 0;  viewYear++; }
+
+      const grid = document.getElementById('daysGrid');
+      const wasLocked = typeof DayViewState !== 'undefined'
+        && DayViewState.get() === DayViewState.STATES.LOCKED;
+
+      if (wasLocked && grid) grid.style.visibility = 'hidden';
       renderCalendar();
-    });
+      if (wasLocked) LockedMonthNav.snapCurrentCellsToMini();
+      if (wasLocked && grid) grid.style.visibility = '';
+    }
+
+    document.getElementById('prevMonth').addEventListener('click', () => navigateMonth(-1));
+    document.getElementById('nextMonth').addEventListener('click', () => navigateMonth(1));
 
     document.getElementById('closeBtn').addEventListener('click', attemptCloseModal);
     document.getElementById('overlay').addEventListener('click', (e) => {
@@ -3604,7 +3720,19 @@
     let resizeTimer;
     window.addEventListener('resize', () => {
       clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(renderCalendar, 150);
+      resizeTimer = setTimeout(() => {
+        renderCalendar();
+        // renderCalendar() always rebuilds fresh, natural-size day
+        // cells — fine in CALENDAR state, but while LOCKED those
+        // fresh cells have no mini-calendar transform on them yet,
+        // which is exactly what left them full-size and overlapping
+        // the day-time-grid after a resize. Re-snap them onto the
+        // (also freshly recomputed, resize-aware) mini targets right
+        // after, same as month-nav clicks already do while locked.
+        if (DayViewState.get() === DayViewState.STATES.LOCKED) {
+          LockedMonthNav.snapCurrentCellsToMini();
+        }
+      }, 150);
     });
 
     (async () => {
@@ -4414,11 +4542,16 @@
       function init() {
         DayViewState.onChange((next, prev, meta) => {
           if (next === DayViewState.STATES.TRANSITIONING && meta.direction === 'forward') {
-            // rAF so section 4's capture (registered earlier, same event) has
-            // definitely run and populated CalendarGeometry's stored rects.
-            requestAnimationFrame(animateForward);
+            // Runs synchronously in the same tick as HeaderCollapse's
+            // instant margin snap (both are listeners on this same
+            // event) rather than deferred to the next animation frame.
+            // If this lagged a frame behind HeaderCollapse, the grid
+            // would already be visually collapsed while these squares'
+            // text was still fully opaque and un-flown for one frame —
+            // a visible flash/snap before the real animation caught up.
+            animateForward();
           } else if (next === DayViewState.STATES.TRANSITIONING && meta.direction === 'backward') {
-            requestAnimationFrame(animateBackward);
+            animateBackward();
           } else if (next === DayViewState.STATES.LOCKED) {
             settleAtTarget();
           } else if (next === DayViewState.STATES.CALENDAR) {
@@ -4498,9 +4631,9 @@
       function init() {
         DayViewState.onChange((next, prev, meta) => {
           if (next === DayViewState.STATES.TRANSITIONING && meta.direction === 'forward') {
-            requestAnimationFrame(onForward);
+            onForward();
           } else if (next === DayViewState.STATES.TRANSITIONING && meta.direction === 'backward') {
-            requestAnimationFrame(onBackward);
+            onBackward();
           } else if (next === DayViewState.STATES.CALENDAR) {
             onCalendarReset();
           }
@@ -4574,9 +4707,9 @@
       function init() {
         DayViewState.onChange((next, prev, meta) => {
           if (next === DayViewState.STATES.TRANSITIONING && meta.direction === 'forward') {
-            requestAnimationFrame(exit);
+            exit();
           } else if (next === DayViewState.STATES.TRANSITIONING && meta.direction === 'backward') {
-            requestAnimationFrame(enter);
+            enter();
           } else if (next === DayViewState.STATES.CALENDAR) {
             cleanup();
           }
@@ -4765,15 +4898,23 @@
         DayViewState.onChange((next) => {
           if (next === DayViewState.STATES.LOCKED) {
             requestAnimationFrame(() => requestAnimationFrame(() => {
-              // Same trick as flipping forward and back by hand — done
-              // automatically the instant the mini calendar opens, so
-              // it always lands in the right spot without you having
-              // to nudge it yourself.
-              const nextBtn = document.getElementById('nextMonth');
-              const prevBtn = document.getElementById('prevMonth');
-              if (nextBtn && prevBtn) {
-                nextBtn.click();
-                prevBtn.click();
+              // The day-cells have already been correctly flown into
+              // their mini-calendar targets by FlipAnimator (sections
+              // 4-8) by the time we get here — that's the whole point
+              // of the FLIP animation. Rebuilding the grid from scratch
+              // (renderCalendar) and re-snapping was only ever meant as
+              // a fallback for cases where the cells AREN'T already in
+              // place (e.g. this LOCKED handler firing without a flight
+              // having happened first) — doing it unconditionally every
+              // time meant swapping in brand-new, plain DOM cells right
+              // after the real ones had already settled, which showed
+              // up as a quick flash back to the normal calendar before
+              // snapping again. Only rebuild+snap when there's nothing
+              // already flown to preserve.
+              const alreadyFlown = document.querySelectorAll('#daysGrid .day-cell.flip-animating').length > 0;
+              if (!alreadyFlown) {
+                renderCalendar();
+                snapCurrentCellsToMini();
               }
               show();
             }));
@@ -4782,16 +4923,10 @@
           }
         });
 
-        ['prevMonth', 'nextMonth'].forEach((id) => {
-          const btn = document.getElementById(id);
-          if (!btn) return;
-          btn.addEventListener('click', () => {
-            if (DayViewState.get() === DayViewState.STATES.LOCKED) snapCurrentCellsToMini();
-          });
-        });
+
       }
 
-      return { init, computeRect };
+      return { init, computeRect, snapCurrentCellsToMini };
     })();
     LockedMonthNav.init();
     // Back-compat alias — LockedHeaderCard (section 12) reads the nav's
@@ -4886,6 +5021,27 @@
 
       let el = null;
       let resizeHandler = null;
+      let measureCanvas = null;
+
+      // Width (px) of the widest a day number can ever be at the given
+      // font size — i.e. two digits ("00".."99"), not whatever day
+      // happens to be selected right now. Used to give the element a
+      // fixed width instead of shrink-to-fit, so it (and anything sized
+      // off of it, like LockedHeaderCard's white box) never has to grow
+      // after the fact when the day changes from single- to double-digit.
+      function maxDigitsWidth(fontSizePx) {
+        if (!measureCanvas) measureCanvas = document.createElement('canvas');
+        const ctx = measureCanvas.getContext('2d');
+        ctx.font = '800 ' + fontSizePx + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
+        // Widest 2-digit pair — digit widths are equal in most system
+        // sans fonts (tabular figures), but measure the actual widest
+        // one rather than assume, since that varies by font.
+        let widest = 0;
+        for (let d = 0; d <= 9; d++) {
+          widest = Math.max(widest, ctx.measureText(String(d) + String(d)).width);
+        }
+        return widest;
+      }
 
       // Pure geometry, no DOM required — lets other modules (section 11's
       // month-nav) position themselves relative to the showcase without
@@ -4923,11 +5079,13 @@
         ensureBuilt();
         const rect     = computeRect();
         const isNight  = document.body.classList.contains('night-mode');
+        const fontSize = rect.height * cfg.heightFrac;
 
         el.style.top      = (rect.top + window.scrollY) + 'px';
         el.style.height   = rect.height + 'px';
         el.style.right    = (window.innerWidth - rect.rightEdge) + 'px';
-        el.style.fontSize = (rect.height * cfg.heightFrac) + 'px';
+        el.style.width    = maxDigitsWidth(fontSize) + 'px'; // fixed, not shrink-to-fit — see maxDigitsWidth
+        el.style.fontSize = fontSize + 'px';
         el.style.color    = isNight ? '#f5f5f5' : '#111';
         el.textContent    = String(SelectedDayState.get().day);
       }
@@ -4967,9 +5125,11 @@
 
       // Live bounding box of the actual rendered element (only meaningful
       // once ensureBuilt()/render() have run) — more reliable than
-      // re-deriving the number's true width from computeRect() alone,
-      // since the box is intentionally left/width-auto (shrink-to-fit
-      // the digits) and only pinned via `right` + flex justify-end.
+      // re-deriving the number's true width from computeRect() alone.
+      // The box has a fixed width (see maxDigitsWidth — always room for
+      // two digits, single digits just right-align within it via flex
+      // justify-end), pinned via `right`, so this rect is stable across
+      // day changes rather than needing to be re-measured each time.
       function getRect() { return el ? el.getBoundingClientRect() : null; }
 
       return { init, computeRect, getRect };
