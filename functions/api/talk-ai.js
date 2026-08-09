@@ -11,6 +11,9 @@
  *       that id actually lives (the model's guess at dateKey is ignored for this kind).
  *     - Every other field is OPTIONAL — only the ones the transcript actually asked to
  *       change should be present; anything omitted is left as-is on the client.
+ *   EventDeleteItem: { kind:"event_delete", id, dateKey }
+ *     - Same `id`/`dateKey` resolution rule as EventEditItem: id must be one the client
+ *       already sent, dateKey is resolved server-side from that id, never from the model.
  *   HabitItem: { kind:"habit", dateKey, field, op:"delta"|"set", value }
  *     - counter/pip fields (pushupsCount, readPagesCount, pullupsCount,
  *       oneHandPushupsCount, breathHoldSeconds, stretchPips, lSitPips,
@@ -169,10 +172,16 @@ function buildPrompt(transcript, nowISO, existingEventLines) {
         '"dateKey":"YYYY-MM-DD","field":one of [' + COUNTER_FIELDS.concat(PIP_FIELDS).concat(BOOL_FIELDS).concat(TEXT_FIELDS).join(', ') +
         '],"op":"delta" for the counter/pip fields (' + COUNTER_FIELDS.concat(PIP_FIELDS).join(', ') +
         ') with a numeric "value" (e.g. did 50 pushups -> value:50), or "op":"set" for wokeAt5 with a boolean ' +
-        '"value", or "op":"set" for the free-text fields (' + TEXT_FIELDS.join(', ') + ') with a short string "value"}.' +
+        '"value", or "op":"set" for the free-text fields (' + TEXT_FIELDS.join(', ') + ') with a short string "value"}.\n\n' +
+        '4. DELETE AN EXISTING EVENT — the transcript asks to remove/cancel/get rid of something already on ' +
+        'the calendar (see the list below) rather than change one of its fields. Common triggers: "delete X", ' +
+        '"cancel X", "remove X", "get rid of the Y meeting", "never mind about X, take it off". Emit: ' +
+        '{"kind":"event_delete","id":"<id copied EXACTLY from the list below>","dateKey":"YYYY-MM-DD" (copy ' +
+        'the date next to that id)}. If you cannot confidently match the reference to one specific id from the ' +
+        'list, do NOT guess — skip it entirely rather than deleting the wrong thing.' +
         existingBlock + '\n\n' +
         'Resolve every relative date/time against the current date/time given above. Respond with ONLY a raw ' +
-        'JSON array (no markdown, no prose, no code fences) mixing any of the three kinds as needed. If duration ' +
+        'JSON array (no markdown, no prose, no code fences) mixing any of the four kinds as needed. If duration ' +
         'or exact time for a new event isn\'t stated, make a sensible guess rather than omitting it. Never invent ' +
         'things that weren\'t mentioned, and never invent an id. If nothing describable is found, return [].',
     },
@@ -289,10 +298,23 @@ function validateHabit(raw, fallbackDateKey) {
   return null;
 }
 
+// Same id/dateKey resolution rule as validateEventEdit: id must
+// already be one the client sent (never invented by the model), and
+// dateKey is resolved from idToDateKey rather than trusted from the
+// model, so a hallucinated id or mismatched dateKey can't delete the
+// wrong thing (or anything at all, since it'll just fail the lookup).
+function validateEventDelete(raw, idToDateKey) {
+  const id = typeof raw.id === 'string' ? raw.id.trim() : '';
+  if (!id || !idToDateKey.has(id)) return null;
+  const dateKey = idToDateKey.get(id);
+  return { kind: 'event_delete', id, dateKey };
+}
+
 function validateItem(raw, fallbackDateKey, idToDateKey) {
   if (!raw || typeof raw !== 'object') return null;
   if (raw.kind === 'event') return validateEvent(raw, fallbackDateKey);
   if (raw.kind === 'event_edit') return validateEventEdit(raw, idToDateKey);
+  if (raw.kind === 'event_delete') return validateEventDelete(raw, idToDateKey);
   if (raw.kind === 'habit') return validateHabit(raw, fallbackDateKey);
   return null;
 }
