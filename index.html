@@ -1796,6 +1796,27 @@
     @keyframes sync-dot-pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
     @media (prefers-reduced-motion: reduce) { .sync-indicator.syncing .sync-indicator-dot { animation: none; } }
 
+    /* Sync indicator shifts left to make room the moment the undo
+       pill next to it is showing, so the two never overlap. */
+    .sync-indicator.with-undo { transform: translateY(0) translateX(-84px); }
+    .sync-indicator.with-undo.show { transform: translateY(0) translateX(-84px); }
+
+    /* ── Undo pill — pops up right where the sync indicator normally
+       sits, the instant a batch finishes syncing, only when that
+       batch is actually undoable. Same pill shape/height so the two
+       read as one continuous control sliding apart. */
+    .sync-undo-btn {
+      position: fixed; top: 14px; right: 16px;
+      background: #2d2d2d; color: #fff; border: none; cursor: pointer;
+      padding: 7px 14px; border-radius: 999px; font: inherit;
+      font-size: 12px; font-weight: 700; letter-spacing: 0.2px;
+      opacity: 0; transform: translateY(-8px); pointer-events: none;
+      transition: opacity 0.2s ease, transform 0.2s ease, background 0.15s ease;
+      z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.18);
+    }
+    .sync-undo-btn:hover { background: #3f3f3f; }
+    .sync-undo-btn.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
+
     /* ── Unsaved-changes confirm dialog ── */
     .confirm-msg { font-size: 13.5px; color: #666; line-height: 1.5; margin-bottom: 22px; text-align: center; }
     .confirm-btn-row { display: flex; gap: 10px; }
@@ -2128,6 +2149,7 @@
     <span class="sync-indicator-dot"></span>
     <span id="syncIndicatorText"></span>
   </div>
+  <button type="button" class="sync-undo-btn" id="syncUndoBtn">Undo</button>
 
   <script>
     /* ══════════════════════════════════════════════════════════
@@ -5452,31 +5474,45 @@
        mini-calendar's own debounced batch sync.
     ============================================================ */
     const SyncIndicator = (() => {
-      let el = null, textEl = null;
+      let el = null, textEl = null, undoBtn = null;
       let hideTimer = null;
       function ensure() {
         if (!el) {
           el = document.getElementById('syncIndicator');
           textEl = document.getElementById('syncIndicatorText');
+          undoBtn = document.getElementById('syncUndoBtn');
         }
+      }
+      function hideUndo() {
+        if (!undoBtn) return;
+        undoBtn.classList.remove('show');
+        el.classList.remove('with-undo');
       }
       function syncing() {
         ensure(); if (!el) return;
         clearTimeout(hideTimer);
         el.className = 'sync-indicator show syncing';
         textEl.textContent = 'Syncing…';
+        hideUndo();
       }
       // Shows "Synced" for 1 second, then fades itself back out — a
       // fresh syncing()/synced() call before that timer fires just
       // restarts it, so back-to-back batches never get cut off mid-
-      // display.
-      function synced() {
+      // display. When `canUndo` is true, the Undo pill pops in right
+      // alongside it and stays up as long as this "Synced" is showing
+      // (it's tied to the same hideTimer so they always disappear
+      // together — an Undo button surviving past its sync message
+      // would be confusing about what it's undoing).
+      function synced(canUndo) {
         ensure(); if (!el) return;
         clearTimeout(hideTimer);
-        el.className = 'sync-indicator show synced';
+        el.className = 'sync-indicator show synced' + (canUndo ? ' with-undo' : '');
         textEl.textContent = 'Synced';
+        if (canUndo && undoBtn) undoBtn.classList.add('show');
+        else hideUndo();
         hideTimer = setTimeout(() => {
           el.classList.remove('show');
+          hideUndo();
         }, 1000);
       }
       function error() {
@@ -5484,8 +5520,18 @@
         clearTimeout(hideTimer);
         el.className = 'sync-indicator show error';
         textEl.textContent = 'Sync failed — retrying';
+        hideUndo();
       }
-      return { syncing, synced, error };
+      function bindUndo(handler) {
+        ensure(); if (!undoBtn) return;
+        undoBtn.addEventListener('click', () => {
+          hideUndo();
+          clearTimeout(hideTimer);
+          el.classList.remove('show');
+          handler();
+        });
+      }
+      return { syncing, synced, error, bindUndo };
     })();
 
     /* ============================================================
@@ -5517,12 +5563,17 @@
        a diff and nothing else about the call sites had to change.
     ============================================================ */
     const EventStore = (() => {
-      const SYNC_IDLE_MS = 4000; // 4s of no edits anywhere -> flush
+      const SYNC_IDLE_MS = 400; // brief idle so a fast run of edits (e.g. typing) still
+                                 // coalesces into one request, but it reads as instant —
+                                 // and anything that counts as "done editing" (closing a
+                                 // box, finishing a drag, picking a color/type, etc.)
+                                 // calls flushNow() itself and skips this wait entirely.
       const byDate = new Map();  // dateKey -> array of live record objects (with .el once rendered)
       const dirtyDates = new Set();
       let serverCache = null;    // dateKey -> array of plain (serialized) events, once loaded
       let loadPromise = null;
       let syncTimer = null;
+      let lastUndo = null;       // { dates: [dateKey...], previous: {dateKey: [plain events]} } for the most recent synced batch
 
       function genId() {
         if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
@@ -5616,6 +5667,14 @@
         const entries = {};
         dates.forEach((dk) => { entries[dk] = getForDate(dk).map(serialize); });
 
+        // Snapshot what these dates looked like *before* this batch,
+        // straight from serverCache (the last state we actually
+        // confirmed with D1) — that's exactly what "undo" needs to
+        // restore to. Taken before the try block so a failed sync
+        // never clobbers the previous undo point.
+        const previous = {};
+        dates.forEach((dk) => { previous[dk] = (serverCache && serverCache[dk]) || []; });
+
         SyncIndicator.syncing();
         try {
           const r = await fetch('/api/events', {
@@ -5627,7 +5686,8 @@
 
           serverCache = serverCache || {};
           dates.forEach((dk) => { serverCache[dk] = entries[dk]; });
-          SyncIndicator.synced();
+          lastUndo = { dates, previous };
+          SyncIndicator.synced(true);
         } catch {
           // Put the dates back so the next edit (or this retry) picks
           // them up again instead of silently losing the change.
@@ -5635,6 +5695,51 @@
           SyncIndicator.error();
           clearTimeout(syncTimer);
           syncTimer = setTimeout(flushDirty, SYNC_IDLE_MS);
+        }
+      }
+
+      // Reverts the most recently synced batch: pushes the pre-batch
+      // state back to D1, swaps it into serverCache/byDate, then asks
+      // DayTimeGrid to repaint whichever of those dates is currently
+      // open so the boxes visually snap back right away.
+      async function undoLast() {
+        const undo = lastUndo;
+        if (!undo) return;
+        lastUndo = null;
+
+        const entries = {};
+        undo.dates.forEach((dk) => { entries[dk] = undo.previous[dk] || []; });
+
+        SyncIndicator.syncing();
+        try {
+          const r = await fetch('/api/events', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ entries }),
+          });
+          if (!r.ok) throw new Error('Undo failed: ' + r.status);
+
+          serverCache = serverCache || {};
+          undo.dates.forEach((dk) => {
+            const prevList = undo.previous[dk] || [];
+            serverCache[dk] = prevList;
+            byDate.set(dk, prevList.map((c) => Object.assign({ dateKey: dk, el: null }, c)));
+            dirtyDates.delete(dk);
+          });
+
+          // An editor box open on a record that just got reverted out
+          // from under it would otherwise keep writing through a now-
+          // stale reference — drop it before repainting.
+          if (typeof EventEditor !== 'undefined' && EventEditor.forgetCurrent) EventEditor.forgetCurrent();
+          if (typeof DayTimeGrid !== 'undefined' && DayTimeGrid.forceRerenderDate) {
+            undo.dates.forEach((dk) => DayTimeGrid.forceRerenderDate(dk));
+          }
+          if (typeof renderCalendar === 'function') renderCalendar();
+
+          SyncIndicator.synced(false);
+        } catch {
+          lastUndo = undo; // put it back so the person can retry
+          SyncIndicator.error();
         }
       }
 
@@ -5666,9 +5771,15 @@
         return record;
       }
 
-      function save(record) {
+      // `immediate: true` skips the idle debounce entirely and syncs
+      // right now — used by every call site where the person has just
+      // finished a discrete action (a drag, a tap, closing a box),
+      // as opposed to something continuous like typing where we still
+      // want a brief pause to coalesce keystrokes into one request.
+      function save(record, immediate) {
         if (!record || !record.dateKey) return;
         markDirty(record.dateKey);
+        if (immediate) flushNow();
       }
 
       function remove(record) {
@@ -5681,9 +5792,11 @@
 
       return {
         dateKeyFor, selectedDateKey, getForDate, create, save, remove,
-        whenReady, getAllSnapshot, flushNow,
+        whenReady, getAllSnapshot, flushNow, undoLast,
       };
     })();
+
+    SyncIndicator.bindUndo(() => EventStore.undoLast());
 
     // The debounced sync only ever fires from mini-calendar edits, so
     // make sure any pending batch goes out the instant the mini-
@@ -6137,6 +6250,19 @@
         recomputeOverlapLayout();
       }
 
+      // Blows away every currently-mounted box for `dateKey` (by
+      // querying the DOM directly rather than through EventStore's
+      // records, since callers like undo swap those records out for
+      // fresh ones first) and repaints from whatever EventStore has
+      // for that date right now. No-ops if `dateKey` isn't the date
+      // actually open, since there's nothing on screen to fix.
+      function forceRerenderDate(dateKey) {
+        if (dateKey !== renderedDateKey) return;
+        innerEl.querySelectorAll('.day-time-grid-event-box').forEach((box) => box.remove());
+        renderedDateKey = null;
+        renderEventsForDate(dateKey);
+      }
+
       // Paints just the given records (skipping any that already have
       // a box) into the date currently showing, with the pop-in
       // animation. No-ops if `dateKey` isn't the date actually locked
@@ -6492,7 +6618,7 @@
           }
 
           if (wasDragging) {
-            EventStore.save(record);
+            EventStore.save(record, true);
             if (record.notify) NotificationScheduler.schedule(record);
             recomputeOverlapLayout();
           } else if (e.type === 'pointerup') {
@@ -6628,7 +6754,7 @@
             return;
           }
 
-          EventStore.save(record);
+          EventStore.save(record, true);
           if (record.notify) NotificationScheduler.schedule(record);
           recomputeOverlapLayout();
         }
@@ -6720,7 +6846,7 @@
             return;
           }
 
-          EventStore.save(record);
+          EventStore.save(record, true);
         }
 
         function startResize(e, whichEdge) {
@@ -6874,7 +7000,7 @@
         recomputeOverlapLayout();
       }
 
-      return { init, computeRect, onHoldCreate, onBoxCreated, recomputeOverlapLayout, setNotifyBadge, setLockedState, positionEventBox, renderEventsForDate, renderNewEventsForDate, refreshEditedRecords, removeRecordsFromDate };
+      return { init, computeRect, onHoldCreate, onBoxCreated, recomputeOverlapLayout, setNotifyBadge, setLockedState, positionEventBox, renderEventsForDate, renderNewEventsForDate, refreshEditedRecords, removeRecordsFromDate, forceRerenderDate };
     })();
     DayTimeGrid.init();
 
@@ -7514,7 +7640,7 @@
             DayTimeGrid.positionEventBox(record.el, record.startMinutes, record.durationMinutes);
             DayTimeGrid.recomputeOverlapLayout();
           }
-          EventStore.save(record);
+          EventStore.save(record, true);
         }
 
         updateTimeLabel(record);
@@ -7589,7 +7715,7 @@
 
       function selectType(record, label) {
         record.type = label;
-        EventStore.save(record);
+        EventStore.save(record, true);
         const ed = record._editor;
         if (!ed) return;
         ed.typeLabelEl.textContent = label;
@@ -7601,7 +7727,7 @@
       function selectColor(record, hex) {
         record.color = hex;
         record.el.style.background = hex;
-        EventStore.save(record);
+        EventStore.save(record, true);
         const ed = record._editor;
         if (!ed) return;
         Array.from(ed.colorMenu.querySelectorAll('.day-time-grid-event-box-color-swatch')).forEach((sw) => {
@@ -7632,7 +7758,7 @@
       // clicking the bell looked like it did nothing.
       function toggleNotify(record) {
         record.notify = !record.notify;
-        EventStore.save(record);
+        EventStore.save(record, true);
         syncNotifyUI(record);
 
         // Click feedback — a quick ring wiggle so pressing the bell
@@ -7666,7 +7792,7 @@
       // flag and refresh the button + corner badge + handle styling.
       function toggleLocked(record) {
         record.locked = !record.locked;
-        EventStore.save(record);
+        EventStore.save(record, true);
         const ed = record._editor;
         if (ed && ed.lockBtn) ed.lockBtn.classList.toggle('active', !!record.locked);
         DayTimeGrid.setLockedState(record, record.locked);
@@ -7720,7 +7846,7 @@
       // closing the editor visibly reads as the box locking shut).
       function commitRecordToBox(record) {
         if (!record || !record.el) return;
-        EventStore.save(record);
+        EventStore.save(record, true);
         renderBoxFace(record);
 
         record.el.classList.remove('just-saved');
@@ -7853,7 +7979,14 @@
 
       function isOpen() { return !!currentRecord; }
 
-      return { open, close, renderBoxFace, updateTimeLabel, updateFaceTime, isOpen };
+      // Drops the open-editor reference without saving/committing
+      // anything — used only when EventStore.undoLast() has just
+      // pulled the record's data (and its whole date's boxes) out
+      // from under whatever's currently open, so this editor doesn't
+      // keep writing through a now-stale object.
+      function forgetCurrent() { currentRecord = null; }
+
+      return { open, close, renderBoxFace, updateTimeLabel, updateFaceTime, isOpen, forgetCurrent };
     })();
 
     /* ============================================================
