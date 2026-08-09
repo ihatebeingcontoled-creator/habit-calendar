@@ -5563,11 +5563,10 @@
        a diff and nothing else about the call sites had to change.
     ============================================================ */
     const EventStore = (() => {
-      const SYNC_IDLE_MS = 400; // brief idle so a fast run of edits (e.g. typing) still
-                                 // coalesces into one request, but it reads as instant —
-                                 // and anything that counts as "done editing" (closing a
-                                 // box, finishing a drag, picking a color/type, etc.)
-                                 // calls flushNow() itself and skips this wait entirely.
+      const SYNC_IDLE_MS = 1000; // wait 1s of no further edits anywhere before syncing,
+                                  // so a change doesn't fire a request the instant it
+                                  // happens — still short enough that a fresh syncTimer
+                                  // from the next edit is what keeps pushing it back.
       const byDate = new Map();  // dateKey -> array of live record objects (with .el once rendered)
       const dirtyDates = new Set();
       let serverCache = null;    // dateKey -> array of plain (serialized) events, once loaded
@@ -5702,31 +5701,50 @@
       // state back to D1, swaps it into serverCache/byDate, then asks
       // DayTimeGrid to repaint whichever of those dates is currently
       // open so the boxes visually snap back right away.
+      //
+      // The network revert and the on-screen repaint are handled as
+      // two separate steps on purpose: once the server has confirmed
+      // the revert, that's a *done* undo no matter what — a hiccup
+      // repainting the day view must never be reported back as a
+      // failed sync (it isn't one), so it's caught and logged on its
+      // own instead of falling into the same catch as the fetch.
       async function undoLast() {
         const undo = lastUndo;
         if (!undo) return;
         lastUndo = null;
+        clearTimeout(syncTimer); // a pending debounced flush from an in-progress edit could otherwise fire right after and re-apply what we're about to undo
 
         const entries = {};
         undo.dates.forEach((dk) => { entries[dk] = undo.previous[dk] || []; });
 
         SyncIndicator.syncing();
+
+        let r;
         try {
-          const r = await fetch('/api/events', {
+          r = await fetch('/api/events', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ entries }),
           });
-          if (!r.ok) throw new Error('Undo failed: ' + r.status);
+        } catch {
+          r = null;
+        }
 
-          serverCache = serverCache || {};
-          undo.dates.forEach((dk) => {
-            const prevList = undo.previous[dk] || [];
-            serverCache[dk] = prevList;
-            byDate.set(dk, prevList.map((c) => Object.assign({ dateKey: dk, el: null }, c)));
-            dirtyDates.delete(dk);
-          });
+        if (!r || !r.ok) {
+          lastUndo = undo; // put it back so the person can retry
+          SyncIndicator.error();
+          return;
+        }
 
+        serverCache = serverCache || {};
+        undo.dates.forEach((dk) => {
+          const prevList = undo.previous[dk] || [];
+          serverCache[dk] = prevList;
+          byDate.set(dk, prevList.map((c) => Object.assign({ dateKey: dk, el: null }, c)));
+          dirtyDates.delete(dk);
+        });
+
+        try {
           // An editor box open on a record that just got reverted out
           // from under it would otherwise keep writing through a now-
           // stale reference — drop it before repainting.
@@ -5735,12 +5753,14 @@
             undo.dates.forEach((dk) => DayTimeGrid.forceRerenderDate(dk));
           }
           if (typeof renderCalendar === 'function') renderCalendar();
-
-          SyncIndicator.synced(false);
-        } catch {
-          lastUndo = undo; // put it back so the person can retry
-          SyncIndicator.error();
+        } catch (uiErr) {
+          // The undo itself is already confirmed and correct at this
+          // point — only the repaint hiccuped. Log it rather than
+          // hide it, but don't tell the person the undo failed.
+          console.error('Undo succeeded but repainting the view failed:', uiErr);
         }
+
+        SyncIndicator.synced(false);
       }
 
       // Sends whatever's dirty right away, skipping the 4s wait —
@@ -5771,15 +5791,12 @@
         return record;
       }
 
-      // `immediate: true` skips the idle debounce entirely and syncs
-      // right now — used by every call site where the person has just
-      // finished a discrete action (a drag, a tap, closing a box),
-      // as opposed to something continuous like typing where we still
-      // want a brief pause to coalesce keystrokes into one request.
-      function save(record, immediate) {
+      // Marks the record's date dirty and (re)starts the SYNC_IDLE_MS
+      // timer — every edit, discrete or continuous, waits out the
+      // same 1s idle window before actually syncing.
+      function save(record) {
         if (!record || !record.dateKey) return;
         markDirty(record.dateKey);
-        if (immediate) flushNow();
       }
 
       function remove(record) {
@@ -6618,7 +6635,7 @@
           }
 
           if (wasDragging) {
-            EventStore.save(record, true);
+            EventStore.save(record);
             if (record.notify) NotificationScheduler.schedule(record);
             recomputeOverlapLayout();
           } else if (e.type === 'pointerup') {
@@ -6754,7 +6771,7 @@
             return;
           }
 
-          EventStore.save(record, true);
+          EventStore.save(record);
           if (record.notify) NotificationScheduler.schedule(record);
           recomputeOverlapLayout();
         }
@@ -6846,7 +6863,7 @@
             return;
           }
 
-          EventStore.save(record, true);
+          EventStore.save(record);
         }
 
         function startResize(e, whichEdge) {
@@ -7640,7 +7657,7 @@
             DayTimeGrid.positionEventBox(record.el, record.startMinutes, record.durationMinutes);
             DayTimeGrid.recomputeOverlapLayout();
           }
-          EventStore.save(record, true);
+          EventStore.save(record);
         }
 
         updateTimeLabel(record);
@@ -7715,7 +7732,7 @@
 
       function selectType(record, label) {
         record.type = label;
-        EventStore.save(record, true);
+        EventStore.save(record);
         const ed = record._editor;
         if (!ed) return;
         ed.typeLabelEl.textContent = label;
@@ -7727,7 +7744,7 @@
       function selectColor(record, hex) {
         record.color = hex;
         record.el.style.background = hex;
-        EventStore.save(record, true);
+        EventStore.save(record);
         const ed = record._editor;
         if (!ed) return;
         Array.from(ed.colorMenu.querySelectorAll('.day-time-grid-event-box-color-swatch')).forEach((sw) => {
@@ -7758,7 +7775,7 @@
       // clicking the bell looked like it did nothing.
       function toggleNotify(record) {
         record.notify = !record.notify;
-        EventStore.save(record, true);
+        EventStore.save(record);
         syncNotifyUI(record);
 
         // Click feedback — a quick ring wiggle so pressing the bell
@@ -7792,7 +7809,7 @@
       // flag and refresh the button + corner badge + handle styling.
       function toggleLocked(record) {
         record.locked = !record.locked;
-        EventStore.save(record, true);
+        EventStore.save(record);
         const ed = record._editor;
         if (ed && ed.lockBtn) ed.lockBtn.classList.toggle('active', !!record.locked);
         DayTimeGrid.setLockedState(record, record.locked);
@@ -7846,7 +7863,7 @@
       // closing the editor visibly reads as the box locking shut).
       function commitRecordToBox(record) {
         if (!record || !record.el) return;
-        EventStore.save(record, true);
+        EventStore.save(record);
         renderBoxFace(record);
 
         record.el.classList.remove('just-saved');
