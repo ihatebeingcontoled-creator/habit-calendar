@@ -600,6 +600,30 @@
       100% { transform: scale(1);   opacity: 1; box-shadow: 0 1px 4px rgba(0,0,0,0.5); }
     }
 
+    /* Talk-to-AI live edit — same flourish as ai-pop-in, minus the
+       grow-from-nothing/fade-in part, since the box is already
+       sitting there and only some of its fields (color, lock,
+       alert, time, title...) just changed. Kept as its own class
+       (rather than reusing ai-pop-in) so a box that's mid-way
+       through the pop-in animation and then immediately gets an
+       edit doesn't jump back to invisible. */
+    .day-time-grid-event-box.ai-edit-flash {
+      animation: event-box-ai-edit-flash 480ms cubic-bezier(.34, 1.56, .64, 1);
+    }
+    @keyframes event-box-ai-edit-flash {
+      0%   { transform: scale(1);    box-shadow: 0 0 0 0 rgba(59,130,246,0.6); }
+      35%  { transform: scale(1.06); box-shadow: 0 0 0 6px rgba(59,130,246,0.25); }
+      100% { transform: scale(1);    box-shadow: 0 1px 3px rgba(0,0,0,0.18); }
+    }
+    .day-time-grid.night .day-time-grid-event-box.ai-edit-flash {
+      animation-name: event-box-ai-edit-flash-night;
+    }
+    @keyframes event-box-ai-edit-flash-night {
+      0%   { transform: scale(1);    box-shadow: 0 0 0 0 rgba(96,165,250,0.6); }
+      35%  { transform: scale(1.06); box-shadow: 0 0 0 6px rgba(96,165,250,0.3); }
+      100% { transform: scale(1);    box-shadow: 0 1px 4px rgba(0,0,0,0.5); }
+    }
+
     /* ============================================================
        INLINE TASK EDITOR (revision).
        No more separate popup/card — editing happens right inside the
@@ -5805,6 +5829,33 @@
         recomputeOverlapLayout();
       }
 
+      // Counterpart to renderNewEventsForDate, for records that
+      // already have a box and just had some fields changed (color,
+      // lock, alert, time, title/description) — e.g. right after the
+      // talk-to-AI widget applies an edit while you're looking at
+      // that day. The box itself was never touched when the record
+      // was mutated in saveEventEdits, so without this the change is
+      // correct in memory/on the server but invisible until you leave
+      // the day and come back. Re-applies every visual bit that can
+      // change and plays the same flash used for a brand-new box,
+      // minus the grow-from-nothing part (see .ai-edit-flash above).
+      function refreshEditedRecords(dateKey, records) {
+        if (dateKey !== renderedDateKey) return;
+        records.forEach((record) => {
+          if (!record.el) return; // no box painted for it — nothing to flash
+          positionEventBox(record.el, record.startMinutes, record.durationMinutes);
+          setNotifyBadge(record, record.notify);
+          setLockedState(record, record.locked);
+          EventEditor.renderBoxFace(record);
+
+          record.el.classList.remove('ai-edit-flash');
+          void record.el.offsetWidth; // force reflow so back-to-back edits restart the animation
+          record.el.classList.add('ai-edit-flash');
+          setTimeout(() => { if (record.el) record.el.classList.remove('ai-edit-flash'); }, 500);
+        });
+        recomputeOverlapLayout();
+      }
+
       /* ----------------------------------------------------------
          Overlap handling (step 19).
          Classic interval-graph-coloring layout: sort by start time,
@@ -6486,7 +6537,20 @@
         onHoldCreate(spawnEventBox);
       }
 
-      return { init, computeRect, onHoldCreate, onBoxCreated, recomputeOverlapLayout, setNotifyBadge, setLockedState, positionEventBox, renderEventsForDate, renderNewEventsForDate };
+      // Counterpart to renderNewEventsForDate/refreshEditedRecords for
+      // deletions — the record's already been spliced out of
+      // EventStore's array by the time this runs; this only tears
+      // down the DOM box that's still sitting there so it doesn't
+      // linger until the day is left and re-opened.
+      function removeRecordsFromDate(dateKey, records) {
+        if (dateKey !== renderedDateKey) return;
+        records.forEach((record) => {
+          if (record.el) { record.el.remove(); record.el = null; }
+        });
+        recomputeOverlapLayout();
+      }
+
+      return { init, computeRect, onHoldCreate, onBoxCreated, recomputeOverlapLayout, setNotifyBadge, setLockedState, positionEventBox, renderEventsForDate, renderNewEventsForDate, refreshEditedRecords, removeRecordsFromDate };
     })();
     DayTimeGrid.init();
 
@@ -7805,12 +7869,15 @@
         pendingItems = items;
         const eventsByDate = {};
         const editsByDate = {};
+        const deletesByDate = {};
         const habitsByDate = {};
         items.forEach((it) => {
           if (it.kind === 'event') {
             (eventsByDate[it.dateKey] = eventsByDate[it.dateKey] || []).push(it.title);
           } else if (it.kind === 'event_edit') {
             (editsByDate[it.dateKey] = editsByDate[it.dateKey] || []).push(eventEditSummary(it));
+          } else if (it.kind === 'event_delete') {
+            (deletesByDate[it.dateKey] = deletesByDate[it.dateKey] || []).push(currentEventTitle(it.id, it.dateKey));
           } else if (it.kind === 'habit') {
             (habitsByDate[it.dateKey] = habitsByDate[it.dateKey] || []).push(fieldValueLabel(it));
           }
@@ -7822,6 +7889,9 @@
         });
         Object.keys(editsByDate).sort().forEach((dateKey) => {
           html += `<div class="talk-ai-confirm-section">Edit on <b>${dateKey}</b>: ${editsByDate[dateKey].join('; ')}</div>`;
+        });
+        Object.keys(deletesByDate).sort().forEach((dateKey) => {
+          html += `<div class="talk-ai-confirm-section">Delete from <b>${dateKey}</b>: ${deletesByDate[dateKey].join(', ')}</div>`;
         });
         Object.keys(habitsByDate).sort().forEach((dateKey) => {
           html += `<div class="talk-ai-confirm-section">Checklist <b>(${dateKey})</b>: ${habitsByDate[dateKey].join(', ')}</div>`;
@@ -7844,11 +7914,14 @@
         try {
           const events = items.filter((it) => it.kind === 'event');
           const eventEdits = items.filter((it) => it.kind === 'event_edit');
+          const eventDeletes = items.filter((it) => it.kind === 'event_delete');
           const habitOps = items.filter((it) => it.kind === 'habit');
           if (events.length) await saveEvents(events);
           if (eventEdits.length) await saveEventEdits(eventEdits);
+          if (eventDeletes.length) await saveEventDeletes(eventDeletes);
           if (habitOps.length) await saveHabitOps(habitOps);
-          setStatus('Added.', true);
+          const didOnlyDelete = eventDeletes.length && !events.length && !eventEdits.length && !habitOps.length;
+          setStatus(didOnlyDelete ? 'Deleted.' : 'Added.', true);
         } catch {
           setStatus('Save failed — try again.', true);
         } finally {
@@ -7956,6 +8029,7 @@
         })();
 
         const touchedDates = new Set();
+        const editedRecordsForOpenDate = [];
 
         edits.forEach((ed) => {
           const list = EventStore.getForDate(ed.dateKey);
@@ -7969,6 +8043,7 @@
           if (ed.startMinutes !== undefined) record.startMinutes = ed.startMinutes;
           if (ed.durationMinutes !== undefined) record.durationMinutes = ed.durationMinutes;
           touchedDates.add(ed.dateKey);
+          if (ed.dateKey === openDateKey) editedRecordsForOpenDate.push(record);
         });
 
         if (!touchedDates.size) return;
@@ -7987,10 +8062,63 @@
           body: JSON.stringify({ entries }),
         });
 
-        // Live-refresh the open day if it was one of the edited ones —
-        // picks up the new color/lock/alert visuals immediately.
-        if (openDateKey && touchedDates.has(openDateKey) && typeof DayTimeGrid !== 'undefined' && DayTimeGrid.renderEventsForDate) {
-          DayTimeGrid.renderEventsForDate(openDateKey);
+        // Repaint just the edited box(es) on the open day and flash
+        // them — using refreshEditedRecords rather than
+        // renderEventsForDate, since the date is already the one
+        // rendered and a plain re-render would no-op instead of
+        // picking up the changed fields at all.
+        if (editedRecordsForOpenDate.length && typeof DayTimeGrid !== 'undefined' && DayTimeGrid.refreshEditedRecords) {
+          DayTimeGrid.refreshEditedRecords(openDateKey, editedRecordsForOpenDate);
+        }
+      }
+
+      /* ── Saving: deletes of an existing event → same /api/events
+         endpoint, splicing the record out of EventStore's own live
+         array (rather than a separate local list) so the date is
+         correctly cached the instant this resolves — same reasoning
+         as saveEvents/saveEventEdits above. dateKey on each delete is
+         the server-verified one (see talk-ai.js's idToDateKey). ── */
+
+      async function saveEventDeletes(deletes) {
+        await EventStore.whenReady();
+
+        const openDateKey = (() => {
+          try {
+            if (DayViewState.get() !== DayViewState.STATES.LOCKED) return null;
+            const sel = SelectedDayState.get();
+            return EventStore.dateKeyFor(sel.year, sel.month, sel.day);
+          } catch { return null; }
+        })();
+
+        const touchedDates = new Set();
+        const removedRecordsForOpenDate = [];
+
+        deletes.forEach((del) => {
+          const list = EventStore.getForDate(del.dateKey);
+          const idx = list.findIndex((r) => r.id === del.id);
+          if (idx === -1) return; // already gone client-side since talk-ai.js was called
+          const [record] = list.splice(idx, 1);
+          touchedDates.add(del.dateKey);
+          if (del.dateKey === openDateKey) removedRecordsForOpenDate.push(record);
+        });
+
+        if (!touchedDates.size) return;
+
+        const snapshot = EventStore.getAllSnapshot();
+        const entries = {};
+        touchedDates.forEach((dateKey) => { entries[dateKey] = snapshot[dateKey] || []; });
+
+        await fetch('/api/events', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ entries }),
+        });
+
+        // Tear down the box(es) on the open day immediately, rather
+        // than leaving them sitting there until the day is left and
+        // re-opened.
+        if (removedRecordsForOpenDate.length && typeof DayTimeGrid !== 'undefined' && DayTimeGrid.removeRecordsFromDate) {
+          DayTimeGrid.removeRecordsFromDate(openDateKey, removedRecordsForOpenDate);
         }
       }
 
