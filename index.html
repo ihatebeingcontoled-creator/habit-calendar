@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+\<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -1046,6 +1046,73 @@
     .day-time-grid.night .day-time-grid-event-box-notify-badge {
       box-shadow: 0 0 0 1.5px #1c1c1e;
     }
+
+    /* Holding the notify bell (instead of a plain click/tap) opens
+       this modal — copies the box's own time, color, title and
+       description onto each of the next N days. Deliberately its own
+       small overlay+card rather than reusing #overlay's .modal, since
+       it needs to sit above an already-open event editor and stay
+       lightweight (one stepper, two buttons). */
+    .repeat-days-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.45);
+      backdrop-filter: blur(4px);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 200;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.18s ease;
+      padding: 20px;
+    }
+    .repeat-days-overlay.open { opacity: 1; pointer-events: auto; }
+    .repeat-days-card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 20px;
+      width: 100%; max-width: 280px;
+      box-shadow: 0 14px 40px rgba(0,0,0,0.3);
+      transform: translateY(10px) scale(0.98);
+      transition: transform 0.18s ease;
+    }
+    .repeat-days-overlay.open .repeat-days-card { transform: translateY(0) scale(1); }
+    .repeat-days-title { font-size: 15px; font-weight: 800; color: #111; margin-bottom: 3px; letter-spacing: -0.2px; }
+    .repeat-days-sub { font-size: 12px; font-weight: 600; color: #999; margin-bottom: 18px; line-height: 1.35; }
+    .repeat-days-stepper { display: flex; align-items: center; justify-content: center; gap: 14px; margin-bottom: 20px; }
+    .repeat-days-stepper-btn {
+      width: 36px; height: 36px; border-radius: 10px;
+      border: 1.5px solid #e2e2e2; background: #fafafa;
+      font-size: 18px; font-weight: 800; color: #333;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .repeat-days-stepper-btn:hover { background: #f0f0f0; border-color: #ccc; }
+    .repeat-days-stepper-btn:active { transform: scale(0.94); }
+    .repeat-days-count-wrap { display: flex; flex-direction: column; align-items: center; min-width: 78px; }
+    .repeat-days-count {
+      width: 64px; text-align: center; font-size: 22px; font-weight: 800; color: #111;
+      border: 1.5px solid #e2e2e2; border-radius: 10px; padding: 6px 0;
+      font-family: inherit; -moz-appearance: textfield;
+    }
+    .repeat-days-count::-webkit-outer-spin-button,
+    .repeat-days-count::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    .repeat-days-count-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #aaa; margin-top: 5px; }
+    .repeat-days-actions { display: flex; gap: 8px; }
+    .repeat-days-actions button {
+      flex: 1; padding: 10px; border-radius: 10px; font-weight: 700; font-size: 13px;
+      cursor: pointer; border: 1.5px solid #e2e2e2; background: #fff; color: #333;
+      font-family: inherit; transition: background 0.15s, border-color 0.15s;
+    }
+    .repeat-days-actions button:hover { background: #f4f4f4; }
+    .repeat-days-actions button.primary { background: #3b82f6; color: #fff; border-color: #3b82f6; }
+    .repeat-days-actions button.primary:hover { background: #2f6fda; }
+    body.night-mode .repeat-days-card { background: #1c1c1e; box-shadow: 0 14px 44px rgba(0,0,0,0.6); }
+    body.night-mode .repeat-days-title { color: #f5f5f5; }
+    body.night-mode .repeat-days-sub { color: #888; }
+    body.night-mode .repeat-days-stepper-btn { background: #2c2c2e; border-color: #3a3a3c; color: #eee; }
+    body.night-mode .repeat-days-stepper-btn:hover { background: #38383a; }
+    body.night-mode .repeat-days-count { background: #2c2c2e; border-color: #3a3a3c; color: #f5f5f5; }
+    body.night-mode .repeat-days-actions button { background: #1c1c1e; border-color: #3a3a3c; color: #eee; }
+    body.night-mode .repeat-days-actions button:hover { background: #2c2c2e; }
+    body.night-mode .repeat-days-actions button.primary { background: #3b82f6; border-color: #3b82f6; color: #fff; }
 
     /* Lock button — sits directly to the left of the notify bell in
        the editor toprow (type → time → lock → bell → color → trash).
@@ -6984,6 +7051,11 @@
       // .compact-options on/off as it's dragged/resized or as the
       // overlap layout changes its width.
       const COMPACT_WIDTH_PX = 270;
+
+      // How long a press on the notify bell has to be held before it
+      // counts as "hold" (opens the repeat-across-days modal) instead
+      // of a quick tap (toggles notify on/off).
+      const REPEAT_HOLD_MS = 450;
       const compactRecordByEl = new WeakMap();
       const compactObserver = (typeof ResizeObserver !== 'undefined')
         ? new ResizeObserver((entries) => {
@@ -7266,14 +7338,40 @@
         notifyBtn.type = 'button';
         notifyBtn.className = 'day-time-grid-event-box-notify-btn';
         notifyBtn.setAttribute('aria-label', 'Notify me');
-        notifyBtn.title = 'Send a notification when this starts';
+        notifyBtn.title = 'Tap to toggle · hold to repeat across multiple days';
         notifyBtn.innerHTML =
           '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" ' +
           'stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">' +
           '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"></path>' +
           '<path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>';
+
+        // Holding the bell (instead of a quick tap) opens the
+        // "repeat across days" modal, which copies this box — same
+        // time, color, title, description, everything — onto each of
+        // the next N days. Once a hold has actually fired and opened
+        // the modal, the click that follows on release is suppressed
+        // so it doesn't also toggle notify on/off underneath it.
+        let notifyHoldTimer = null;
+        let notifyHoldFired = false;
+        function clearNotifyHold() {
+          clearTimeout(notifyHoldTimer);
+          notifyHoldTimer = null;
+        }
+        notifyBtn.addEventListener('pointerdown', (e) => {
+          if (e.button !== undefined && e.button !== 0) return;
+          notifyHoldFired = false;
+          clearNotifyHold();
+          notifyHoldTimer = setTimeout(() => {
+            notifyHoldFired = true;
+            RepeatDaysModal.open(record);
+          }, REPEAT_HOLD_MS);
+        });
+        notifyBtn.addEventListener('pointerup', clearNotifyHold);
+        notifyBtn.addEventListener('pointerleave', clearNotifyHold);
+        notifyBtn.addEventListener('pointercancel', clearNotifyHold);
         notifyBtn.addEventListener('click', (e) => {
           e.stopPropagation();
+          if (notifyHoldFired) { notifyHoldFired = false; return; } // hold already handled it
           toggleNotify(record);
         });
         optionsGroup.appendChild(notifyBtn);
@@ -7756,6 +7854,217 @@
       function isOpen() { return !!currentRecord; }
 
       return { open, close, renderBoxFace, updateTimeLabel, updateFaceTime, isOpen };
+    })();
+
+    /* ============================================================
+       REPEAT-ACROSS-DAYS MODAL.
+       Opened by holding a box's notify bell (see EventEditor's
+       notifyBtn hold handler above). Lets a person pick how many of
+       the next days to copy the held box onto — same start time,
+       duration, color, title and description as the original —
+       each as its own independent event record (editing one later
+       doesn't affect the others).
+    ============================================================ */
+    const RepeatDaysModal = (() => {
+      const cfg = { MIN_DAYS: 1, MAX_DAYS: 90, DEFAULT_DAYS: 7 };
+      let overlayEl = null;
+      let countInput = null;
+      let currentRecord = null;
+
+      function ensureBuilt() {
+        if (overlayEl) return;
+
+        overlayEl = document.createElement('div');
+        overlayEl.className = 'repeat-days-overlay';
+
+        const card = document.createElement('div');
+        card.className = 'repeat-days-card';
+
+        const title = document.createElement('div');
+        title.className = 'repeat-days-title';
+        title.textContent = 'Repeat this alert';
+
+        const sub = document.createElement('div');
+        sub.className = 'repeat-days-sub';
+        sub.textContent = 'Copies this box — same time, title, color and everything — onto each of the next however many days.';
+
+        const stepper = document.createElement('div');
+        stepper.className = 'repeat-days-stepper';
+
+        const minusBtn = document.createElement('button');
+        minusBtn.type = 'button';
+        minusBtn.className = 'repeat-days-stepper-btn';
+        minusBtn.setAttribute('aria-label', 'Fewer days');
+        minusBtn.textContent = '\u2212';
+        minusBtn.addEventListener('click', () => setCount(currentCount() - 1));
+
+        const countWrap = document.createElement('div');
+        countWrap.className = 'repeat-days-count-wrap';
+
+        countInput = document.createElement('input');
+        countInput.type = 'number';
+        countInput.className = 'repeat-days-count';
+        countInput.min = String(cfg.MIN_DAYS);
+        countInput.max = String(cfg.MAX_DAYS);
+        countInput.value = String(cfg.DEFAULT_DAYS);
+        countInput.addEventListener('input', () => setCount(currentCount()));
+
+        const countLabel = document.createElement('div');
+        countLabel.className = 'repeat-days-count-label';
+        countLabel.textContent = 'days';
+
+        countWrap.appendChild(countInput);
+        countWrap.appendChild(countLabel);
+
+        const plusBtn = document.createElement('button');
+        plusBtn.type = 'button';
+        plusBtn.className = 'repeat-days-stepper-btn';
+        plusBtn.setAttribute('aria-label', 'More days');
+        plusBtn.textContent = '+';
+        plusBtn.addEventListener('click', () => setCount(currentCount() + 1));
+
+        stepper.appendChild(minusBtn);
+        stepper.appendChild(countWrap);
+        stepper.appendChild(plusBtn);
+
+        const actions = document.createElement('div');
+        actions.className = 'repeat-days-actions';
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.type = 'button';
+        cancelBtn.textContent = 'Cancel';
+        cancelBtn.addEventListener('click', close);
+
+        const saveBtn = document.createElement('button');
+        saveBtn.type = 'button';
+        saveBtn.className = 'primary';
+        saveBtn.textContent = 'Save';
+        saveBtn.addEventListener('click', save);
+
+        actions.appendChild(cancelBtn);
+        actions.appendChild(saveBtn);
+
+        card.appendChild(title);
+        card.appendChild(sub);
+        card.appendChild(stepper);
+        card.appendChild(actions);
+        overlayEl.appendChild(card);
+        document.body.appendChild(overlayEl);
+
+        // Tapping the dimmed backdrop (not the card itself) cancels,
+        // same convention as the day-detail modal's own overlay.
+        overlayEl.addEventListener('click', (e) => { if (e.target === overlayEl) close(); });
+      }
+
+      function currentCount() {
+        const n = parseInt(countInput.value, 10);
+        return isNaN(n) ? cfg.DEFAULT_DAYS : n;
+      }
+
+      function setCount(n) {
+        const clamped = Math.max(cfg.MIN_DAYS, Math.min(cfg.MAX_DAYS, n));
+        countInput.value = String(clamped);
+      }
+
+      function open(record) {
+        if (!record) return;
+        ensureBuilt();
+        currentRecord = record;
+        setCount(cfg.DEFAULT_DAYS);
+        overlayEl.classList.add('open');
+      }
+
+      function close() {
+        if (overlayEl) overlayEl.classList.remove('open');
+        currentRecord = null;
+      }
+
+      // Parses a "YYYY-MM-DD" dateKey and returns the dateKey that's
+      // `offset` days later — routed through a real Date object so
+      // month/year rollovers (end of month, leap years) are handled
+      // correctly instead of hand-rolled.
+      function dateKeyPlusDays(dateKey, offset) {
+        const [y, m, d] = dateKey.split('-').map(Number);
+        const dt = new Date(y, m - 1, d);
+        dt.setDate(dt.getDate() + offset);
+        return EventStore.dateKeyFor(dt.getFullYear(), dt.getMonth(), dt.getDate());
+      }
+
+      async function save() {
+        const record = currentRecord;
+        if (!record) return;
+        const days = currentCount();
+        close();
+
+        // Same reasoning as saveEvents (talk-ai.js) above — wait for
+        // the initial server load so getForDate()/getAllSnapshot()
+        // merge with what's already there instead of wiping it.
+        await EventStore.whenReady();
+
+        const openDateKey = (() => {
+          try {
+            if (DayViewState.get() !== DayViewState.STATES.LOCKED) return null;
+            const sel = SelectedDayState.get();
+            return EventStore.dateKeyFor(sel.year, sel.month, sel.day);
+          } catch { return null; }
+        })();
+
+        const touchedDates = new Set();
+        const newRecordsByDate = {}; // just this call's new boxes, for the pop-in paint below
+
+        for (let i = 1; i <= days; i++) {
+          const dateKey = dateKeyPlusDays(record.dateKey, i);
+          const newRecord = {
+            id: (window.crypto && crypto.randomUUID) ? crypto.randomUUID()
+                : 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8),
+            dateKey,
+            startMinutes: record.startMinutes,
+            durationMinutes: record.durationMinutes,
+            type: record.type || '',
+            color: record.color || '',
+            description: record.description || '',
+            manualLeftPx: record.manualLeftPx != null ? record.manualLeftPx : null,
+            manualWidthPx: record.manualWidthPx != null ? record.manualWidthPx : null,
+            notify: !!record.notify,
+            locked: !!record.locked,
+            el: null,
+          };
+          // Straight into EventStore's own live array for this date —
+          // same reasoning as saveEvents above: the date is correctly
+          // cached the instant we confirm, not just once it happens
+          // to be the day currently open.
+          EventStore.getForDate(dateKey).push(newRecord);
+          touchedDates.add(dateKey);
+          (newRecordsByDate[dateKey] = newRecordsByDate[dateKey] || []).push(newRecord);
+          if (newRecord.notify) NotificationScheduler.schedule(newRecord);
+        }
+
+        if (!touchedDates.size) return;
+
+        const snapshot = EventStore.getAllSnapshot();
+        const entries = {};
+        touchedDates.forEach((dateKey) => { entries[dateKey] = snapshot[dateKey] || []; });
+
+        try {
+          await fetch('/api/events', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ entries }),
+          });
+          toast('Copied to ' + days + (days === 1 ? ' day.' : ' days.'));
+        } catch {
+          toast('Save failed — try again.', true);
+        }
+
+        // If the day currently open is one we just added to, paint in
+        // the new box with the same pop-in animation new AI-created
+        // boxes get — see renderNewEventsForDate's own comment.
+        if (openDateKey && newRecordsByDate[openDateKey] && typeof DayTimeGrid !== 'undefined' && DayTimeGrid.renderNewEventsForDate) {
+          DayTimeGrid.renderNewEventsForDate(openDateKey, newRecordsByDate[openDateKey]);
+        }
+      }
+
+      return { open, close };
     })();
 
     // Every newly-created box (step 6) immediately opens the editor —
