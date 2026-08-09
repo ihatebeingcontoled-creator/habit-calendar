@@ -7444,25 +7444,35 @@
     /* ============================================================
        SECTION — Talk-AI (speech → calendar events + checklist)
        A floating assistant-style mic widget. Press it, say anything
-       spanning any number of days and mixing plans with tallies
-       ("yesterday before bed I had dinner... today I did 50
-       pushups... plan something at 15 tomorrow"), and it shows a
-       confirmation card listing exactly what it heard before it
-       touches anything. Nothing is saved until "Add it" is tapped.
+       spanning any number of days and mixing plans, tallies, and
+       edits to things already on the calendar ("yesterday before bed
+       I had dinner... today I did 50 pushups... plan something at 15
+       tomorrow... I just finished my gym session, mark it green and
+       lock it"), and it shows a confirmation card listing exactly
+       what it heard before it touches anything. Nothing is saved
+       until "Add it" is tapped.
 
        Flow:
-         1. Web Speech API captures a transcript from the mic.
-         2. Transcript + current ISO time posted to /api/talk-ai.
+         1. Web Speech API captures a transcript from the mic (kept
+            open until the person explicitly stops it — see
+            beginRecognitionSession's auto-restart).
+         2. Transcript + current ISO time + a windowed snapshot of
+            existing events (id/title/color/locked/notify/time, so the
+            model can reference something real) posted to /api/talk-ai.
          3. That function (Groq-backed) returns a validated array of
-            items, each either {kind:"event", ...} or
-            {kind:"habit", field, op, value, ...}.
+            items, each one of {kind:"event", ...} (new box),
+            {kind:"event_edit", id, ...changed fields} (mutates a real
+            box — the id is guaranteed to be one that was actually
+            sent, never invented), or {kind:"habit", field, op,
+            value, ...}.
          4. Client splits them, builds a plain-language summary, and
             shows the confirm card — nothing written yet.
-         5. On confirm: events go through the SAME batched
-            /api/events write EventStore already uses; habit items
-            are merged (as deltas) against the in-memory habitsData
-            and sent through the existing saveHabitData() per date.
-            Either write also live-refreshes whatever's on screen.
+         5. On confirm: new events and edits both go through the SAME
+            batched /api/events write EventStore already uses (edits
+            just mutate a live record first); habit items are merged
+            (as deltas) against the in-memory habitsData and sent
+            through the existing saveHabitData() per date. Every write
+            also live-refreshes whatever's on screen.
     ============================================================ */
     const TalkAI = (() => {
       const btn = document.getElementById('talkAiBtn');
@@ -7631,10 +7641,11 @@
         setStatus('Thinking…', true);
         try {
           const nowISO = new Date().toISOString();
+          const existingEvents = await gatherExistingEventsContext();
           const r = await fetch('/api/talk-ai', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ transcript, nowISO }),
+            body: JSON.stringify({ transcript, nowISO, existingEvents }),
           });
           if (!r.ok) throw new Error('talk-ai request failed: ' + r.status);
           const { items } = await r.json();
@@ -7653,7 +7664,50 @@
         }
       }
 
+      /* ── Existing-event context, sent up so the model can match
+         "I just finished X" / "lock that" / "turn on the alert for X"
+         against a real event id instead of only ever creating new
+         boxes. Windowed to ±EXISTING_EVENTS_WINDOW_DAYS around now so
+         the payload stays small and relevant rather than sending the
+         person's entire event history every time they tap the mic. ── */
+
+      const EXISTING_EVENTS_WINDOW_DAYS = 14;
+
+      function gatherExistingEventsContext() {
+        return EventStore.whenReady().then(() => {
+          const snapshot = EventStore.getAllSnapshot();
+          const now = new Date();
+          const minDate = new Date(now); minDate.setDate(minDate.getDate() - EXISTING_EVENTS_WINDOW_DAYS);
+          const maxDate = new Date(now); maxDate.setDate(maxDate.getDate() + EXISTING_EVENTS_WINDOW_DAYS);
+          const minKey = minDate.toISOString().slice(0, 10);
+          const maxKey = maxDate.toISOString().slice(0, 10);
+
+          const out = {};
+          Object.keys(snapshot).forEach((dateKey) => {
+            if (dateKey < minKey || dateKey > maxKey) return;
+            const list = snapshot[dateKey] || [];
+            if (!list.length) return;
+            out[dateKey] = list.map((ev) => ({
+              id: ev.id,
+              title: (ev.type || '').slice(0, 60),
+              color: ev.color || '#3b82f6',
+              locked: !!ev.locked,
+              notify: !!ev.notify,
+              startMinutes: ev.startMinutes,
+              durationMinutes: ev.durationMinutes,
+            }));
+          });
+          return out;
+        });
+      }
+
       /* ── Confirmation card — "the widget wants to…" ── */
+
+      const COLOR_NAMES = {
+        '#3b82f6': 'blue', '#e6362a': 'red', '#f59e0b': 'orange', '#10b981': 'green',
+        '#14b8a6': 'teal', '#8b5cf6': 'purple', '#ec4899': 'pink', '#64748b': 'gray',
+        '#78350f': 'brown', '#111827': 'black',
+      };
 
       function fieldValueLabel(item) {
         const label = FIELD_LABELS[item.field] || item.field;
@@ -7665,13 +7719,43 @@
         return `${label}: "${item.value}"`;
       }
 
+      // Looks up the event's current title (for display only) from
+      // whatever EventStore already has loaded for that date, so the
+      // confirm card can say "Edit Gym session" rather than just an id.
+      function currentEventTitle(id, dateKey) {
+        try {
+          const rec = EventStore.getForDate(dateKey).find((r) => r.id === id);
+          return (rec && rec.type) ? rec.type : 'that event';
+        } catch { return 'that event'; }
+      }
+
+      function eventEditSummary(item) {
+        const changes = [];
+        if (item.color) changes.push((COLOR_NAMES[item.color] || item.color));
+        if (item.locked !== undefined) changes.push(item.locked ? 'locked' : 'unlocked');
+        if (item.notify !== undefined) changes.push(item.notify ? 'alert on' : 'alert off');
+        if (item.title) changes.push(`renamed to "${item.title}"`);
+        if (item.startMinutes !== undefined) {
+          const h = String(Math.floor(item.startMinutes / 60)).padStart(2, '0');
+          const m = String(item.startMinutes % 60).padStart(2, '0');
+          changes.push(`moved to ${h}:${m}`);
+        }
+        if (item.durationMinutes !== undefined) changes.push(`${item.durationMinutes}m long`);
+        if (item.description) changes.push('description updated');
+        const title = currentEventTitle(item.id, item.dateKey);
+        return `${title} → ${changes.join(', ') || 'no change'}`;
+      }
+
       function openConfirm(items) {
         pendingItems = items;
         const eventsByDate = {};
+        const editsByDate = {};
         const habitsByDate = {};
         items.forEach((it) => {
           if (it.kind === 'event') {
             (eventsByDate[it.dateKey] = eventsByDate[it.dateKey] || []).push(it.title);
+          } else if (it.kind === 'event_edit') {
+            (editsByDate[it.dateKey] = editsByDate[it.dateKey] || []).push(eventEditSummary(it));
           } else if (it.kind === 'habit') {
             (habitsByDate[it.dateKey] = habitsByDate[it.dateKey] || []).push(fieldValueLabel(it));
           }
@@ -7680,6 +7764,9 @@
         let html = '';
         Object.keys(eventsByDate).sort().forEach((dateKey) => {
           html += `<div class="talk-ai-confirm-section">Add to <b>${dateKey}</b>: ${eventsByDate[dateKey].join(', ')}</div>`;
+        });
+        Object.keys(editsByDate).sort().forEach((dateKey) => {
+          html += `<div class="talk-ai-confirm-section">Edit on <b>${dateKey}</b>: ${editsByDate[dateKey].join('; ')}</div>`;
         });
         Object.keys(habitsByDate).sort().forEach((dateKey) => {
           html += `<div class="talk-ai-confirm-section">Checklist <b>(${dateKey})</b>: ${habitsByDate[dateKey].join(', ')}</div>`;
@@ -7701,8 +7788,10 @@
         setStatus('Saving…', true);
         try {
           const events = items.filter((it) => it.kind === 'event');
+          const eventEdits = items.filter((it) => it.kind === 'event_edit');
           const habitOps = items.filter((it) => it.kind === 'habit');
           if (events.length) await saveEvents(events);
+          if (eventEdits.length) await saveEventEdits(eventEdits);
           if (habitOps.length) await saveHabitOps(habitOps);
           setStatus('Added.', true);
         } catch {
@@ -7780,6 +7869,63 @@
         // If we live-injected into the open day, re-render it so the
         // new boxes actually show up without waiting on a reload.
         if (openDateKey && entries[openDateKey] && typeof DayTimeGrid !== 'undefined' && DayTimeGrid.renderEventsForDate) {
+          DayTimeGrid.renderEventsForDate(openDateKey);
+        }
+      }
+
+      /* ── Saving: edits to an existing event → same /api/events
+         endpoint, but mutating a record already tracked by EventStore
+         instead of creating a new one. dateKey on each edit is the
+         server-verified one (see talk-ai.js's idToDateKey), so the
+         right day's list is mutated even if the transcript never
+         named a date at all ("lock that"). ── */
+
+      async function saveEventEdits(edits) {
+        await EventStore.whenReady();
+
+        const openDateKey = (() => {
+          try {
+            if (DayViewState.get() !== DayViewState.STATES.LOCKED) return null;
+            const sel = SelectedDayState.get();
+            return EventStore.dateKeyFor(sel.year, sel.month, sel.day);
+          } catch { return null; }
+        })();
+
+        const touchedDates = new Set();
+
+        edits.forEach((ed) => {
+          const list = EventStore.getForDate(ed.dateKey);
+          const record = list.find((r) => r.id === ed.id);
+          if (!record) return; // event may have been deleted client-side since talk-ai.js was called
+          if (ed.color !== undefined) record.color = ed.color;
+          if (ed.locked !== undefined) record.locked = !!ed.locked;
+          if (ed.notify !== undefined) record.notify = !!ed.notify;
+          if (ed.title !== undefined) record.type = ed.title; // "type" is the box's title field in the record model
+          if (ed.description !== undefined) record.description = ed.description;
+          if (ed.startMinutes !== undefined) record.startMinutes = ed.startMinutes;
+          if (ed.durationMinutes !== undefined) record.durationMinutes = ed.durationMinutes;
+          touchedDates.add(ed.dateKey);
+        });
+
+        if (!touchedDates.size) return;
+
+        // Reuse EventStore's own serialization (via getAllSnapshot, which
+        // re-derives from the live records we just mutated above) so the
+        // POST body always matches whatever shape /api/events expects,
+        // rather than hand-rebuilding it here and risking drift.
+        const snapshot = EventStore.getAllSnapshot();
+        const entries = {};
+        touchedDates.forEach((dateKey) => { entries[dateKey] = snapshot[dateKey] || []; });
+
+        await fetch('/api/events', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ entries }),
+        });
+
+        // Live-refresh the open day if it was one of the edited ones —
+        // picks up the new color/lock/alert visuals immediately.
+        if (openDateKey && touchedDates.has(openDateKey) && typeof DayTimeGrid !== 'undefined' && DayTimeGrid.renderEventsForDate) {
           DayTimeGrid.renderEventsForDate(openDateKey);
         }
       }
