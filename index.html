@@ -1437,6 +1437,32 @@
     body.night-mode .talk-ai-confirm-btn.confirm { background: #eee; color: #111; }
     body.night-mode .talk-ai-confirm-btn.cancel { background: #2c2c2e; color: #ddd; border-color: #3a3a3c; }
 
+    /* ── Live transcript — shown the whole time the mic is listening,
+       same card shell as the confirm popup. Grows as interim/final
+       speech results come in so the person can see exactly what's
+       been picked up before anything is sent off for parsing. Tapping
+       the widget again (or "Done") stops listening, which is what
+       actually triggers the /api/talk-ai call. ── */
+    .talk-ai-live-transcript {
+      position: fixed; right: 18px; bottom: 82px; z-index: 501;
+      width: 280px; max-width: calc(100vw - 36px);
+      background: #fff; border: 1.5px solid #e2e2e2; border-radius: 14px;
+      padding: 16px 16px 14px; box-shadow: 0 8px 28px rgba(0,0,0,0.18);
+      display: none;
+    }
+    .talk-ai-live-transcript.open { display: block; }
+    body.night-mode .talk-ai-live-transcript { background: #1c1c1c; border-color: #333; }
+    .talk-ai-live-transcript-text {
+      font-size: 13.5px; line-height: 1.55; color: #222;
+      max-height: 180px; overflow-y: auto; white-space: pre-wrap;
+      min-height: 20px;
+    }
+    body.night-mode .talk-ai-live-transcript-text { color: #eee; }
+    .talk-ai-live-transcript-text:empty::before {
+      content: 'Listening…'; color: #999;
+    }
+    .talk-ai-live-transcript-actions { display: flex; gap: 8px; margin-top: 12px; }
+
     /* ── Text-input fallback — same card shell as the confirm popup,
        shown instead of starting the mic on browsers with no
        SpeechRecognition support (notably iOS Safari), so the feature
@@ -1735,6 +1761,14 @@
     <div class="talk-ai-confirm-actions">
       <button type="button" class="talk-ai-confirm-btn cancel" id="talkAiCancelBtn">Cancel</button>
       <button type="button" class="talk-ai-confirm-btn confirm" id="talkAiConfirmBtn">Add it</button>
+    </div>
+  </div>
+  <div class="talk-ai-live-transcript" id="talkAiLiveTranscript">
+    <div class="talk-ai-confirm-title">Listening…</div>
+    <div class="talk-ai-live-transcript-text" id="talkAiLiveTranscriptText"></div>
+    <div class="talk-ai-live-transcript-actions">
+      <button type="button" class="talk-ai-confirm-btn cancel" id="talkAiLiveCancelBtn">Cancel</button>
+      <button type="button" class="talk-ai-confirm-btn confirm" id="talkAiLiveDoneBtn">Done</button>
     </div>
   </div>
   <div class="talk-ai-text-fallback" id="talkAiTextFallback">
@@ -7441,9 +7475,16 @@
       const textInputEl = document.getElementById('talkAiTextInput');
       const textSendBtn = document.getElementById('talkAiTextSendBtn');
       const textCancelBtn = document.getElementById('talkAiTextCancelBtn');
+      const liveEl = document.getElementById('talkAiLiveTranscript');
+      const liveTextEl = document.getElementById('talkAiLiveTranscriptText');
+      const liveDoneBtn = document.getElementById('talkAiLiveDoneBtn');
+      const liveCancelBtn = document.getElementById('talkAiLiveCancelBtn');
 
       let recognition = null;
       let listening = false;
+      let userStopped = false;   // true only once the person taps the widget/Done/Cancel — controls whether onend restarts or finalizes
+      let cancelledListen = false; // true when Cancel was tapped — discard on end instead of sending
+      let finalTranscript = '';  // accumulates across auto-restarts so a browser-side silence timeout never loses anything
       let pendingItems = null; // items awaiting confirmation
 
       const COUNTER_FIELDS = FIELD_CONFIG.filter((f) => f.kind === 'counter').map((f) => f.key);
@@ -7463,41 +7504,126 @@
         return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
       }
 
+      /* ── Live transcript popup — visible for the whole listening
+         session. interimResults + continuous keep the recognizer
+         running (and the transcript growing) across natural pauses in
+         speech. Some browsers still auto-end a "continuous" session
+         after a stretch of silence (or on a transient no-speech/
+         network error) even though the person never asked to stop —
+         when that happens we just start a fresh recognition instance
+         behind the scenes and keep appending to the same
+         finalTranscript, so from the person's side it never actually
+         stops until they tap the widget, Done, or Cancel. Nothing is
+         sent to /api/talk-ai until one of those three happens. ── */
+
+      function openLiveTranscript() {
+        if (!liveEl) return;
+        liveTextEl.textContent = finalTranscript.trim();
+        liveEl.classList.add('open');
+      }
+
+      function setLiveTranscript(text) {
+        if (!liveTextEl) return;
+        liveTextEl.textContent = text;
+        liveTextEl.scrollTop = liveTextEl.scrollHeight;
+      }
+
+      function closeLiveTranscript() {
+        if (liveEl) liveEl.classList.remove('open');
+      }
+
+      // Errors that mean the mic/session is genuinely dead and
+      // shouldn't be silently retried (permission denial, no mic
+      // hardware). Everything else (no-speech, network blips, aborted)
+      // is treated as "browser paused it, keep going".
+      const FATAL_ERRORS = ['not-allowed', 'service-not-allowed', 'audio-capture'];
+
       function startListening() {
         const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SR) { setStatus('Voice input not supported on this browser.', true); return; }
         closeConfirm();
         closeTextFallback();
-        recognition = new SR();
+        userStopped = false;
+        cancelledListen = false;
+        finalTranscript = '';
+        beginRecognitionSession();
+      }
+
+      // Creates and starts one SpeechRecognition instance. Called
+      // again automatically from onend whenever the session stopped
+      // for a reason other than the person tapping stop/cancel.
+      function beginRecognitionSession() {
+        recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
         recognition.lang = 'en-US';
-        recognition.interimResults = false;
+        recognition.interimResults = true;
+        recognition.continuous = true;
         recognition.maxAlternatives = 1;
 
         recognition.onstart = () => {
           listening = true;
           btn.classList.add('listening');
           setStatus('Listening…', true);
+          openLiveTranscript();
         };
         recognition.onerror = (e) => {
-          listening = false;
-          btn.classList.remove('listening');
-          setStatus('Mic error: ' + (e.error || 'unknown'), true);
-          setTimeout(() => setStatus('', false), 3000);
+          if (FATAL_ERRORS.includes(e.error)) {
+            userStopped = true; // stop the auto-restart loop too
+            listening = false;
+            btn.classList.remove('listening');
+            closeLiveTranscript();
+            setStatus('Mic error: ' + e.error, true);
+            setTimeout(() => setStatus('', false), 3000);
+          }
+          // Non-fatal errors: do nothing here — onend fires right
+          // after and handles the restart-or-finalize decision.
         };
         recognition.onend = () => {
+          if (!userStopped) {
+            // Browser ended the session on its own (silence timeout,
+            // transient error) but the person never asked to stop —
+            // restart transparently and keep the popup open. `listening`
+            // stays true throughout so a tap during this handoff still
+            // reads as "stop", not "start a new session".
+            try { beginRecognitionSession(); } catch { /* retry on next tick if start() races */
+              setTimeout(() => { if (!userStopped) beginRecognitionSession(); }, 250);
+            }
+            return;
+          }
           listening = false;
           btn.classList.remove('listening');
+          closeLiveTranscript();
+          setStatus('', false);
+          const transcript = finalTranscript.trim();
+          if (!cancelledListen && transcript) handleTranscript(transcript);
         };
         recognition.onresult = (e) => {
-          const transcript = Array.from(e.results).map((r) => r[0].transcript).join(' ').trim();
-          if (transcript) handleTranscript(transcript);
+          let interim = '';
+          for (let i = e.resultIndex; i < e.results.length; i++) {
+            const res = e.results[i];
+            if (res.isFinal) finalTranscript += res[0].transcript + ' ';
+            else interim += res[0].transcript;
+          }
+          setLiveTranscript((finalTranscript + interim).trim());
         };
 
         recognition.start();
       }
 
+      // Stops listening for good and lets the (already-heard)
+      // transcript go on to be parsed — used by the widget button and
+      // the "Done" button.
       function stopListening() {
+        userStopped = true;
         if (recognition && listening) recognition.stop();
+      }
+
+      // Stops listening for good and discards whatever was heard —
+      // used by the live-transcript popup's Cancel button.
+      function cancelListening() {
+        userStopped = true;
+        cancelledListen = true;
+        if (recognition && listening) recognition.stop();
+        else closeLiveTranscript();
       }
 
       async function handleTranscript(transcript) {
@@ -7726,6 +7852,8 @@
         cancelBtn.addEventListener('click', closeConfirm);
         textSendBtn.addEventListener('click', submitTextFallback);
         textCancelBtn.addEventListener('click', closeTextFallback);
+        liveDoneBtn.addEventListener('click', stopListening);
+        liveCancelBtn.addEventListener('click', cancelListening);
         textInputEl.addEventListener('keydown', (e) => {
           if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submitTextFallback();
         });
