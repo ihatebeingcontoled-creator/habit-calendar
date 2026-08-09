@@ -3455,14 +3455,15 @@
       if (viewMonth < 0)  { viewMonth = 11; viewYear--; }
       if (viewMonth > 11) { viewMonth = 0;  viewYear++; }
 
-      const grid = document.getElementById('daysGrid');
-      const wasLocked = typeof DayViewState !== 'undefined'
-        && DayViewState.get() === DayViewState.STATES.LOCKED;
-
-      if (wasLocked && grid) grid.style.visibility = 'hidden';
+      // renderCalendar() already handles the LOCKED case end-to-end:
+      // it hides the grid, rebuilds the cells, snaps them into the
+      // mini-calendar layout, then reveals the grid again. Doing any
+      // of that again here would re-measure the already-snapped
+      // (transformed) cells and stomp their transform based on that
+      // stale-relative-to-itself math — see the comment on
+      // LockedMonthNav.snapCurrentCellsToMini for why that snaps
+      // them back to full size instead of leaving them alone.
       renderCalendar();
-      if (wasLocked) LockedMonthNav.snapCurrentCellsToMini();
-      if (wasLocked && grid) grid.style.visibility = '';
     }
 
     document.getElementById('prevMonth').addEventListener('click', () => navigateMonth(-1));
@@ -3858,6 +3859,22 @@
         transitionDirection = direction;
         accum = 0;
         exitAccum = 0;
+        // The touch/wheel listeners that drive this accumulator are
+        // deliberately passive (see handleTouchMove above) so normal
+        // page scrolling is never blocked. That means the real page
+        // has likely already scrolled down some amount by the time
+        // the drag/wheel distance crosses the lock-in threshold here.
+        // HeaderCollapse (section 3 addendum) only closes the *gap*
+        // left by the vacated header — it never resets scroll — so
+        // without this, the collapsed/locked calendar ends up
+        // wherever the page's current scrollY happens to be (often
+        // mid-screen on phones) instead of pinned to the top. Only
+        // do this going forward (into LOCKED); unlocking back to the
+        // normal calendar doesn't have this problem since nothing
+        // collapses on the way out.
+        if (direction === 'forward' && (window.scrollY || window.pageYOffset)) {
+          window.scrollTo(0, 0);
+        }
         DayViewState.set(STATES.TRANSITIONING, { direction });
         clearTimeout(transitionTimer);
         transitionTimer = setTimeout(() => {
@@ -4756,7 +4773,19 @@
       let el = null, labelEl = null;
 
       function computeRect() {
-        const showcase = DayShowcase.computeRect();
+        // Prefer the ACTUALLY rendered showcase element's real
+        // position (getRect) over the theoretical prediction
+        // (computeRect) whenever it's already built — real devices
+        // can render the showcase's height slightly differently than
+        // predicted (font metrics, box rounding, etc.), and that
+        // small drift is enough to land this nav's row mid-way
+        // through the mini-calendar's grid instead of cleanly below
+        // it. Fall back to the prediction only before the element
+        // exists yet.
+        const measured = DayShowcase.getRect();
+        const showcase = measured
+          ? { top: measured.top, height: measured.height, rightEdge: measured.right }
+          : DayShowcase.computeRect();
         return {
           top:       showcase.top + showcase.height + cfg.gapBelowShowcase,
           height:    cfg.height,
@@ -5164,7 +5193,26 @@
         const navTarget   = MonthNavRelocate.computeTarget();
 
         const gridRight  = container.left + container.width;
-        const gridBottom = container.top + container.height;
+
+        // Prefer the REAL rendered bottom of the last day-cell over
+        // the theoretical one MiniCalendarLayout predicts. This card
+        // (and DayTimeGrid, which builds its own top from this card's
+        // bottom edge) exists to reserve space for whatever's
+        // actually on screen — a small prediction/reality mismatch
+        // here (font metrics, sub-pixel rounding, etc. can differ by
+        // device) is exactly what let the hour grid start overlapping
+        // the mini-calendar's last rows. Falls back to the prediction
+        // if the cells haven't rendered yet.
+        let gridBottom = container.top + container.height;
+        const cells = document.querySelectorAll('#daysGrid .day-cell:not(.empty)');
+        if (cells.length) {
+          let measuredBottom = 0;
+          cells.forEach((c) => {
+            measuredBottom = Math.max(measuredBottom, c.getBoundingClientRect().bottom);
+          });
+          if (measuredBottom > 0) gridBottom = measuredBottom;
+        }
+
         const navBottom  = navTarget.top + navTarget.height;
         // Fallback estimate for the showcase's left edge in case it
         // hasn't rendered yet (shouldn't normally happen — DayShowcase
@@ -6615,7 +6663,7 @@
       function computeRect() {
         const card      = LockedHeaderCard.computeRect();
         const container = MiniCalendarLayout.computeContainerRect();
-        const clearance = isPhoneVP() ? 30 : 18; // extra gap on phones so the hour
+        const clearance = isPhoneVP() ? 36 : 18; // extra gap on phones so the hour
                                                   // grid never crowds the mini-calendar's last row
         const top       = card.top + card.height + clearance;
         return {
