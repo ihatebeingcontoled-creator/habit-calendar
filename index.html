@@ -5495,14 +5495,14 @@
         textEl.textContent = 'Syncing…';
         hideUndo();
       }
-      // Shows "Synced" for 1 second, then fades itself back out — a
-      // fresh syncing()/synced() call before that timer fires just
-      // restarts it, so back-to-back batches never get cut off mid-
-      // display. When `canUndo` is true, the Undo pill pops in right
-      // alongside it and stays up as long as this "Synced" is showing
-      // (it's tied to the same hideTimer so they always disappear
-      // together — an Undo button surviving past its sync message
-      // would be confusing about what it's undoing).
+      // Shows "Synced" for 1 second (2.5s when there's an Undo pill
+      // riding along with it, so there's actually time to read and
+      // tap it), then fades itself back out — a fresh syncing()/
+      // synced() call before that timer fires just restarts it, so
+      // back-to-back batches never get cut off mid-display. The Undo
+      // pill is tied to this same hideTimer so they always disappear
+      // together — it surviving past its sync message would be
+      // confusing about what it's undoing.
       function synced(canUndo) {
         ensure(); if (!el) return;
         clearTimeout(hideTimer);
@@ -5513,7 +5513,7 @@
         hideTimer = setTimeout(() => {
           el.classList.remove('show');
           hideUndo();
-        }, 1000);
+        }, canUndo ? 2500 : 1000);
       }
       function error() {
         ensure(); if (!el) return;
