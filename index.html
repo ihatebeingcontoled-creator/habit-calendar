@@ -1367,6 +1367,98 @@
     }
     .targets-btn:hover { background: #f0f0f0; border-color: #ccc; }
 
+    /* ── Talk-AI widget — a floating assistant mic, fixed to the
+       viewport (like a chat-bubble launcher) rather than sitting
+       inline in the settings column. Idle: dark circle with a mic
+       glyph. Listening: turns red + pulses. Working: spins gently.
+       A small status pill floats just above it while active. ── */
+    .talk-ai-widget {
+      position: fixed; right: 18px; bottom: 18px; z-index: 500;
+      width: 56px; height: 56px; border-radius: 50%;
+      background: #111; color: #fff; border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+      transition: background 0.15s, transform 0.15s;
+    }
+    .talk-ai-widget:hover { transform: scale(1.05); }
+    .talk-ai-widget:active { transform: scale(0.97); }
+    .talk-ai-widget.listening {
+      background: #c61215;
+      animation: talk-ai-pulse 1.2s ease-in-out infinite;
+    }
+    .talk-ai-widget.working { animation: talk-ai-spin 1s linear infinite; }
+    @keyframes talk-ai-pulse {
+      0%, 100% { box-shadow: 0 4px 14px rgba(0,0,0,0.25), 0 0 0 0 rgba(198,18,21,0.35); }
+      50% { box-shadow: 0 4px 14px rgba(0,0,0,0.25), 0 0 0 10px rgba(198,18,21,0); }
+    }
+    @keyframes talk-ai-spin {
+      0%, 100% { transform: scale(1) rotate(0deg); }
+      50% { transform: scale(1) rotate(15deg); }
+    }
+    body.night-mode .talk-ai-widget { background: #eee; color: #111; }
+    body.night-mode .talk-ai-widget.listening { background: #c61215; color: #fff; }
+
+    .talk-ai-status {
+      position: fixed; right: 18px; bottom: 82px; z-index: 500;
+      background: #111; color: #fff; font-size: 12px; font-weight: 600;
+      padding: 7px 12px; border-radius: 10px; max-width: 240px;
+      text-align: right; opacity: 0; pointer-events: none;
+      transition: opacity 0.15s;
+    }
+    .talk-ai-status.show { opacity: 0.92; }
+    body.night-mode .talk-ai-status { background: #eee; color: #111; }
+
+    /* ── Confirmation card — pops up above the widget once a
+       transcript has been parsed, listing exactly what it wants to
+       change before anything is actually saved. ── */
+    .talk-ai-confirm {
+      position: fixed; right: 18px; bottom: 82px; z-index: 501;
+      width: 280px; max-width: calc(100vw - 36px);
+      background: #fff; border: 1.5px solid #e2e2e2; border-radius: 14px;
+      padding: 16px 16px 14px; box-shadow: 0 8px 28px rgba(0,0,0,0.18);
+      display: none;
+    }
+    .talk-ai-confirm.open { display: block; }
+    body.night-mode .talk-ai-confirm { background: #1c1c1c; border-color: #333; }
+    .talk-ai-confirm-title {
+      font-size: 12px; font-weight: 800; text-transform: uppercase;
+      letter-spacing: 0.4px; color: #999; margin-bottom: 10px;
+    }
+    .talk-ai-confirm-section { margin-bottom: 10px; font-size: 13.5px; line-height: 1.5; color: #222; }
+    body.night-mode .talk-ai-confirm-section { color: #eee; }
+    .talk-ai-confirm-section b { font-weight: 800; }
+    .talk-ai-confirm-actions { display: flex; gap: 8px; margin-top: 12px; }
+    .talk-ai-confirm-btn {
+      flex: 1; padding: 9px 10px; border-radius: 9px; font-size: 12.5px;
+      font-weight: 700; cursor: pointer; border: 1.5px solid transparent; font-family: inherit;
+    }
+    .talk-ai-confirm-btn.confirm { background: #111; color: #fff; }
+    .talk-ai-confirm-btn.cancel { background: #f2f2f2; color: #444; border-color: #e2e2e2; }
+    body.night-mode .talk-ai-confirm-btn.confirm { background: #eee; color: #111; }
+    body.night-mode .talk-ai-confirm-btn.cancel { background: #2c2c2e; color: #ddd; border-color: #3a3a3c; }
+
+    /* ── Text-input fallback — same card shell as the confirm popup,
+       shown instead of starting the mic on browsers with no
+       SpeechRecognition support (notably iOS Safari), so the feature
+       still works there via typing instead of speaking. ── */
+    .talk-ai-text-fallback {
+      position: fixed; right: 18px; bottom: 82px; z-index: 501;
+      width: 280px; max-width: calc(100vw - 36px);
+      background: #fff; border: 1.5px solid #e2e2e2; border-radius: 14px;
+      padding: 16px 16px 14px; box-shadow: 0 8px 28px rgba(0,0,0,0.18);
+      display: none;
+    }
+    .talk-ai-text-fallback.open { display: block; }
+    body.night-mode .talk-ai-text-fallback { background: #1c1c1c; border-color: #333; }
+    .talk-ai-text-fallback textarea {
+      width: 100%; min-height: 74px; resize: vertical; font-family: inherit;
+      font-size: 13.5px; border: 1.5px solid #e2e2e2; border-radius: 9px;
+      padding: 9px 11px; box-sizing: border-box; color: #222;
+    }
+    body.night-mode .talk-ai-text-fallback textarea {
+      background: #232325; border-color: #3a3a3c; color: #f5f5f5;
+    }
+
     .targets-field-list { display: flex; flex-direction: column; gap: 8px; }
     .target-row { border: 1.5px solid #ececec; border-radius: 12px; overflow: hidden; }
     .target-row-head {
@@ -1631,6 +1723,27 @@
     </div>
 
     <button type="button" class="targets-btn" id="openSettingsBtn">⚙ Settings</button>
+  </div>
+
+  <!-- Talk-AI floating widget — lives outside the settings column so
+       it's reachable from anywhere in the app, not just the month view. -->
+  <button type="button" class="talk-ai-widget" id="talkAiBtn" title="Talk to add events / update your checklist">🎤</button>
+  <div class="talk-ai-status" id="talkAiStatus"></div>
+  <div class="talk-ai-confirm" id="talkAiConfirm">
+    <div class="talk-ai-confirm-title">The widget wants to…</div>
+    <div id="talkAiConfirmBody"></div>
+    <div class="talk-ai-confirm-actions">
+      <button type="button" class="talk-ai-confirm-btn cancel" id="talkAiCancelBtn">Cancel</button>
+      <button type="button" class="talk-ai-confirm-btn confirm" id="talkAiConfirmBtn">Add it</button>
+    </div>
+  </div>
+  <div class="talk-ai-text-fallback" id="talkAiTextFallback">
+    <div class="talk-ai-confirm-title">Voice isn't supported here — type instead</div>
+    <textarea id="talkAiTextInput" placeholder="e.g. yesterday I had dinner, today I did 50 pushups, plan something at 15 tomorrow…"></textarea>
+    <div class="talk-ai-confirm-actions">
+      <button type="button" class="talk-ai-confirm-btn cancel" id="talkAiTextCancelBtn">Cancel</button>
+      <button type="button" class="talk-ai-confirm-btn confirm" id="talkAiTextSendBtn">Send</button>
+    </div>
   </div>
 
   <!-- Day detail modal -->
@@ -6284,7 +6397,7 @@
         onHoldCreate(spawnEventBox);
       }
 
-      return { init, computeRect, onHoldCreate, onBoxCreated, recomputeOverlapLayout, setNotifyBadge, setLockedState, positionEventBox };
+      return { init, computeRect, onHoldCreate, onBoxCreated, recomputeOverlapLayout, setNotifyBadge, setLockedState, positionEventBox, renderEventsForDate };
     })();
     DayTimeGrid.init();
 
@@ -7293,6 +7406,334 @@
         });
       } catch { /* ignore malformed/missing storage */ }
     })();
+
+    /* ============================================================
+       SECTION — Talk-AI (speech → calendar events + checklist)
+       A floating assistant-style mic widget. Press it, say anything
+       spanning any number of days and mixing plans with tallies
+       ("yesterday before bed I had dinner... today I did 50
+       pushups... plan something at 15 tomorrow"), and it shows a
+       confirmation card listing exactly what it heard before it
+       touches anything. Nothing is saved until "Add it" is tapped.
+
+       Flow:
+         1. Web Speech API captures a transcript from the mic.
+         2. Transcript + current ISO time posted to /api/talk-ai.
+         3. That function (Groq-backed) returns a validated array of
+            items, each either {kind:"event", ...} or
+            {kind:"habit", field, op, value, ...}.
+         4. Client splits them, builds a plain-language summary, and
+            shows the confirm card — nothing written yet.
+         5. On confirm: events go through the SAME batched
+            /api/events write EventStore already uses; habit items
+            are merged (as deltas) against the in-memory habitsData
+            and sent through the existing saveHabitData() per date.
+            Either write also live-refreshes whatever's on screen.
+    ============================================================ */
+    const TalkAI = (() => {
+      const btn = document.getElementById('talkAiBtn');
+      const statusEl = document.getElementById('talkAiStatus');
+      const confirmEl = document.getElementById('talkAiConfirm');
+      const confirmBody = document.getElementById('talkAiConfirmBody');
+      const confirmBtn = document.getElementById('talkAiConfirmBtn');
+      const cancelBtn = document.getElementById('talkAiCancelBtn');
+      const textFallbackEl = document.getElementById('talkAiTextFallback');
+      const textInputEl = document.getElementById('talkAiTextInput');
+      const textSendBtn = document.getElementById('talkAiTextSendBtn');
+      const textCancelBtn = document.getElementById('talkAiTextCancelBtn');
+
+      let recognition = null;
+      let listening = false;
+      let pendingItems = null; // items awaiting confirmation
+
+      const COUNTER_FIELDS = FIELD_CONFIG.filter((f) => f.kind === 'counter').map((f) => f.key);
+      const PIP_FIELDS = FIELD_CONFIG.filter((f) => f.kind === 'pip').map((f) => f.key);
+      const FIELD_LABELS = Object.assign(
+        { wokeAt5: 'Woke at 5am', nDay: 'Day note', nRead: 'Reading note', nExtra: 'Note', title: 'Title' },
+        Object.fromEntries(FIELD_CONFIG.map((f) => [f.key, f.label]))
+      );
+
+      function setStatus(text, show) {
+        if (!statusEl) return;
+        statusEl.textContent = text || '';
+        statusEl.classList.toggle('show', !!show);
+      }
+
+      function supported() {
+        return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+      }
+
+      function startListening() {
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SR) { setStatus('Voice input not supported on this browser.', true); return; }
+        closeConfirm();
+        closeTextFallback();
+        recognition = new SR();
+        recognition.lang = 'en-US';
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+
+        recognition.onstart = () => {
+          listening = true;
+          btn.classList.add('listening');
+          setStatus('Listening…', true);
+        };
+        recognition.onerror = (e) => {
+          listening = false;
+          btn.classList.remove('listening');
+          setStatus('Mic error: ' + (e.error || 'unknown'), true);
+          setTimeout(() => setStatus('', false), 3000);
+        };
+        recognition.onend = () => {
+          listening = false;
+          btn.classList.remove('listening');
+        };
+        recognition.onresult = (e) => {
+          const transcript = Array.from(e.results).map((r) => r[0].transcript).join(' ').trim();
+          if (transcript) handleTranscript(transcript);
+        };
+
+        recognition.start();
+      }
+
+      function stopListening() {
+        if (recognition && listening) recognition.stop();
+      }
+
+      async function handleTranscript(transcript) {
+        btn.classList.add('working');
+        setStatus('Thinking…', true);
+        try {
+          const nowISO = new Date().toISOString();
+          const r = await fetch('/api/talk-ai', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ transcript, nowISO }),
+          });
+          if (!r.ok) throw new Error('talk-ai request failed: ' + r.status);
+          const { items } = await r.json();
+          if (!Array.isArray(items) || !items.length) {
+            setStatus("Didn't catch anything to add.", true);
+            setTimeout(() => setStatus('', false), 3000);
+            return;
+          }
+          openConfirm(items);
+          setStatus('', false);
+        } catch (err) {
+          setStatus('Something went wrong — try again.', true);
+          setTimeout(() => setStatus('', false), 3000);
+        } finally {
+          btn.classList.remove('working');
+        }
+      }
+
+      /* ── Confirmation card — "the widget wants to…" ── */
+
+      function fieldValueLabel(item) {
+        const label = FIELD_LABELS[item.field] || item.field;
+        if (COUNTER_FIELDS.includes(item.field) || PIP_FIELDS.includes(item.field)) {
+          const sign = item.value > 0 ? '+' : '';
+          return `${sign}${item.value} ${label}`;
+        }
+        if (item.field === 'wokeAt5') return item.value ? label : `Not ${label.toLowerCase()}`;
+        return `${label}: "${item.value}"`;
+      }
+
+      function openConfirm(items) {
+        pendingItems = items;
+        const eventsByDate = {};
+        const habitsByDate = {};
+        items.forEach((it) => {
+          if (it.kind === 'event') {
+            (eventsByDate[it.dateKey] = eventsByDate[it.dateKey] || []).push(it.title);
+          } else if (it.kind === 'habit') {
+            (habitsByDate[it.dateKey] = habitsByDate[it.dateKey] || []).push(fieldValueLabel(it));
+          }
+        });
+
+        let html = '';
+        Object.keys(eventsByDate).sort().forEach((dateKey) => {
+          html += `<div class="talk-ai-confirm-section">Add to <b>${dateKey}</b>: ${eventsByDate[dateKey].join(', ')}</div>`;
+        });
+        Object.keys(habitsByDate).sort().forEach((dateKey) => {
+          html += `<div class="talk-ai-confirm-section">Checklist <b>(${dateKey})</b>: ${habitsByDate[dateKey].join(', ')}</div>`;
+        });
+        confirmBody.innerHTML = html || '<div class="talk-ai-confirm-section">Nothing recognized.</div>';
+        confirmEl.classList.add('open');
+      }
+
+      function closeConfirm() {
+        confirmEl.classList.remove('open');
+        pendingItems = null;
+      }
+
+      async function confirmPending() {
+        if (!pendingItems) return;
+        const items = pendingItems;
+        closeConfirm();
+        btn.classList.add('working');
+        setStatus('Saving…', true);
+        try {
+          const events = items.filter((it) => it.kind === 'event');
+          const habitOps = items.filter((it) => it.kind === 'habit');
+          if (events.length) await saveEvents(events);
+          if (habitOps.length) await saveHabitOps(habitOps);
+          setStatus('Added.', true);
+        } catch {
+          setStatus('Save failed — try again.', true);
+        } finally {
+          btn.classList.remove('working');
+          setTimeout(() => setStatus('', false), 3000);
+        }
+      }
+
+      /* ── Saving: events → /api/events (unchanged endpoint) ── */
+
+      // Groups by dateKey (the shape /api/events already expects),
+      // POSTs once, and also live-injects into EventStore for
+      // whichever date is currently open in the day-time-grid.
+      async function saveEvents(events) {
+        // EventStore's serverCache loads asynchronously on page load;
+        // if the widget is used before that fetch resolves,
+        // getAllSnapshot() below would see an empty cache for any
+        // date not currently open and the merge would wipe existing
+        // events for that date instead of merging with them. Wait for
+        // it first — this is a no-op once already loaded.
+        await EventStore.whenReady();
+
+        const entries = {};
+        const openDateKey = (() => {
+          try {
+            if (DayViewState.get() !== DayViewState.STATES.LOCKED) return null;
+            const sel = SelectedDayState.get();
+            return EventStore.dateKeyFor(sel.year, sel.month, sel.day);
+          } catch { return null; }
+        })();
+
+        events.forEach((ev) => {
+          const record = {
+            id: (window.crypto && crypto.randomUUID) ? crypto.randomUUID()
+                : 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8),
+            startMinutes: ev.startMinutes,
+            durationMinutes: ev.durationMinutes,
+            type: ev.title || '',
+            color: ev.color || '#3b82f6',
+            description: ev.description || '',
+            manualLeftPx: null,
+            manualWidthPx: null,
+            notify: false,
+            locked: false,
+          };
+          if (!entries[ev.dateKey]) entries[ev.dateKey] = [];
+          entries[ev.dateKey].push(record);
+
+          // Live-inject if this date is the one currently open.
+          if (ev.dateKey === openDateKey) {
+            const list = EventStore.getForDate(ev.dateKey);
+            list.push(Object.assign({ dateKey: ev.dateKey, el: null }, record));
+          }
+        });
+
+        // Merge with whatever's already saved for those dates rather
+        // than clobbering it — /api/events DELETEs-then-inserts per
+        // date it receives, so existing boxes must be included too.
+        const existing = EventStore.getAllSnapshot();
+        Object.keys(entries).forEach((dateKey) => {
+          const already = (existing[dateKey] || []).filter(
+            (e) => !entries[dateKey].some((n) => n.id === e.id)
+          );
+          entries[dateKey] = already.concat(entries[dateKey]);
+        });
+
+        await fetch('/api/events', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ entries }),
+        });
+
+        // If we live-injected into the open day, re-render it so the
+        // new boxes actually show up without waiting on a reload.
+        if (openDateKey && entries[openDateKey] && typeof DayTimeGrid !== 'undefined' && DayTimeGrid.renderEventsForDate) {
+          DayTimeGrid.renderEventsForDate(openDateKey);
+        }
+      }
+
+      /* ── Saving: habit ops → merged into habitsData, then the
+         existing /api/habits upsert (saveHabitData, unchanged) ── */
+
+      async function saveHabitOps(habitOps) {
+        const byDate = {};
+        habitOps.forEach((op) => { (byDate[op.dateKey] = byDate[op.dateKey] || []).push(op); });
+
+        for (const dateKey of Object.keys(byDate)) {
+          const base = habitsData[dateKey]
+            ? Object.assign({}, habitsData[dateKey])
+            : defaultEntry(dateKey);
+
+          byDate[dateKey].forEach((op) => {
+            if (COUNTER_FIELDS.includes(op.field)) {
+              base[op.field] = Math.max(0, (Number(base[op.field]) || 0) + op.value);
+            } else if (PIP_FIELDS.includes(op.field)) {
+              base[op.field] = Math.max(0, Math.min(3, (Number(base[op.field]) || 0) + op.value));
+            } else if (op.field === 'wokeAt5') {
+              base.wokeAt5 = !!op.value;
+            } else {
+              // free-text fields: append to any existing note rather than overwrite
+              base[op.field] = base[op.field] ? (base[op.field] + '; ' + op.value) : op.value;
+            }
+          });
+
+          await saveHabitData(dateKey, base);
+        }
+
+        // Refresh the month grid glow colors right away.
+        if (typeof renderCalendar === 'function') renderCalendar();
+      }
+
+      /* ── Text-input fallback — for browsers with no
+         SpeechRecognition (notably iOS Safari). Same downstream path
+         as voice: handleTranscript() → confirm card → save. ── */
+
+      function openTextFallback() {
+        closeConfirm();
+        textInputEl.value = '';
+        textFallbackEl.classList.add('open');
+        textInputEl.focus();
+      }
+
+      function closeTextFallback() {
+        textFallbackEl.classList.remove('open');
+      }
+
+      function submitTextFallback() {
+        const text = textInputEl.value.trim();
+        closeTextFallback();
+        if (text) handleTranscript(text);
+      }
+
+      function init() {
+        if (!btn) return;
+        const voiceSupported = supported();
+        if (!voiceSupported) {
+          btn.title = 'Voice input not supported here — tap to type instead';
+        }
+        btn.addEventListener('click', () => {
+          if (!voiceSupported) { openTextFallback(); return; }
+          if (listening) stopListening();
+          else startListening();
+        });
+        confirmBtn.addEventListener('click', confirmPending);
+        cancelBtn.addEventListener('click', closeConfirm);
+        textSendBtn.addEventListener('click', submitTextFallback);
+        textCancelBtn.addEventListener('click', closeTextFallback);
+        textInputEl.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submitTextFallback();
+        });
+      }
+
+      return { init };
+    })();
+    TalkAI.init();
   </script>
 </body>
 </html>
