@@ -505,6 +505,11 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      /* Give way before the title does — see .day-time-grid-event-box-type
+         below for why this, the type line, and the desc line are ordered
+         and flex-shrink the way they are. */
+      flex-shrink: 1;
+      min-height: 0;
     }
     .day-time-grid-event-box-type {
       font-size: 11px;
@@ -513,6 +518,13 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      /* The box's title. Laid out first (order: -1) and never shrunk
+         (flex-shrink: 0), so on a very short/resized box this is the
+         line that keeps its full height and stays fully visible — the
+         time readout and description below it are what get squeezed
+         or clipped away first, never the title. */
+      order: -1;
+      flex-shrink: 0;
     }
     .day-time-grid-event-box-desc {
       font-size: 10px;
@@ -526,6 +538,8 @@
       display: -webkit-box;
       -webkit-line-clamp: var(--desc-lines, 1);
       -webkit-box-orient: vertical;
+      flex-shrink: 1;
+      min-height: 0;
     }
     .day-time-grid.night .day-time-grid-event-box {
       box-shadow: 0 1px 4px rgba(0,0,0,0.5);
@@ -685,6 +699,14 @@
     }
     .day-time-grid.night .day-time-grid-event-box.editing {
       box-shadow: 0 0 0 2px #1c1c1e, 0 0 0 4px rgba(255,255,255,0.18), 0 8px 22px rgba(0,0,0,0.5);
+    }
+    /* syncEditingHeight() updates this box's min-height on every
+       pointermove while a resize handle is being dragged (see its
+       comment above) — same reasoning as "No transition on top/left"
+       for dragging: position/size while actively resizing must track
+       the pointer every frame, not ease toward it 180ms behind. */
+    .day-time-grid-event-box.editing.resizing {
+      transition: none;
     }
 
     .day-time-grid-event-box-editor {
@@ -3826,14 +3848,25 @@
         // instead whenever the viewport matches the same
         // max-width:640px phone breakpoint the rest of the app
         // already uses (see the title-limit check above).
-        MOBILE_UNLOCK_THRESHOLD: 300,
-        MOBILE_EXIT_THRESHOLD:   300,
+        MOBILE_UNLOCK_THRESHOLD: 500,
+        MOBILE_EXIT_THRESHOLD:   500,
         MAX_ACCUM:        1400,  // clamp so a single big scroll gesture can't overshoot wildly
         DECAY_IDLE_MS:    550,   // pause this long with no wheel input -> accumulator bleeds back to 0
+        // How close to the very top of the page (in px) you need to be
+        // scrolled for wheel/touch input to count toward the lock-in/
+        // unlock gesture at all. Without this, ordinary scrolling while
+        // editing further down the page (e.g. through the day-time-grid
+        // hours) was accumulating toward this gesture and triggering the
+        // animation unintentionally.
+        NEAR_TOP_PX:       2,
         // Drives the actual lock-in/unlock (mini-calendar) animation
         // length everywhere it's read from below (section 4-8 FLIP code).
         TRANSITION_MS:    700,
       };
+
+      function isNearTop() {
+        return (window.scrollY || window.pageYOffset || 0) <= cfg.NEAR_TOP_PX;
+      }
 
       function isPhoneViewport() {
         return window.matchMedia('(max-width: 640px)').matches;
@@ -3914,6 +3947,14 @@
         }
 
         if (state === STATES.CALENDAR) {
+          // Near-top only gates the START of the gesture — once accum
+          // has actually begun building, real page scroll naturally
+          // carries scrollY away from 0, so re-checking this on every
+          // tick would zero the accumulator constantly and the
+          // gesture could never complete. Ordinary scrolling further
+          // down the page (while accum is still 0) is what this is
+          // meant to ignore.
+          if (accum === 0 && !isNearTop()) { armIdleDecay(); return; }
           if (e.deltaY > 0) {
             accum = Math.min(cfg.MAX_ACCUM, accum + e.deltaY);
           } else if (e.deltaY < 0) {
@@ -3923,6 +3964,9 @@
             startTransition('forward');
           }
         } else if (state === STATES.LOCKED) {
+          // Same reasoning as the CALENDAR branch above — only the
+          // start of the exit gesture needs to be near the top.
+          if (exitAccum === 0 && !isNearTop()) { armIdleDecay(); return; }
           if (e.deltaY < 0) {
             exitAccum = Math.min(cfg.MAX_ACCUM, exitAccum + Math.abs(e.deltaY));
           } else if (e.deltaY > 0) {
@@ -5587,7 +5631,7 @@
 
     const DayTimeGrid = (() => {
       const cfg = {
-        hourHeight: 38,  // px per hour — roughly 1cm, per feedback (was 84)
+        hourHeight: 76,  // px per hour — roughly 2cm, per feedback (was 38 / ~1cm)
         fadeMs:     320, // must match the CSS transition duration below
       };
 
