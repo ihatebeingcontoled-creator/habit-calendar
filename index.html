@@ -2045,9 +2045,11 @@
     body.night-mode .week-view-gutter-body { background: #000; }
     .week-view-hour-label {
       position: absolute;
-      right: 4px;
+      left: 0; right: 4px;
       font-size: 8.5px; font-weight: 700; color: #bbb;
       transform: translateY(-50%);
+      text-align: right;
+      white-space: nowrap;
     }
     body.night-mode .week-view-hour-label { color: #666; }
 
@@ -4327,7 +4329,16 @@
         window.addEventListener('touchcancel', handleTouchEnd, { passive: true });
       }
 
-      return { init, cfg };
+      return {
+        init,
+        cfg,
+        // Additive-only export for the week view (see "WEEK VIEW" near
+        // the bottom of this file): lets it kick off the exact same
+        // forward lock-in transition a real scroll gesture would,
+        // instead of duplicating this module's timer/scroll-reset
+        // logic elsewhere. Nothing above this line changed to add it.
+        triggerForward: () => startTransition('forward'),
+      };
     })();
     DayViewScroll.init();
 
@@ -9140,17 +9151,22 @@
 
     /* ============================================================
        WEEK VIEW (new, fully additive feature — see the CSS block
-       above for the full rationale). Reads EventStore (already
-       populated by the existing single-day grid's mechanics) and
-       SelectedDayState; never writes to either, and never touches
-       DayViewState/DayTimeGrid. Nothing above this point knows this
-       module exists.
+       above for the full rationale). Reads EventStore and writes
+       SelectedDayState the exact same way clicking a day cell in the
+       mini calendar already does (see fillDayCell's click handler),
+       and — only when a day is clicked here — calls the one new
+       DayViewScroll.triggerForward() export added above to kick off
+       the real lock-in animation. It never touches DayTimeGrid or
+       any of DayViewScroll/DayViewState's actual transition logic.
     ============================================================ */
     const WeekView = (() => {
       const cfg = {
         hourHeight: 60,   // px per hour in the scrollable grid
         colWidth:   108,  // px width of each day column
-        dayCount:   21,   // how many days are rendered, starting from the selected day
+        initialDays: 21,  // how many days are rendered up front, starting at the selected day
+        pageDays:   14,   // how many more days get added each time you scroll near an edge
+        maxDays:    63,   // total days kept in the DOM at once — older/farther ones get trimmed
+        edgeThresholdCols: 3, // start loading more once you're within this many columns of an edge
         appExitMs:  320,  // must match .app.week-view-exiting transition
         slideMs:    420,  // must match .week-view-overlay transition
       };
@@ -9167,8 +9183,17 @@
       const openBtn    = document.getElementById('weekViewBtn');
 
       let isOpen = false;
-      let renderedDates = [];
+      let isSelectingDay = false; // guards against a double-click firing this twice
       let scrollRafPending = false;
+
+      // `dates[i]` always corresponds to grid-column `i + 2` (column 1
+      // is the fixed hour gutter) — every header/day cell gets that
+      // column index assigned explicitly (see reindexColumns), so
+      // nothing here ever depends on the browser's own CSS Grid
+      // auto-placement guessing the right order.
+      let dates = [];
+      let headerEls = [];
+      let colEls = [];
 
       function formatClock(totalMinutes) {
         let h = Math.floor(totalMinutes / 60) % 24;
@@ -9185,30 +9210,160 @@
                a.getDate() === b.getDate();
       }
 
-      // `dayCount` consecutive days starting at (year, month, day) —
-      // that day always ends up first, i.e. flush against the left
-      // edge of the grid, with every day after it reachable by
-      // scrolling right.
-      function datesFrom(year, month, day, dayCount) {
-        const out = [];
-        for (let i = 0; i < dayCount; i++) {
-          out.push(new Date(year, month, day + i));
-        }
-        return out;
+      function addDays(d, n) {
+        return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
       }
 
       function titleForDate(d) {
         return WEEKDAY_ABBR[d.getDay()] + ', ' + MONTH_ABBR[d.getMonth()] + ' ' + d.getDate();
       }
 
-      function buildGrid(dates) {
-        gridEl.innerHTML = '';
-        gridEl.style.setProperty('--week-view-days', dates.length);
-        gridEl.style.setProperty('--week-view-col-w', cfg.colWidth + 'px');
-        gridEl.style.setProperty('--week-view-hour-h', cfg.hourHeight + 'px');
+      function makeHeaderCell(d) {
+        const today = new Date();
+        const header = document.createElement('div');
+        header.className = 'week-view-daycol-header' + (isSameDate(d, today) ? ' is-today' : '');
+        const wd = document.createElement('div');
+        wd.className = 'week-view-daycol-weekday';
+        wd.textContent = WEEKDAY_ABBR[d.getDay()];
+        const num = document.createElement('div');
+        num.className = 'week-view-daycol-num';
+        num.textContent = String(d.getDate());
+        header.appendChild(wd);
+        header.appendChild(num);
+        header.addEventListener('click', () => selectDayAndLockIn(d));
+        return header;
+      }
 
+      function makeDayCell(d) {
         const today = new Date();
         const nowMinutes = today.getHours() * 60 + today.getMinutes();
+
+        const col = document.createElement('div');
+        col.className = 'week-view-daycol';
+        col.style.height = (cfg.hourHeight * 24) + 'px';
+        for (let h = 0; h <= 24; h++) {
+          const line = document.createElement('div');
+          line.className = 'week-view-hour-line';
+          line.style.top = (h * cfg.hourHeight) + 'px';
+          col.appendChild(line);
+        }
+
+        if (isSameDate(d, today)) {
+          const y = (nowMinutes / 60) * cfg.hourHeight;
+          const nowLine = document.createElement('div');
+          nowLine.className = 'week-view-now-line';
+          nowLine.style.top = y + 'px';
+          const nowDot = document.createElement('div');
+          nowDot.className = 'week-view-now-dot';
+          nowDot.style.top = y + 'px';
+          col.appendChild(nowLine);
+          col.appendChild(nowDot);
+        }
+
+        const dateKey = EventStore.dateKeyFor(d.getFullYear(), d.getMonth(), d.getDate());
+        EventStore.getForDate(dateKey).forEach((record) => {
+          const box = document.createElement('div');
+          box.className = 'week-view-event';
+          const top = (record.startMinutes / 60) * cfg.hourHeight;
+          const height = (record.durationMinutes / 60) * cfg.hourHeight;
+          box.style.top = top + 'px';
+          box.style.height = Math.max(height, 14) + 'px';
+          if (record.color) box.style.background = record.color;
+
+          const timeLine = document.createElement('div');
+          timeLine.className = 'week-view-event-time';
+          timeLine.textContent = formatClock(record.startMinutes);
+          const titleLine = document.createElement('div');
+          titleLine.className = 'week-view-event-title';
+          titleLine.textContent = record.type || 'Event';
+
+          box.appendChild(timeLine);
+          box.appendChild(titleLine);
+          col.appendChild(box);
+        });
+
+        col.addEventListener('click', () => selectDayAndLockIn(d));
+        return col;
+      }
+
+      // Assigns every header/day cell the exact grid-column that
+      // matches its current index in `dates`, and updates the grid's
+      // column-track count to match. DOM order no longer matters —
+      // this is what the earlier overlapping/duplicated-looking
+      // render was missing.
+      function reindexColumns() {
+        gridEl.style.setProperty('--week-view-days', dates.length);
+        for (let i = 0; i < dates.length; i++) {
+          const col = String(i + 2);
+          headerEls[i].style.gridColumn = col;
+          colEls[i].style.gridColumn = col;
+        }
+      }
+
+      function prependDays(n) {
+        const newDates = [];
+        const newHeaders = [];
+        const newCols = [];
+        for (let i = n; i >= 1; i--) {
+          const d = addDays(dates[0], -i);
+          newDates.push(d);
+          const h = makeHeaderCell(d);
+          const c = makeDayCell(d);
+          gridEl.appendChild(h);
+          gridEl.appendChild(c);
+          newHeaders.push(h);
+          newCols.push(c);
+        }
+        dates = newDates.concat(dates);
+        headerEls = newHeaders.concat(headerEls);
+        colEls = newCols.concat(colEls);
+
+        // Keep the visible days exactly where they were on screen —
+        // everything just shifted `n` columns to the right in the
+        // underlying coordinate space, so scrollLeft has to shift by
+        // the same amount to compensate.
+        scrollEl.scrollLeft += n * cfg.colWidth;
+
+        // Trim off the far (newest) end if we've grown past the cap.
+        while (dates.length > cfg.maxDays) {
+          headerEls.pop().remove();
+          colEls.pop().remove();
+          dates.pop();
+        }
+        reindexColumns();
+      }
+
+      function appendDays(n) {
+        const last = dates[dates.length - 1];
+        for (let i = 1; i <= n; i++) {
+          const d = addDays(last, i);
+          const h = makeHeaderCell(d);
+          const c = makeDayCell(d);
+          gridEl.appendChild(h);
+          gridEl.appendChild(c);
+          dates.push(d);
+          headerEls.push(h);
+          colEls.push(c);
+        }
+
+        // Trim off the far (oldest) end if we've grown past the cap,
+        // and shift scrollLeft back by however much we removed so
+        // the visible days don't jump.
+        let removed = 0;
+        while (dates.length > cfg.maxDays) {
+          headerEls.shift().remove();
+          colEls.shift().remove();
+          dates.shift();
+          removed++;
+        }
+        if (removed) scrollEl.scrollLeft -= removed * cfg.colWidth;
+        reindexColumns();
+      }
+
+      function buildInitial(dateList) {
+        gridEl.innerHTML = '';
+        gridEl.style.setProperty('--week-view-col-w', cfg.colWidth + 'px');
+        gridEl.style.setProperty('--week-view-hour-h', cfg.hourHeight + 'px');
 
         // Corner + gutter (sticky column of hour labels), spanning
         // the full 24h height so it lines up with every day column.
@@ -9223,7 +9378,7 @@
           const label = document.createElement('div');
           label.className = 'week-view-hour-label';
           label.style.top = (h * cfg.hourHeight) + 'px';
-          label.textContent = (h % 12 === 0 ? 12 : h % 12) + (h < 12 ? 'AM' : 'PM');
+          label.textContent = (h % 12 === 0 ? 12 : h % 12) + ' ' + (h < 12 ? 'AM' : 'PM');
           gutterBody.appendChild(label);
         }
         gridEl.appendChild(gutterBody);
@@ -9235,85 +9390,47 @@
         gmt.textContent = 'GMT' + (offsetH >= 0 ? '+' : '-') + String(Math.abs(offsetH)).padStart(2, '0');
         gridEl.appendChild(gmt);
 
+        dates = dateList.slice();
+        headerEls = [];
+        colEls = [];
         dates.forEach((d) => {
-          // Header cell for this day.
-          const header = document.createElement('div');
-          header.className = 'week-view-daycol-header' + (isSameDate(d, today) ? ' is-today' : '');
-          const wd = document.createElement('div');
-          wd.className = 'week-view-daycol-weekday';
-          wd.textContent = WEEKDAY_ABBR[d.getDay()];
-          const num = document.createElement('div');
-          num.className = 'week-view-daycol-num';
-          num.textContent = String(d.getDate());
-          header.appendChild(wd);
-          header.appendChild(num);
-          gridEl.appendChild(header);
-
-          // Body cell for this day — same absolute-positioned hour
-          // lines / events approach the single-day grid already uses.
-          const col = document.createElement('div');
-          col.className = 'week-view-daycol';
-          col.style.height = (cfg.hourHeight * 24) + 'px';
-          for (let h = 0; h <= 24; h++) {
-            const line = document.createElement('div');
-            line.className = 'week-view-hour-line';
-            line.style.top = (h * cfg.hourHeight) + 'px';
-            col.appendChild(line);
-          }
-
-          if (isSameDate(d, today)) {
-            const y = (nowMinutes / 60) * cfg.hourHeight;
-            const nowLine = document.createElement('div');
-            nowLine.className = 'week-view-now-line';
-            nowLine.style.top = y + 'px';
-            const nowDot = document.createElement('div');
-            nowDot.className = 'week-view-now-dot';
-            nowDot.style.top = y + 'px';
-            col.appendChild(nowLine);
-            col.appendChild(nowDot);
-          }
-
-          const dateKey = EventStore.dateKeyFor(d.getFullYear(), d.getMonth(), d.getDate());
-          EventStore.getForDate(dateKey).forEach((record) => {
-            const box = document.createElement('div');
-            box.className = 'week-view-event';
-            const top = (record.startMinutes / 60) * cfg.hourHeight;
-            const height = (record.durationMinutes / 60) * cfg.hourHeight;
-            box.style.top = top + 'px';
-            box.style.height = Math.max(height, 14) + 'px';
-            if (record.color) box.style.background = record.color;
-
-            const timeLine = document.createElement('div');
-            timeLine.className = 'week-view-event-time';
-            timeLine.textContent = formatClock(record.startMinutes);
-            const titleLine = document.createElement('div');
-            titleLine.className = 'week-view-event-title';
-            titleLine.textContent = record.type || 'Event';
-
-            box.appendChild(timeLine);
-            box.appendChild(titleLine);
-            col.appendChild(box);
-          });
-
-          gridEl.appendChild(col);
+          const h = makeHeaderCell(d);
+          const c = makeDayCell(d);
+          gridEl.appendChild(h);
+          gridEl.appendChild(c);
+          headerEls.push(h);
+          colEls.push(c);
         });
+        reindexColumns();
       }
 
       function render() {
         const sel = SelectedDayState.get();
-        renderedDates = datesFrom(sel.year, sel.month, sel.day, cfg.dayCount);
-        buildGrid(renderedDates);
-        titleEl.textContent = titleForDate(renderedDates[0]);
+        const dateList = [];
+        for (let i = 0; i < cfg.initialDays; i++) {
+          dateList.push(new Date(sel.year, sel.month, sel.day + i));
+        }
+        buildInitial(dateList);
+        titleEl.textContent = titleForDate(dates[0]);
       }
 
       // Keeps the title in sync with whichever day column currently
-      // sits at the left edge of the visible area, so it stays
-      // meaningful once the person has scrolled sideways.
-      function updateTitleForScroll() {
-        if (!renderedDates.length) return;
+      // sits at the left edge of the visible area, and grows the
+      // rendered range in either direction once you scroll near its
+      // current edge, so browsing days feels endless in both
+      // directions rather than being capped at the initial batch.
+      function updateForScroll() {
+        if (!dates.length) return;
         const idx = Math.round(scrollEl.scrollLeft / cfg.colWidth);
-        const clamped = Math.max(0, Math.min(renderedDates.length - 1, idx));
-        titleEl.textContent = titleForDate(renderedDates[clamped]);
+        const clamped = Math.max(0, Math.min(dates.length - 1, idx));
+        titleEl.textContent = titleForDate(dates[clamped]);
+
+        const edge = cfg.edgeThresholdCols * cfg.colWidth;
+        if (scrollEl.scrollLeft < edge) {
+          prependDays(cfg.pageDays);
+        } else if (scrollEl.scrollLeft + scrollEl.clientWidth > scrollEl.scrollWidth - edge) {
+          appendDays(cfg.pageDays);
+        }
       }
 
       function onScroll() {
@@ -9321,7 +9438,7 @@
         scrollRafPending = true;
         requestAnimationFrame(() => {
           scrollRafPending = false;
-          updateTitleForScroll();
+          updateForScroll();
         });
       }
 
@@ -9330,6 +9447,26 @@
         const targetHour = Math.max(0, today.getHours() - 2);
         scrollEl.scrollTop = targetHour * cfg.hourHeight;
         scrollEl.scrollLeft = 0; // the selected day always opens flush left
+      }
+
+      // Clicking a day here: select it the same way the mini calendar
+      // does, close the week view, and — once it's fully out of the
+      // way — replay the real scroll-up lock-in animation so the app
+      // collapses into that specific day's hourly view, instead of
+      // just silently swapping which date is selected underneath.
+      function selectDayAndLockIn(d) {
+        if (!isOpen || isSelectingDay) return;
+        isSelectingDay = true;
+        SelectedDayState.set(d.getFullYear(), d.getMonth(), d.getDate());
+        close();
+        setTimeout(() => {
+          if (typeof DayViewScroll !== 'undefined' &&
+              typeof DayViewState !== 'undefined' &&
+              DayViewState.get() === DayViewState.STATES.CALENDAR) {
+            DayViewScroll.triggerForward();
+          }
+          isSelectingDay = false;
+        }, cfg.slideMs + 30);
       }
 
       function open() {
