@@ -1878,12 +1878,156 @@
     body.night-mode .confirm-msg { color: #ccc; }
     body.night-mode .confirm-discard-btn { background: #262626; color: #eee; }
     body.night-mode .confirm-discard-btn:hover { background: #333; }
+
+    /* ============================================================
+       WEEK VIEW (new, fully additive feature).
+       A button in the app header opens a full-screen Google-
+       Calendar-style week grid: 7 day columns side by side, each
+       showing that day's timed events (read from the very same
+       EventStore the single-day grid already uses — no new data
+       model, no changes to existing mechanics). Opening it plays a
+       two-part transition: the normal app slides up and away first
+       (leaving a blank white screen, since the page background is
+       already white), then the week grid slides up into place from
+       the bottom of the screen. Closing reverses both steps.
+       Everything here lives in its own class namespace / JS module
+       (WeekView) and never touches DayViewState, DayTimeGrid, or
+       any other existing module — it only *reads* from EventStore.
+    ============================================================ */
+    .week-view-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: #fff;
+      border: 1.5px solid #e2e2e2;
+      border-radius: 9px;
+      padding: 7px 12px;
+      font-size: 12.5px;
+      font-weight: 700;
+      color: #444;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .week-view-btn:hover { background: #f4f4f4; border-color: #ccc; }
+    body.night-mode .week-view-btn { background: #1c1c1c; border-color: #333; color: #ddd; }
+    body.night-mode .week-view-btn:hover { background: #262626; }
+
+    /* The main app slides up and fades away as phase 1 of opening
+       the week view — see WeekView.open() below. */
+    .app.week-view-exiting {
+      transform: translateY(-28px);
+      opacity: 0;
+      transition: transform 320ms ease, opacity 320ms ease;
+      pointer-events: none;
+    }
+
+    .week-view-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 900;
+      background: #fff;
+      transform: translateY(100%);
+      transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+      display: flex;
+      flex-direction: column;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    }
+    .week-view-overlay.open { transform: translateY(0); }
+    body.night-mode .week-view-overlay { background: #000; }
+
+    .week-view-topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 16px 10px;
+      flex-shrink: 0;
+    }
+    .week-view-title { font-size: 16px; font-weight: 800; color: #111; letter-spacing: -0.3px; }
+    body.night-mode .week-view-title { color: #f5f5f5; }
+    .week-view-close {
+      width: 32px; height: 32px; border-radius: 50%;
+      border: none; background: #f2f2f2; color: #555;
+      font-size: 18px; line-height: 1; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .week-view-close:hover { background: #e6e6e6; }
+    body.night-mode .week-view-close { background: #1c1c1c; color: #ccc; }
+    body.night-mode .week-view-close:hover { background: #262626; }
+
+    .week-view-daynames {
+      display: grid;
+      grid-template-columns: 34px repeat(7, 1fr);
+      flex-shrink: 0;
+      border-bottom: 1.5px solid #ececec;
+      padding-bottom: 8px;
+    }
+    body.night-mode .week-view-daynames { border-bottom-color: #2c2c2e; }
+    .week-view-gmt {
+      font-size: 8.5px; font-weight: 700; color: #bbb; align-self: end; padding-bottom: 4px;
+    }
+    .week-view-daycol-header {
+      display: flex; flex-direction: column; align-items: center; gap: 4px;
+    }
+    .week-view-daycol-weekday {
+      font-size: 10.5px; font-weight: 800; letter-spacing: 0.4px; color: #999; text-transform: uppercase;
+    }
+    .week-view-daycol-header.is-today .week-view-daycol-weekday { color: #3b82f6; }
+    .week-view-daycol-num {
+      font-size: 17px; font-weight: 700; color: #111;
+      width: 30px; height: 30px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+    }
+    body.night-mode .week-view-daycol-num { color: #f5f5f5; }
+    .week-view-daycol-header.is-today .week-view-daycol-num { background: #3b82f6; color: #fff; }
+
+    .week-view-scroll { flex: 1; overflow-y: auto; overflow-x: hidden; position: relative; }
+    .week-view-grid {
+      position: relative;
+      display: grid;
+      grid-template-columns: 34px repeat(7, 1fr);
+    }
+    .week-view-hour-label {
+      position: relative;
+      font-size: 8.5px; font-weight: 700; color: #bbb;
+      transform: translateY(-50%);
+      text-align: right; padding-right: 4px;
+      grid-column: 1;
+    }
+    .week-view-daycol {
+      position: relative;
+      border-left: 1px solid #ececec;
+    }
+    body.night-mode .week-view-daycol { border-left-color: #2c2c2e; }
+    .week-view-hour-line {
+      position: absolute; left: 0; right: 0; height: 1px; background: #ececec;
+    }
+    body.night-mode .week-view-hour-line { background: #2c2c2e; }
+    .week-view-now-line {
+      position: absolute; left: 0; right: 0; height: 2px; background: #e6362a; z-index: 3;
+    }
+    .week-view-now-dot {
+      position: absolute; left: -4px; width: 8px; height: 8px; border-radius: 50%;
+      background: #e6362a; transform: translate(-50%, -50%); z-index: 3;
+    }
+    body.night-mode .week-view-now-line, body.night-mode .week-view-now-dot { background: #ff453a; }
+    .week-view-event {
+      position: absolute; left: 2px; right: 2px; min-height: 14px;
+      border-radius: 5px; background: #3b82f6; color: #fff;
+      overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.18);
+      padding: 2px 5px; box-sizing: border-box; cursor: default;
+    }
+    .week-view-event-time { font-size: 8px; font-weight: 600; opacity: 0.85; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .week-view-event-title { font-size: 9.5px; font-weight: 700; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   </style>
 </head>
 <body>
   <div class="app">
     <div class="app-header">
       <span class="app-title" id="appTitleEl">Habit Calendar</span>
+      <button type="button" class="week-view-btn" id="weekViewBtn" title="Week view">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="16" y1="2" x2="16" y2="6"></line></svg>
+        Week
+      </button>
     </div>
 
     <div class="app-layout">
@@ -1973,6 +2117,18 @@
     <div class="talk-ai-confirm-actions">
       <button type="button" class="talk-ai-confirm-btn cancel" id="talkAiTextCancelBtn">Cancel</button>
       <button type="button" class="talk-ai-confirm-btn confirm" id="talkAiTextSendBtn">Send</button>
+    </div>
+  </div>
+
+  <!-- Week view overlay (new, additive feature) -->
+  <div class="week-view-overlay" id="weekViewOverlay">
+    <div class="week-view-topbar">
+      <span class="week-view-title" id="weekViewTitle">Week</span>
+      <button type="button" class="week-view-close" id="weekViewCloseBtn">&times;</button>
+    </div>
+    <div class="week-view-daynames" id="weekViewDaynames"></div>
+    <div class="week-view-scroll" id="weekViewScroll">
+      <div class="week-view-grid" id="weekViewGrid"></div>
     </div>
   </div>
 
@@ -4024,6 +4180,12 @@
         // Also skip while a day-time-grid box (a different, newer
         // editor) is open, for the same reason.
         if (typeof EventEditor !== 'undefined' && EventEditor.isOpen()) return;
+        // And skip entirely while the week view (a separate, newer
+        // full-screen overlay) is open — otherwise scrolling inside
+        // it could accumulate toward this gesture and pop the mini-
+        // calendar lock-in open/closed underneath it. The week view
+        // must be closed first before this gesture can do anything.
+        if (typeof WeekView !== 'undefined' && WeekView.isOpen()) return;
 
         const state = DayViewState.get();
 
@@ -8916,6 +9078,209 @@
       return { init };
     })();
     TalkAI.init();
+
+    /* ============================================================
+       WEEK VIEW (new, fully additive feature — see the CSS block
+       above for the full rationale). Reads EventStore (already
+       populated by the existing single-day grid's mechanics) and
+       SelectedDayState; never writes to either, and never touches
+       DayViewState/DayTimeGrid. Nothing above this point knows this
+       module exists.
+    ============================================================ */
+    const WeekView = (() => {
+      const cfg = {
+        hourHeight: 60,   // px per hour in the scrollable grid
+        appExitMs:  320,  // must match .app.week-view-exiting transition
+        slideMs:    420,  // must match .week-view-overlay transition
+      };
+
+      const WEEKDAY_ABBR = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      const MONTH_ABBR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+      const appEl      = document.querySelector('.app');
+      const overlayEl  = document.getElementById('weekViewOverlay');
+      const daynamesEl = document.getElementById('weekViewDaynames');
+      const gridEl     = document.getElementById('weekViewGrid');
+      const scrollEl   = document.getElementById('weekViewScroll');
+      const titleEl    = document.getElementById('weekViewTitle');
+      const closeBtn   = document.getElementById('weekViewCloseBtn');
+      const openBtn    = document.getElementById('weekViewBtn');
+
+      let isOpen = false;
+
+      function formatClock(totalMinutes) {
+        let h = Math.floor(totalMinutes / 60) % 24;
+        const m = Math.round(totalMinutes % 60);
+        const period = h >= 12 ? 'PM' : 'AM';
+        let h12 = h % 12;
+        if (h12 === 0) h12 = 12;
+        return h12 + ':' + String(m).padStart(2, '0') + ' ' + period;
+      }
+
+      // Monday-start week (matches the app's own weekday row above
+      // the month grid) containing whichever date is passed in.
+      function weekDatesFor(year, month, day) {
+        const base = new Date(year, month, day);
+        const jsDow = base.getDay(); // 0=Sun..6=Sat
+        const mondayOffset = (jsDow + 6) % 7; // days since Monday
+        const monday = new Date(year, month, day - mondayOffset);
+        const out = [];
+        for (let i = 0; i < 7; i++) {
+          const d = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i);
+          out.push(d);
+        }
+        return out;
+      }
+
+      function isSameDate(a, b) {
+        return a.getFullYear() === b.getFullYear() &&
+               a.getMonth() === b.getMonth() &&
+               a.getDate() === b.getDate();
+      }
+
+      function buildHeader(dates) {
+        const today = new Date();
+        daynamesEl.innerHTML = '';
+        const gutter = document.createElement('div');
+        gutter.className = 'week-view-gmt';
+        const offsetH = -Math.round(new Date().getTimezoneOffset() / 60);
+        gutter.textContent = 'GMT' + (offsetH >= 0 ? '+' : '-') + String(Math.abs(offsetH)).padStart(2, '0');
+        daynamesEl.appendChild(gutter);
+
+        dates.forEach((d, i) => {
+          const col = document.createElement('div');
+          col.className = 'week-view-daycol-header' + (isSameDate(d, today) ? ' is-today' : '');
+          const wd = document.createElement('div');
+          wd.className = 'week-view-daycol-weekday';
+          wd.textContent = WEEKDAY_ABBR[i];
+          const num = document.createElement('div');
+          num.className = 'week-view-daycol-num';
+          num.textContent = String(d.getDate());
+          col.appendChild(wd);
+          col.appendChild(num);
+          daynamesEl.appendChild(col);
+        });
+
+        const first = dates[0], last = dates[6];
+        const sameMonth = first.getMonth() === last.getMonth();
+        titleEl.textContent = sameMonth
+          ? MONTH_ABBR[first.getMonth()] + ' ' + first.getDate() + ' \u2013 ' + last.getDate() + ', ' + last.getFullYear()
+          : MONTH_ABBR[first.getMonth()] + ' ' + first.getDate() + ' \u2013 ' + MONTH_ABBR[last.getMonth()] + ' ' + last.getDate() + ', ' + last.getFullYear();
+      }
+
+      function buildGrid(dates) {
+        gridEl.innerHTML = '';
+        gridEl.style.height = (cfg.hourHeight * 24) + 'px';
+
+        for (let h = 0; h < 24; h++) {
+          if (h > 0) {
+            const label = document.createElement('div');
+            label.className = 'week-view-hour-label';
+            label.style.top = (h * cfg.hourHeight) + 'px';
+            label.textContent = (h % 12 === 0 ? 12 : h % 12) + (h < 12 ? 'AM' : 'PM');
+            gridEl.appendChild(label);
+          }
+        }
+
+        const today = new Date();
+        const nowMinutes = today.getHours() * 60 + today.getMinutes();
+
+        dates.forEach((d) => {
+          const col = document.createElement('div');
+          col.className = 'week-view-daycol';
+          for (let h = 0; h <= 24; h++) {
+            const line = document.createElement('div');
+            line.className = 'week-view-hour-line';
+            line.style.top = (h * cfg.hourHeight) + 'px';
+            col.appendChild(line);
+          }
+
+          if (isSameDate(d, today)) {
+            const y = (nowMinutes / 60) * cfg.hourHeight;
+            const nowLine = document.createElement('div');
+            nowLine.className = 'week-view-now-line';
+            nowLine.style.top = y + 'px';
+            const nowDot = document.createElement('div');
+            nowDot.className = 'week-view-now-dot';
+            nowDot.style.top = y + 'px';
+            col.appendChild(nowLine);
+            col.appendChild(nowDot);
+          }
+
+          const dateKey = EventStore.dateKeyFor(d.getFullYear(), d.getMonth(), d.getDate());
+          EventStore.getForDate(dateKey).forEach((record) => {
+            const box = document.createElement('div');
+            box.className = 'week-view-event';
+            const top = (record.startMinutes / 60) * cfg.hourHeight;
+            const height = (record.durationMinutes / 60) * cfg.hourHeight;
+            box.style.top = top + 'px';
+            box.style.height = Math.max(height, 14) + 'px';
+            if (record.color) box.style.background = record.color;
+
+            const timeLine = document.createElement('div');
+            timeLine.className = 'week-view-event-time';
+            timeLine.textContent = formatClock(record.startMinutes);
+            const titleLine = document.createElement('div');
+            titleLine.className = 'week-view-event-title';
+            titleLine.textContent = record.type || 'Event';
+
+            box.appendChild(timeLine);
+            box.appendChild(titleLine);
+            col.appendChild(box);
+          });
+
+          gridEl.appendChild(col);
+        });
+      }
+
+      function render() {
+        const sel = SelectedDayState.get();
+        const dates = weekDatesFor(sel.year, sel.month, sel.day);
+        buildHeader(dates);
+        buildGrid(dates);
+      }
+
+      function scrollToRelevantHour() {
+        const today = new Date();
+        const targetHour = Math.max(0, today.getHours() - 2);
+        scrollEl.scrollTop = targetHour * cfg.hourHeight;
+      }
+
+      function open() {
+        if (isOpen) return;
+        isOpen = true;
+        render();
+        appEl.classList.add('week-view-exiting');
+        setTimeout(() => {
+          overlayEl.classList.add('open');
+          scrollToRelevantHour();
+        }, cfg.appExitMs);
+        document.addEventListener('keydown', onKeydown);
+      }
+
+      function close() {
+        if (!isOpen) return;
+        isOpen = false;
+        overlayEl.classList.remove('open');
+        setTimeout(() => {
+          appEl.classList.remove('week-view-exiting');
+        }, cfg.slideMs);
+        document.removeEventListener('keydown', onKeydown);
+      }
+
+      function onKeydown(e) {
+        if (e.key === 'Escape') close();
+      }
+
+      function init() {
+        if (!openBtn || !overlayEl) return;
+        openBtn.addEventListener('click', open);
+        closeBtn.addEventListener('click', close);
+      }
+
+      return { init, open, close, isOpen: () => isOpen };
+    })();
+    WeekView.init();
   </script>
 </body>
 </html>
