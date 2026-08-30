@@ -1882,7 +1882,7 @@
     /* ============================================================
        WEEK VIEW (new, fully additive feature).
        A button in the app header opens a full-screen Google-
-       Calendar-style week grid: 7 day columns side by side, each
+       Calendar-style week grid: day columns side by side, each
        showing that day's timed events (read from the very same
        EventStore the single-day grid already uses — no new data
        model, no changes to existing mechanics). Opening it plays a
@@ -1890,6 +1890,13 @@
        (leaving a blank white screen, since the page background is
        already white), then the week grid slides up into place from
        the bottom of the screen. Closing reverses both steps.
+       The grid scrolls horizontally (day to day) as well as
+       vertically (hour to hour) — the day-header row and the hour
+       gutter are sticky, so they always stay put on their own axis
+       while the rest of the grid scrolls underneath them. Whichever
+       day is currently selected always opens flush against the
+       left edge, with every day after it available by scrolling
+       right.
        Everything here lives in its own class namespace / JS module
        (WeekView) and never touches DayViewState, DayTimeGrid, or
        any other existing module — it only *reads* from EventStore.
@@ -1954,20 +1961,64 @@
     body.night-mode .week-view-close { background: #1c1c1c; color: #ccc; }
     body.night-mode .week-view-close:hover { background: #262626; }
 
-    .week-view-daynames {
+    /* Single 2D scroll surface — scrolls horizontally through days
+       AND vertically through hours. The day-header row and the
+       hour-label gutter are sticky children inside it, so they read
+       as a fixed header/gutter even though there's only one real
+       scroll container underneath them. */
+    .week-view-scroll {
+      flex: 1;
+      overflow: auto;
+      position: relative;
+      -webkit-overflow-scrolling: touch;
+      scroll-snap-type: x proximity;
+    }
+    .week-view-grid {
+      position: relative;
       display: grid;
-      grid-template-columns: 34px repeat(7, 1fr);
-      flex-shrink: 0;
+      /* First column is the sticky hour gutter; the rest are the
+         actual day columns, each a fixed width so there's always
+         more of them than fit on screen — that's what makes side-
+         to-side scrolling through days possible. Only 2 real grid
+         rows: the header, and one tall body row per column that
+         each column fills with its own absolutely-positioned hour
+         lines/events (exactly like the single-day grid already
+         does) — hours aren't real grid rows, just pixel offsets. */
+      grid-template-columns: 34px repeat(var(--week-view-days, 21), var(--week-view-col-w, 108px));
+      grid-template-rows: 56px auto;
+    }
+    .week-view-corner {
+      position: sticky;
+      top: 0; left: 0;
+      z-index: 6;
+      background: #fff;
+      grid-column: 1; grid-row: 1;
       border-bottom: 1.5px solid #ececec;
-      padding-bottom: 8px;
     }
-    body.night-mode .week-view-daynames { border-bottom-color: #2c2c2e; }
+    body.night-mode .week-view-corner { background: #000; border-bottom-color: #2c2c2e; }
     .week-view-gmt {
-      font-size: 8.5px; font-weight: 700; color: #bbb; align-self: end; padding-bottom: 4px;
+      position: sticky;
+      top: 0; left: 0;
+      z-index: 6;
+      font-size: 8.5px; font-weight: 700; color: #bbb;
+      align-self: end; padding: 0 0 4px 0;
+      background: #fff;
+      grid-column: 1; grid-row: 1;
+      border-bottom: 1.5px solid #ececec;
     }
+    body.night-mode .week-view-gmt { background: #000; border-bottom-color: #2c2c2e; }
+
     .week-view-daycol-header {
-      display: flex; flex-direction: column; align-items: center; gap: 4px;
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      background: #fff;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+      grid-row: 1;
+      border-bottom: 1.5px solid #ececec;
+      scroll-snap-align: start;
     }
+    body.night-mode .week-view-daycol-header { background: #000; border-bottom-color: #2c2c2e; }
     .week-view-daycol-weekday {
       font-size: 10.5px; font-weight: 800; letter-spacing: 0.4px; color: #999; text-transform: uppercase;
     }
@@ -1980,22 +2031,31 @@
     body.night-mode .week-view-daycol-num { color: #f5f5f5; }
     .week-view-daycol-header.is-today .week-view-daycol-num { background: #3b82f6; color: #fff; }
 
-    .week-view-scroll { flex: 1; overflow-y: auto; overflow-x: hidden; position: relative; }
-    .week-view-grid {
-      position: relative;
-      display: grid;
-      grid-template-columns: 34px repeat(7, 1fr);
+    /* Gutter body — one sticky-left cell, grid-row 2, holding all 23
+       hour labels absolutely positioned inside it (set to the full
+       24-hour pixel height via JS, same number as every day column
+       below so row 2 sizes consistently). */
+    .week-view-gutter-body {
+      position: sticky;
+      left: 0;
+      z-index: 4;
+      background: #fff;
+      grid-column: 1; grid-row: 2;
     }
+    body.night-mode .week-view-gutter-body { background: #000; }
     .week-view-hour-label {
-      position: relative;
+      position: absolute;
+      right: 4px;
       font-size: 8.5px; font-weight: 700; color: #bbb;
       transform: translateY(-50%);
-      text-align: right; padding-right: 4px;
-      grid-column: 1;
     }
+    body.night-mode .week-view-hour-label { color: #666; }
+
     .week-view-daycol {
       position: relative;
       border-left: 1px solid #ececec;
+      grid-row: 2;
+      scroll-snap-align: start;
     }
     body.night-mode .week-view-daycol { border-left-color: #2c2c2e; }
     .week-view-hour-line {
@@ -2126,7 +2186,6 @@
       <span class="week-view-title" id="weekViewTitle">Week</span>
       <button type="button" class="week-view-close" id="weekViewCloseBtn">&times;</button>
     </div>
-    <div class="week-view-daynames" id="weekViewDaynames"></div>
     <div class="week-view-scroll" id="weekViewScroll">
       <div class="week-view-grid" id="weekViewGrid"></div>
     </div>
@@ -9090,16 +9149,17 @@
     const WeekView = (() => {
       const cfg = {
         hourHeight: 60,   // px per hour in the scrollable grid
+        colWidth:   108,  // px width of each day column
+        dayCount:   21,   // how many days are rendered, starting from the selected day
         appExitMs:  320,  // must match .app.week-view-exiting transition
         slideMs:    420,  // must match .week-view-overlay transition
       };
 
-      const WEEKDAY_ABBR = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      const WEEKDAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
       const MONTH_ABBR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
       const appEl      = document.querySelector('.app');
       const overlayEl  = document.getElementById('weekViewOverlay');
-      const daynamesEl = document.getElementById('weekViewDaynames');
       const gridEl     = document.getElementById('weekViewGrid');
       const scrollEl   = document.getElementById('weekViewScroll');
       const titleEl    = document.getElementById('weekViewTitle');
@@ -9107,6 +9167,8 @@
       const openBtn    = document.getElementById('weekViewBtn');
 
       let isOpen = false;
+      let renderedDates = [];
+      let scrollRafPending = false;
 
       function formatClock(totalMinutes) {
         let h = Math.floor(totalMinutes / 60) % 24;
@@ -9117,77 +9179,81 @@
         return h12 + ':' + String(m).padStart(2, '0') + ' ' + period;
       }
 
-      // Monday-start week (matches the app's own weekday row above
-      // the month grid) containing whichever date is passed in.
-      function weekDatesFor(year, month, day) {
-        const base = new Date(year, month, day);
-        const jsDow = base.getDay(); // 0=Sun..6=Sat
-        const mondayOffset = (jsDow + 6) % 7; // days since Monday
-        const monday = new Date(year, month, day - mondayOffset);
-        const out = [];
-        for (let i = 0; i < 7; i++) {
-          const d = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i);
-          out.push(d);
-        }
-        return out;
-      }
-
       function isSameDate(a, b) {
         return a.getFullYear() === b.getFullYear() &&
                a.getMonth() === b.getMonth() &&
                a.getDate() === b.getDate();
       }
 
-      function buildHeader(dates) {
-        const today = new Date();
-        daynamesEl.innerHTML = '';
-        const gutter = document.createElement('div');
-        gutter.className = 'week-view-gmt';
-        const offsetH = -Math.round(new Date().getTimezoneOffset() / 60);
-        gutter.textContent = 'GMT' + (offsetH >= 0 ? '+' : '-') + String(Math.abs(offsetH)).padStart(2, '0');
-        daynamesEl.appendChild(gutter);
+      // `dayCount` consecutive days starting at (year, month, day) —
+      // that day always ends up first, i.e. flush against the left
+      // edge of the grid, with every day after it reachable by
+      // scrolling right.
+      function datesFrom(year, month, day, dayCount) {
+        const out = [];
+        for (let i = 0; i < dayCount; i++) {
+          out.push(new Date(year, month, day + i));
+        }
+        return out;
+      }
 
-        dates.forEach((d, i) => {
-          const col = document.createElement('div');
-          col.className = 'week-view-daycol-header' + (isSameDate(d, today) ? ' is-today' : '');
-          const wd = document.createElement('div');
-          wd.className = 'week-view-daycol-weekday';
-          wd.textContent = WEEKDAY_ABBR[i];
-          const num = document.createElement('div');
-          num.className = 'week-view-daycol-num';
-          num.textContent = String(d.getDate());
-          col.appendChild(wd);
-          col.appendChild(num);
-          daynamesEl.appendChild(col);
-        });
-
-        const first = dates[0], last = dates[6];
-        const sameMonth = first.getMonth() === last.getMonth();
-        titleEl.textContent = sameMonth
-          ? MONTH_ABBR[first.getMonth()] + ' ' + first.getDate() + ' \u2013 ' + last.getDate() + ', ' + last.getFullYear()
-          : MONTH_ABBR[first.getMonth()] + ' ' + first.getDate() + ' \u2013 ' + MONTH_ABBR[last.getMonth()] + ' ' + last.getDate() + ', ' + last.getFullYear();
+      function titleForDate(d) {
+        return WEEKDAY_ABBR[d.getDay()] + ', ' + MONTH_ABBR[d.getMonth()] + ' ' + d.getDate();
       }
 
       function buildGrid(dates) {
         gridEl.innerHTML = '';
-        gridEl.style.height = (cfg.hourHeight * 24) + 'px';
-
-        for (let h = 0; h < 24; h++) {
-          if (h > 0) {
-            const label = document.createElement('div');
-            label.className = 'week-view-hour-label';
-            label.style.top = (h * cfg.hourHeight) + 'px';
-            label.textContent = (h % 12 === 0 ? 12 : h % 12) + (h < 12 ? 'AM' : 'PM');
-            gridEl.appendChild(label);
-          }
-        }
+        gridEl.style.setProperty('--week-view-days', dates.length);
+        gridEl.style.setProperty('--week-view-col-w', cfg.colWidth + 'px');
+        gridEl.style.setProperty('--week-view-hour-h', cfg.hourHeight + 'px');
 
         const today = new Date();
         const nowMinutes = today.getHours() * 60 + today.getMinutes();
 
+        // Corner + gutter (sticky column of hour labels), spanning
+        // the full 24h height so it lines up with every day column.
+        const corner = document.createElement('div');
+        corner.className = 'week-view-corner';
+        gridEl.appendChild(corner);
+
+        const gutterBody = document.createElement('div');
+        gutterBody.className = 'week-view-gutter-body';
+        gutterBody.style.height = (cfg.hourHeight * 24) + 'px';
+        for (let h = 1; h < 24; h++) {
+          const label = document.createElement('div');
+          label.className = 'week-view-hour-label';
+          label.style.top = (h * cfg.hourHeight) + 'px';
+          label.textContent = (h % 12 === 0 ? 12 : h % 12) + (h < 12 ? 'AM' : 'PM');
+          gutterBody.appendChild(label);
+        }
+        gridEl.appendChild(gutterBody);
+
+        // GMT label sits over the gutter, in the header row.
+        const gmt = document.createElement('div');
+        gmt.className = 'week-view-gmt';
+        const offsetH = -Math.round(new Date().getTimezoneOffset() / 60);
+        gmt.textContent = 'GMT' + (offsetH >= 0 ? '+' : '-') + String(Math.abs(offsetH)).padStart(2, '0');
+        gridEl.appendChild(gmt);
+
         dates.forEach((d) => {
+          // Header cell for this day.
+          const header = document.createElement('div');
+          header.className = 'week-view-daycol-header' + (isSameDate(d, today) ? ' is-today' : '');
+          const wd = document.createElement('div');
+          wd.className = 'week-view-daycol-weekday';
+          wd.textContent = WEEKDAY_ABBR[d.getDay()];
+          const num = document.createElement('div');
+          num.className = 'week-view-daycol-num';
+          num.textContent = String(d.getDate());
+          header.appendChild(wd);
+          header.appendChild(num);
+          gridEl.appendChild(header);
+
+          // Body cell for this day — same absolute-positioned hour
+          // lines / events approach the single-day grid already uses.
           const col = document.createElement('div');
           col.className = 'week-view-daycol';
+          col.style.height = (cfg.hourHeight * 24) + 'px';
           for (let h = 0; h <= 24; h++) {
             const line = document.createElement('div');
             line.className = 'week-view-hour-line';
@@ -9235,15 +9301,35 @@
 
       function render() {
         const sel = SelectedDayState.get();
-        const dates = weekDatesFor(sel.year, sel.month, sel.day);
-        buildHeader(dates);
-        buildGrid(dates);
+        renderedDates = datesFrom(sel.year, sel.month, sel.day, cfg.dayCount);
+        buildGrid(renderedDates);
+        titleEl.textContent = titleForDate(renderedDates[0]);
+      }
+
+      // Keeps the title in sync with whichever day column currently
+      // sits at the left edge of the visible area, so it stays
+      // meaningful once the person has scrolled sideways.
+      function updateTitleForScroll() {
+        if (!renderedDates.length) return;
+        const idx = Math.round(scrollEl.scrollLeft / cfg.colWidth);
+        const clamped = Math.max(0, Math.min(renderedDates.length - 1, idx));
+        titleEl.textContent = titleForDate(renderedDates[clamped]);
+      }
+
+      function onScroll() {
+        if (scrollRafPending) return;
+        scrollRafPending = true;
+        requestAnimationFrame(() => {
+          scrollRafPending = false;
+          updateTitleForScroll();
+        });
       }
 
       function scrollToRelevantHour() {
         const today = new Date();
         const targetHour = Math.max(0, today.getHours() - 2);
         scrollEl.scrollTop = targetHour * cfg.hourHeight;
+        scrollEl.scrollLeft = 0; // the selected day always opens flush left
       }
 
       function open() {
@@ -9276,6 +9362,7 @@
         if (!openBtn || !overlayEl) return;
         openBtn.addEventListener('click', open);
         closeBtn.addEventListener('click', close);
+        scrollEl.addEventListener('scroll', onScroll, { passive: true });
       }
 
       return { init, open, close, isOpen: () => isOpen };
