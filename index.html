@@ -19,7 +19,56 @@
       min-height: 100vh;
       overflow-x: hidden;
       overscroll-behavior: none;
+      padding-top: 52px; /* room for the fixed .global-topbar below */
     }
+
+    /* ============================================================
+       PERSISTENT TOP BAR — Day / Week / Month tabs + Select Day.
+       Fixed above everything (month calendar, week overlay, day
+       view, and every modal/popup in the app) so it never disappears
+       across a view transition. z-index is set higher than every
+       other overlay in the app (week view: 900, toasts: 1000) so it
+       stays visible and clickable no matter what's open underneath.
+    ============================================================ */
+    .global-topbar {
+      position: fixed; top: 0; left: 0; right: 0; height: 52px;
+      z-index: 2000;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 18px;
+      background: rgba(255,255,255,0.96);
+      backdrop-filter: blur(10px);
+      border-bottom: 1.5px solid #ececec;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    }
+    body.night-mode .global-topbar {
+      background: rgba(18,18,20,0.96);
+      border-bottom-color: #2c2c2e;
+    }
+    .global-topbar-viewtabs {
+      display: flex; gap: 3px;
+      background: #f0f0f0; padding: 3px; border-radius: 10px;
+    }
+    body.night-mode .global-topbar-viewtabs { background: #232325; }
+    .global-topbar-tab {
+      border: none; background: transparent; padding: 6px 16px; border-radius: 8px;
+      font-size: 12.5px; font-weight: 700; color: #666; cursor: pointer;
+      font-family: inherit; transition: background 0.15s, color 0.15s;
+    }
+    .global-topbar-tab:hover { color: #333; }
+    .global-topbar-tab.active { background: #fff; color: #111; box-shadow: 0 1px 3px rgba(0,0,0,0.14); }
+    body.night-mode .global-topbar-tab { color: #999; }
+    body.night-mode .global-topbar-tab:hover { color: #ddd; }
+    body.night-mode .global-topbar-tab.active { background: #3a3a3c; color: #fff; }
+    .global-topbar-selectday {
+      display: flex; align-items: center; gap: 6px;
+      border: 1.5px solid #e2e2e2; background: #fff; border-radius: 9px;
+      height: 32px; padding: 0 14px;
+      font-size: 12.5px; font-weight: 700; color: #111; cursor: pointer;
+      font-family: inherit; transition: background 0.15s, border-color 0.15s;
+    }
+    .global-topbar-selectday:hover { background: #f7f7f7; }
+    body.night-mode .global-topbar-selectday { background: #1c1c1e; border-color: #3a3a3a; color: #f5f5f5; }
+    body.night-mode .global-topbar-selectday:hover { background: #2a2a2c; }
 
     body::before {
       content: '';
@@ -119,22 +168,30 @@
       user-select: none; overflow: hidden;
     }
     .day-cell:hover:not(.empty) { background: #f3f3f3; transform: translateY(-2px); }
+
+    /* Brief shake used to draw the eye to a day picked via the
+       Select Day popup while the Month view is active (see
+       GlobalTopBar.goToDateInMonthView in the script). */
+    .day-cell.daycell-shake { animation: daycell-shake 0.32s ease; }
+    @keyframes daycell-shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-5px); }
+      50% { transform: translateX(4px); }
+      75% { transform: translateX(-3px); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .day-cell.daycell-shake { animation: none; }
+    }
     .day-cell.empty { cursor: default; background: transparent; border-color: transparent; }
     .day-cell.today { border-color: #111; border-width: 2px; background: #fff; }
 
-    /* Mini-calendar day selection (LOCKED state only). The mini-
-       calendar's cells are the very same .day-cell elements as the
-       full month grid (just FLIP-animated into a compact corner —
-       see MiniCalendarLayout above), and their parent .calendar-main
-       gets pointer-events:none the moment we're not in the plain
-       CALENDAR state (see CalendarInteractionLock). This re-opens
-       pointer-events on just the cells themselves while locked, so
-       tapping a day in the mini-calendar can select it (wired in
-       renderCalendar's click handler) without also re-enabling any
-       of the now-hidden full-grid chrome around them. */
-    .calendar-main.day-view-locked .day-cell:not(.empty) {
-      pointer-events: auto;
-      cursor: pointer;
+    /* Mini-calendar — DELETED. #daysGrid (the day-cell grid) is now
+       hidden outright, instantly, the moment we leave CALENDAR — no
+       shrinking, no flying, no colors, no animation of any kind. See
+       CalendarInteractionLock for where .day-view-locked gets added
+       to .calendar-main (also instant, no transition). */
+    .calendar-main.day-view-locked #daysGrid {
+      display: none !important;
     }
     .day-cell.selected-mini-day {
       box-shadow: 0 0 0 2px #fff, 0 0 0 4px #3b82f6;
@@ -234,39 +291,6 @@
     }
     @media (prefers-reduced-motion: reduce) { .day-cell.fully-complete::after { animation: none; } }
 
-    /* Mini-calendar (locked/day-view) presentation — the day-cells
-       are the same real elements, just shrunk via FlipAnimator. At
-       mini scale the full-size multi-layer glow rings read as messy
-       blur, so while a cell is flying/parked as a mini-cell we swap
-       to a single crisp, thin ring instead — same color language
-       (still driven by the existing lvl-N classes), just calmer at
-       ~24-29px. The pulsing "fully complete" glow is likewise
-       swapped for a small steady cyan ring rather than an animated
-       blur that would look like a smudge at this size. */
-    .day-cell.flip-animating {
-      box-shadow: 0 0 0 1.5px var(--mini-ring, #3b82f6) !important;
-      border-color: transparent;
-      border-width: 1.5px;
-      overflow: visible; /* the day-num is intentionally boosted bigger than
-                             the shrunk cell for legibility — don't let the
-                             base .day-cell's overflow:hidden clip it */
-    }
-    .day-cell.flip-animating.lvl-0  { --mini-ring: #c61215; }
-    .day-cell.flip-animating.lvl-1  { --mini-ring: #cd361a; }
-    .day-cell.flip-animating.lvl-2  { --mini-ring: #d55821; }
-    .day-cell.flip-animating.lvl-3  { --mini-ring: #e17c29; }
-    .day-cell.flip-animating.lvl-4  { --mini-ring: #e8a22e; }
-    .day-cell.flip-animating.lvl-5  { --mini-ring: #f4c439; }
-    .day-cell.flip-animating.lvl-6  { --mini-ring: #fce83e; }
-    .day-cell.flip-animating.lvl-7  { --mini-ring: #e9f038; }
-    .day-cell.flip-animating.lvl-8  { --mini-ring: #caf32d; }
-    .day-cell.flip-animating.lvl-9  { --mini-ring: #adf623; }
-    .day-cell.flip-animating.lvl-10 { --mini-ring: rgba(34,197,94,0.85); }
-    .day-cell.flip-animating.fully-complete {
-      animation: none !important;
-      box-shadow: 0 0 0 1.5px rgba(34,197,94,0.85), inset 0 0 0 1.5px #22d3ee !important;
-    }
-    .day-cell.flip-animating::after { opacity: 0 !important; animation: none !important; }
     /* Today no longer gets its own ring override here — it used to
        (a black ring, then later transparent), but that box-shadow
        always beat the lvl-N/fully-complete rules above since it came
@@ -312,7 +336,14 @@
       display: none;
       opacity: 0;
       pointer-events: none;
-      transition: opacity 320ms ease;
+      /* Slides up from the bottom to replace the calendar when
+         entering the day view, and slides back down when leaving —
+         see DayTimeGrid.show()/hide() in the script, which toggle
+         this transform. Same easing/duration as the week view's
+         slide-up overlay elsewhere in this file, for a consistent
+         feel across both. */
+      transform: translateY(60px);
+      transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
       border-top: 1.5px solid #ececec;
     }
     .day-time-grid.night { border-top-color: #333; }
@@ -1058,7 +1089,16 @@
       background: rgba(0,0,0,0.45);
       backdrop-filter: blur(4px);
       display: flex; align-items: center; justify-content: center;
-      z-index: 200;
+      /* Needs to sit above the week view overlay (z-index: 900) —
+         otherwise opening this picker while the week view is open
+         renders it completely hidden behind the week view's own
+         opaque background, and its pointer-events:auto backdrop
+         (once .open is added) blocks nothing since the week view's
+         higher stacking order intercepts the click first. Still kept
+         below the persistent GlobalTopBar (2000) so that stays
+         clickable/visible above every popup in the app, per its own
+         comment. */
+      z-index: 1200;
       opacity: 0; pointer-events: none;
       transition: opacity 0.18s ease;
       padding: 20px;
@@ -1113,6 +1153,70 @@
     body.night-mode .repeat-days-actions button { background: #1c1c1e; border-color: #3a3a3c; color: #eee; }
     body.night-mode .repeat-days-actions button:hover { background: #2c2c2e; }
     body.night-mode .repeat-days-actions button.primary { background: #3b82f6; border-color: #3b82f6; color: #fff; }
+
+    /* Mode tabs — switches the modal between "next N days" (the
+       original stepper) and "specific days" (pick exact dates off a
+       small calendar below). Only one of the two body sections is
+       ever visible at a time (see .repeat-days-stepper-wrap /
+       .repeat-days-calendar-wrap's own display toggling in JS). */
+    .repeat-days-mode-tabs { display: flex; gap: 6px; margin-bottom: 16px; }
+    .repeat-days-mode-tab {
+      flex: 1; padding: 7px 4px; border-radius: 9px; text-align: center;
+      border: 1.5px solid #e2e2e2; background: #fafafa;
+      font-size: 11.5px; font-weight: 700; color: #666; cursor: pointer;
+      font-family: inherit; transition: background 0.15s, border-color 0.15s, color 0.15s;
+    }
+    .repeat-days-mode-tab:hover { background: #f0f0f0; }
+    .repeat-days-mode-tab.active { background: #3b82f6; border-color: #3b82f6; color: #fff; }
+    body.night-mode .repeat-days-mode-tab { background: #2c2c2e; border-color: #3a3a3c; color: #ccc; }
+    body.night-mode .repeat-days-mode-tab:hover { background: #38383a; }
+    body.night-mode .repeat-days-mode-tab.active { background: #3b82f6; border-color: #3b82f6; color: #fff; }
+
+    .repeat-days-stepper-wrap { display: block; }
+    .repeat-days-stepper-wrap.hidden { display: none; }
+    .repeat-days-calendar-wrap { display: none; margin-bottom: 18px; }
+    .repeat-days-calendar-wrap.visible { display: block; }
+
+    .repeat-days-cal-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .repeat-days-cal-nav-btn {
+      width: 26px; height: 26px; border-radius: 7px; border: none; background: transparent;
+      font-size: 14px; font-weight: 800; color: #666; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-family: inherit; transition: background 0.15s;
+    }
+    .repeat-days-cal-nav-btn:hover { background: #f0f0f0; }
+    .repeat-days-cal-month { font-size: 12.5px; font-weight: 800; color: #111; }
+    .repeat-days-cal-weekdays {
+      display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin-bottom: 4px;
+    }
+    .repeat-days-cal-weekday {
+      font-size: 9px; font-weight: 700; color: #bbb; text-align: center;
+      text-transform: uppercase; letter-spacing: 0.3px;
+    }
+    .repeat-days-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+    .repeat-days-cal-cell {
+      aspect-ratio: 1; border-radius: 7px; border: 1.5px solid transparent;
+      background: #f5f5f5; font-size: 11px; font-weight: 700; color: #333;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; user-select: none; transition: background 0.12s, border-color 0.12s, color 0.12s;
+    }
+    .repeat-days-cal-cell:hover { background: #ececec; }
+    .repeat-days-cal-cell.empty { visibility: hidden; cursor: default; }
+    .repeat-days-cal-cell.today { border-color: #3b82f6; }
+    .repeat-days-cal-cell.selected { background: #3b82f6; border-color: #3b82f6; color: #fff; }
+    .repeat-days-cal-cell.selected:hover { background: #2f6fda; }
+    .repeat-days-selected-count {
+      font-size: 11px; font-weight: 700; color: #999; text-align: center; margin-top: 10px;
+    }
+    body.night-mode .repeat-days-cal-nav-btn { color: #ccc; }
+    body.night-mode .repeat-days-cal-nav-btn:hover { background: #2c2c2e; }
+    body.night-mode .repeat-days-cal-month { color: #f5f5f5; }
+    body.night-mode .repeat-days-cal-weekday { color: #777; }
+    body.night-mode .repeat-days-cal-cell { background: #2c2c2e; color: #eee; }
+    body.night-mode .repeat-days-cal-cell:hover { background: #38383a; }
+    body.night-mode .repeat-days-cal-cell.today { border-color: #60a5fa; }
+    body.night-mode .repeat-days-cal-cell.selected { background: #3b82f6; border-color: #3b82f6; color: #fff; }
+    body.night-mode .repeat-days-selected-count { color: #777; }
 
     /* Lock button — sits directly to the left of the notify bell in
        the editor toprow (type → time → lock → bell → color → trash).
@@ -1772,6 +1876,30 @@
     .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
     .toast.err { background: #dc2626; }
 
+    /* Pinch/double-tap zoom banner — see the markup comment and
+       ZoomBanner in the script. Sits a bit further down than .toast
+       so the two never overlap if both happen to show at once, and
+       above z-index:2000 (the persistent top bar) since it needs to
+       be reachable no matter what's open when a zoom is detected. */
+    .zoom-banner {
+      position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(16px);
+      display: flex; align-items: center; gap: 12px;
+      background: #111; color: #fff; padding: 10px 12px 10px 18px; border-radius: 12px;
+      font-size: 13px; font-weight: 600;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+      opacity: 0; pointer-events: none; transition: opacity 0.22s, transform 0.22s;
+      z-index: 2100;
+    }
+    .zoom-banner.show { opacity: 1; pointer-events: auto; transform: translateX(-50%) translateY(0); }
+    body.night-mode .zoom-banner { background: #2a2a2c; }
+    #zoomBannerBtn {
+      border: none; background: #fff; color: #111; border-radius: 8px;
+      padding: 7px 14px; font-size: 12.5px; font-weight: 800; cursor: pointer;
+      font-family: inherit; white-space: nowrap;
+    }
+    #zoomBannerBtn:hover { background: #f0f0f0; }
+    body.night-mode #zoomBannerBtn { background: #f5f5f5; }
+
     /* ── Mini-calendar D1 sync indicator (top-right) ──
        Only ever shown while the mini-calendar (day-time-grid) is
        what's producing writes — see SyncIndicator / EventStore in
@@ -1780,13 +1908,13 @@
        itself 1 second later (see SyncIndicator.synced() in the
        script), unless the next batch begins first. */
     .sync-indicator {
-      position: fixed; top: 14px; right: 16px;
+      position: fixed; top: 62px; right: 16px;
       display: flex; align-items: center; gap: 7px;
       background: #111; color: #fff; padding: 7px 14px 7px 12px; border-radius: 999px;
       font-size: 12px; font-weight: 700; letter-spacing: 0.2px;
       opacity: 0; transform: translateY(-8px); pointer-events: none;
       transition: opacity 0.2s ease, transform 0.2s ease, background 0.2s ease;
-      z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.18);
+      z-index: 2100; box-shadow: 0 2px 10px rgba(0,0,0,0.18);
     }
     .sync-indicator.show { opacity: 1; transform: translateY(0); }
     .sync-indicator.synced { background: #16a34a; }
@@ -1806,13 +1934,13 @@
        batch is actually undoable. Same pill shape/height so the two
        read as one continuous control sliding apart. */
     .sync-undo-btn {
-      position: fixed; top: 14px; right: 16px;
+      position: fixed; top: 62px; right: 16px;
       background: #2d2d2d; color: #fff; border: none; cursor: pointer;
       padding: 7px 14px; border-radius: 999px; font: inherit;
       font-size: 12px; font-weight: 700; letter-spacing: 0.2px;
       opacity: 0; transform: translateY(-8px); pointer-events: none;
       transition: opacity 0.2s ease, transform 0.2s ease, background 0.15s ease;
-      z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.18);
+      z-index: 2100; box-shadow: 0 2px 10px rgba(0,0,0,0.18);
     }
     .sync-undo-btn:hover { background: #3f3f3f; }
     .sync-undo-btn.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
@@ -1969,7 +2097,11 @@
 
     .week-view-overlay {
       position: fixed;
-      inset: 0;
+      /* Used to be inset:0 (full screen) — now starts below the
+         persistent .global-topbar (52px) instead of covering it, so
+         the Day/Week/Month tabs + Select Day button stay visible and
+         usable while the week view is open. */
+      top: 52px; left: 0; right: 0; bottom: 0;
       z-index: 900;
       background: #fff;
       transform: translateY(100%);
@@ -1984,12 +2116,10 @@
     .week-view-topbar {
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      justify-content: flex-end;
       padding: 14px 16px 10px;
       flex-shrink: 0;
     }
-    .week-view-title { font-size: 16px; font-weight: 800; color: #111; letter-spacing: -0.3px; }
-    body.night-mode .week-view-title { color: #f5f5f5; }
     .week-view-close {
       width: 32px; height: 32px; border-radius: 50%;
       border: none; background: #f2f2f2; color: #555;
@@ -2033,8 +2163,33 @@
       background: #fff;
       grid-column: 1; grid-row: 1;
       border-bottom: 1.5px solid #ececec;
+      /* Now doubles as the "select day" button — reset default button
+         chrome so it still just looks like the plain corner box, with
+         its icon centered. */
+      border-left: none; border-right: none; border-top: none;
+      margin: 0; padding: 0; font: inherit; color: #999;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
     }
-    body.night-mode .week-view-corner { background: #000; border-bottom-color: #2c2c2e; }
+    .week-view-corner:hover { background: #f2f2f2; color: #555; }
+    body.night-mode .week-view-corner { background: #000; border-bottom-color: #2c2c2e; color: #777; }
+    body.night-mode .week-view-corner:hover { background: #1c1c1c; color: #ccc; }
+
+    /* Hidden but interactive native date input used to launch the
+       platform's own day/month/year picker — iOS Safari renders this
+       as its native spinning wheel picker, desktop browsers render
+       their own native calendar dropdown, automatically, with no
+       manual OS detection needed. Kept in normal layout flow (not
+       display:none/visibility:hidden) since some browsers refuse to
+       open the picker on an input that isn't actually rendered. */
+    .week-view-date-input {
+      position: absolute;
+      top: 0; left: 0;
+      width: 1px; height: 1px;
+      opacity: 0;
+      border: 0; padding: 0;
+      pointer-events: none;
+    }
     .week-view-gmt {
       position: sticky;
       top: 0;
@@ -2156,9 +2311,79 @@
     }
     .week-view-event-time { font-size: 8px; font-weight: 600; opacity: 0.85; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .week-view-event-title { font-size: 9.5px; font-weight: 700; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    /* Hold-to-schedule progress cue for the week view (desktop only —
+       see onWeekHoldPointerDown), same idea as the single-day grid's
+       own hold indicator: fills in over the hold duration, flashes
+       solid once confirmed, then fades out as the app hands off to
+       the locked day view for full editing. */
+    .week-view-hold-indicator {
+      position: absolute; left: 2px; right: 2px;
+      border-radius: 5px;
+      background: rgba(59, 130, 246, 0.16);
+      border: 1.5px dashed rgba(59, 130, 246, 0.55);
+      opacity: 0;
+      pointer-events: none;
+      z-index: 4;
+    }
+    .week-view-hold-indicator.confirmed {
+      background: rgba(59, 130, 246, 0.32);
+      border-style: solid;
+    }
+    body.night-mode .week-view-hold-indicator {
+      background: rgba(96, 165, 250, 0.22);
+      border-color: rgba(96, 165, 250, 0.6);
+    }
+    body.night-mode .week-view-hold-indicator.confirmed {
+      background: rgba(96, 165, 250, 0.4);
+    }
+
+    /* ============================================================
+       CALENDAR-ONLY ANIMATION KILL SWITCH
+       Scoped to the calendar grid itself (month nav, weekday header,
+       day cells, day numbers, and the FLIP-driven mini-calendar
+       lock-in) — NOT the rest of the app, and NOT the week view.
+       Setting DayViewScroll.cfg.TRANSITION_MS to 0 is not enough on
+       its own: there are many separate `transition:` declarations in
+       this file, each with its own hardcoded duration. This rule
+       uses !important, which beats all of those — including inline
+       styles FlipAnimator sets via el.style.transition = '...' —
+       without having to hunt down and edit each one individually.
+       Net effect: month nav and the mini-calendar lock/unlock snap to
+       their end state on the next paint instead of interpolating.
+       Everything outside .calendar-main (toasts, swipe cards, sync
+       dot, week view, modals, etc.) keeps its normal animations.
+       Delete this block to restore the calendar's animations. */
+    .calendar-main, .calendar-main *,
+    #daysGrid, #daysGrid * {
+      transition: none !important;
+      animation: none !important;
+    }
   </style>
 </head>
 <body>
+  <!-- Persistent top bar (Google Calendar-style) — always visible above
+       every view (month calendar, week overlay, day view) and every
+       popup, regardless of scroll position or which transition is
+       mid-flight. See the GlobalTopBar module near the end of the
+       script for its Day/Week/Month wiring and Select Day handling. -->
+  <div class="global-topbar" id="globalTopBar">
+    <div class="global-topbar-viewtabs">
+      <button type="button" class="global-topbar-tab" id="globalTabDay" data-view="day">Day</button>
+      <button type="button" class="global-topbar-tab" id="globalTabWeek" data-view="week">Week</button>
+      <button type="button" class="global-topbar-tab active" id="globalTabMonth" data-view="month">Month</button>
+    </div>
+    <!-- Single merged button: reads "Select Day" normally, and swaps
+         to the locked day's date (e.g. "August 13th") while the day
+         view is open — see LockedMonthNav in the script, which owns
+         the inner span's text. Either way, clicking it opens the
+         same day picker. -->
+    <button type="button" class="global-topbar-selectday" id="globalSelectDayBtn">
+      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="16" y1="2" x2="16" y2="6"></line></svg>
+      <span id="lockedDateLabel">Select Day</span>
+    </button>
+  </div>
+
   <div class="app">
     <div class="app-header">
       <span class="app-title" id="appTitleEl">Habit Calendar</span>
@@ -2267,13 +2492,13 @@
   <!-- Week view overlay (new, additive feature) -->
   <div class="week-view-overlay" id="weekViewOverlay">
     <div class="week-view-topbar">
-      <span class="week-view-title" id="weekViewTitle">Week</span>
       <button type="button" class="week-view-close" id="weekViewCloseBtn">&times;</button>
     </div>
     <div class="week-view-scroll" id="weekViewScroll">
       <div class="week-view-grid" id="weekViewGrid"></div>
     </div>
     <button type="button" class="week-view-goto-today" id="weekViewGotoTodayBtn">Go to current day</button>
+    <input type="date" id="weekViewDateInput" class="week-view-date-input" aria-hidden="true" tabindex="-1" />
   </div>
 
   <!-- Day detail modal -->
@@ -2443,6 +2668,14 @@
   </div>
 
   <div class="toast" id="toast"></div>
+
+  <!-- Shown only when a pinch/double-tap browser zoom is detected
+       (see ZoomBanner in the script) — offers a one-tap way back to
+       normal scale instead of having to pinch back out manually. -->
+  <div class="zoom-banner" id="zoomBanner">
+    <span>You're zoomed in</span>
+    <button type="button" id="zoomBannerBtn">Unzoom</button>
+  </div>
 
   <!-- Mini-calendar D1 sync status — see SyncIndicator in the script -->
   <div class="sync-indicator" id="syncIndicator">
@@ -2930,6 +3163,17 @@
     const CACHE_KEY = 'habitcal_cache';
 
     function pad(n) { return String(n).padStart(2, '0'); }
+
+    // English ordinal suffix for a day-of-month number (1st, 2nd, 3rd,
+    // 4th... 11th/12th/13th are exceptions). Only used for the plain-
+    // text locked-view date label when settings.language is 'en'.
+    function ordinalSuffix(d) {
+      const j = d % 10, k = d % 100;
+      if (j === 1 && k !== 11) return 'st';
+      if (j === 2 && k !== 12) return 'nd';
+      if (j === 3 && k !== 13) return 'rd';
+      return 'th';
+    }
     function mondayIdx(dow) { return (dow + 6) % 7; }
     function todayStr() {
       const d = new Date();
@@ -4227,6 +4471,34 @@
       return { STATES, get, set, onChange };
     })();
 
+    // Frozen page-scroll baseline for the LOCKED (day-view) header/grid
+    // overlays below (DayShowcase, LockedMonthNav, LockedHeaderCard,
+    // DayTimeGrid). Those all position themselves with
+    // `position:absolute` on <body>, converting a viewport-relative
+    // rect into page coordinates via `+ window.scrollY` — which only
+    // makes sense once, right when day view opens (DayViewScroll
+    // already forces scrollTo(0,0) at that moment, so this is always
+    // 0 in practice). Several of those modules also re-run their
+    // render() from a `resize` listener while already LOCKED (e.g.
+    // mobile browsers firing resize when the address bar collapses
+    // mid-scroll). If that re-render read a *live* window.scrollY —
+    // by then however far the user had scrolled down into the hour
+    // grid — it would silently re-anchor the whole header + grid that
+    // much further down the page. Scrolling up afterward then exposed
+    // a huge blank gap above them, since nothing else in day view
+    // occupies that reclaimed space. Reading this frozen value instead
+    // keeps the header + grid pinned to where the day view actually
+    // started, no matter when a later render() happens to run.
+    const LockedViewAnchor = (() => {
+      let y = 0;
+      DayViewState.onChange((next, prev) => {
+        if (next === DayViewState.STATES.LOCKED && prev !== DayViewState.STATES.LOCKED) {
+          y = window.scrollY || window.pageYOffset || 0;
+        }
+      });
+      return { get: () => y };
+    })();
+
     const DayViewScroll = (() => {
       const cfg = {
         UNLOCK_THRESHOLD: 900,   // total downward wheel delta (in CALENDAR) to start locking in
@@ -4250,7 +4522,7 @@
         NEAR_TOP_PX:       2,
         // Drives the actual lock-in/unlock (mini-calendar) animation
         // length everywhere it's read from below (section 4-8 FLIP code).
-        TRANSITION_MS:    700,
+        TRANSITION_MS:    0,
       };
 
       function isNearTop() {
@@ -4404,13 +4676,16 @@
         lastTouchY = null;
       }
 
-      function init() {
-        window.addEventListener('wheel', handleWheel, { passive: true });
-        window.addEventListener('touchstart', handleTouchStart, { passive: true });
-        window.addEventListener('touchmove', handleTouchMove, { passive: true });
-        window.addEventListener('touchend', handleTouchEnd, { passive: true });
-        window.addEventListener('touchcancel', handleTouchEnd, { passive: true });
-      }
+      // Scroll/swipe no longer drives the Month <-> Day transition —
+      // that gesture is disabled outright (no listeners attached), so
+      // the only way in or out of the day view is tapping the Day /
+      // Month tabs in the GlobalTopBar (see their triggerForward()/
+      // triggerBackward() calls below). Real page scrolling, the
+      // day-time-grid's hour scroll, and the week view's day-to-day
+      // swipe are all untouched — this only removes the wheel/touch
+      // accumulator gesture that used to zoom you into/out of the
+      // day view.
+      function init() {}
 
       return {
         init,
@@ -4421,6 +4696,11 @@
         // instead of duplicating this module's timer/scroll-reset
         // logic elsewhere. Nothing above this line changed to add it.
         triggerForward: () => startTransition('forward'),
+        // Same idea, opposite direction — lets the GlobalTopBar's
+        // view tabs (near the end of the file) drop straight back to
+        // the month calendar from day view without needing an actual
+        // upward scroll/swipe gesture.
+        triggerBackward: () => startTransition('backward'),
       };
     })();
     DayViewScroll.init();
@@ -4623,18 +4903,16 @@
 
     const MiniCalendarLayout = (() => {
       const cfg = {
-        top:        6,     // px from top of the page (start of the weekday label row) —
-                            // pulled up as close to the edge as possible. Safe to do
-                            // since HeaderCollapse (section 3 addendum) fully retracts
-                            // the app-header before LOCKED is ever reached, so nothing
-                            // occupies this corner once the mini-calendar is showing.
-        topMobile:  -14,   // phones: pull the whole locked block (number + nav + grid)
-                            // further up than desktop, since the shorter viewport means
-                            // it otherwise sits low enough to crowd the day-time-grid
-                            // (hour rows) that starts right below it. (Pushing this more
-                            // negative clips the first calendar row off the top of the
-                            // screen — the fix instead shrinks the cells themselves via
-                            // cellAspectMobile/gapMobile and widens the clearance below.)
+        top:        72,    // px from top of the page — clears the persistent
+                            // .global-topbar (52px) plus a small breathing gap,
+                            // then a little extra above the date pill (see
+                            // LockedMonthNav.computeRect()). Safe to keep small
+                            // otherwise since HeaderCollapse (section 3 addendum)
+                            // fully retracts the app-header before LOCKED is ever
+                            // reached, so nothing else occupies this corner once
+                            // the day view is showing.
+        topMobile:  62,    // phones: same idea, slightly tighter so the pill +
+                            // hour grid still fit comfortably on a short viewport.
         showcaseSpace: 178, // reserved width for the day-showcase number + its gap
                             // (see DayShowcase's own cfg.gap:28 + ~150px for a bold
                             // 2-digit number), so the mini-calendar starts right after it
@@ -5011,18 +5289,19 @@
 
       function init() {
         DayViewState.onChange((next, prev, meta) => {
-          if (next === DayViewState.STATES.TRANSITIONING && meta.direction === 'forward') {
-            // Runs synchronously in the same tick as HeaderCollapse's
-            // instant margin snap (both are listeners on this same
-            // event) rather than deferred to the next animation frame.
-            // If this lagged a frame behind HeaderCollapse, the grid
-            // would already be visually collapsed while these squares'
-            // text was still fully opaque and un-flown for one frame —
-            // a visible flash/snap before the real animation caught up.
-            animateForward();
-          } else if (next === DayViewState.STATES.TRANSITIONING && meta.direction === 'backward') {
-            animateBackward();
-          } else if (next === DayViewState.STATES.LOCKED) {
+          // The mini-calendar no longer flies/shrinks into the corner —
+          // #daysGrid is just hidden outright the instant we leave
+          // CALENDAR (see the .calendar-main.day-view-locked CSS rule),
+          // so there's nothing left to fly. animateForward()/
+          // animateBackward() (the shrink/un-shrink flight) are
+          // deliberately never called anymore. settleAtTarget()/
+          // resetToOriginal() are kept as pure cleanup calls — they
+          // only clear inline transition/transform/classList leftovers
+          // (e.g. from LockedMonthNav.snapCurrentCellsToMini, which
+          // still runs internally but is likewise invisible now) so
+          // the real day-cells come back completely clean once the
+          // grid is shown again.
+          if (next === DayViewState.STATES.LOCKED) {
             settleAtTarget();
           } else if (next === DayViewState.STATES.CALENDAR) {
             resetToOriginal();
@@ -5222,114 +5501,71 @@
        while locked) stays exactly as it was, untouched.
     ============================================================ */
     const LockedMonthNav = (() => {
-      const cfg = { height: 26, gapBelowShowcase: 14, fadeMs: 260 };
-      let el = null, labelEl = null;
+      const cfg = { height: 26, gapBelowShowcase: 14, fadeMs: 0 };
+      let el = null, dateLabelEl = null;
 
       function computeRect() {
-        // Prefer the ACTUALLY rendered showcase element's real
-        // position (getRect) over the theoretical prediction
-        // (computeRect) whenever it's already built — real devices
-        // can render the showcase's height slightly differently than
-        // predicted (font metrics, box rounding, etc.), and that
-        // small drift is enough to land this nav's row mid-way
-        // through the mini-calendar's grid instead of cleanly below
-        // it. Fall back to the prediction only before the element
-        // exists yet.
-        const measured = DayShowcase.getRect();
-        const showcase = measured
-          ? { top: measured.top, height: measured.height, rightEdge: measured.right }
-          : DayShowcase.computeRect();
+        // Used to sit "showcase.top + showcase.height + gap" — i.e.
+        // directly below the day-showcase number AND the mini-
+        // calendar grid that used to hang below it. The mini-calendar
+        // was later deleted from the LOCKED view entirely (#daysGrid
+        // is just display:none now) and DayShowcase itself is never
+        // shown either (see its own init() note) — but DayShowcase.
+        // computeRect() still returned a "totalHeight" sized for that
+        // whole deleted panel, so this nav kept reserving 150px+ of
+        // blank space above itself for a mini-calendar nobody sees
+        // anymore. This pill is the only thing actually visible up
+        // here now, so it just sits at the same small top-of-page
+        // offset the mini-calendar used to start at, full stop.
+        // rightEdge (horizontal position only, unaffected by the
+        // height bug above) still comes from DayShowcase's geometry.
+        const layoutCfg = MiniCalendarLayout.cfg;
+        const showcase  = DayShowcase.computeRect();
         return {
-          top:       showcase.top + showcase.height + cfg.gapBelowShowcase,
+          top:       isPhoneVP() ? layoutCfg.topMobile : layoutCfg.top,
           height:    cfg.height,
           rightEdge: showcase.rightEdge,
         };
       }
 
-      // Left edge + width of the WHOLE panel (day-number showcase all
-      // the way through to the mini-calendar's right edge) — same
-      // math LockedHeaderCard uses for its own box, duplicated here
-      // (rather than calling LockedHeaderCard.computeRect() directly)
-      // because LockedHeaderCard's own bottom-edge math reads this
-      // module's computeRect() above, and calling back into it here
-      // would be a circular dependency. The 20px pad matches
-      // LockedHeaderCard's cfg.padding.
-      function computePanelRect() {
-        const container    = MiniCalendarLayout.computeContainerRect();
-        const showcaseBox  = DayShowcase.getRect();
-        const pad          = 20;
-        const showcaseLeft = showcaseBox ? showcaseBox.left : (container.left - 28 - 150);
-        const gridRight    = container.left + container.width;
-        return {
-          left:  showcaseLeft - pad,
-          width: (gridRight - showcaseLeft) + pad * 2,
-        };
+      // Jumps straight to an arbitrary picked date: switches the
+      // underlying month/year if needed (reusing the exact same
+      // renderCalendar() path navigateMonth already relies on, so the
+      // LOCKED-state rebuild+re-snap handles itself), then selects the
+      // day exactly like clicking a mini-calendar cell would.
+      function goToPickedDate(y, m, d) {
+        if (y !== viewYear || m !== viewMonth) {
+          viewYear = y;
+          viewMonth = m;
+          renderCalendar();
+        }
+        SelectedDayState.set(y, m, d);
       }
 
+      // Now just the plain-text date readout (e.g. "August 3rd"),
+      // living inside the persistent GlobalTopBar's merged Select-Day
+      // button (id="lockedDateLabel" span inside #globalSelectDayBtn)
+      // instead of a separately-positioned floating pill — so there's
+      // nothing to build or position here anymore, just a reference
+      // to grab. The button itself always opens the day picker,
+      // whatever text it's currently showing.
       function ensureBuilt() {
         if (el) return;
-        el = document.createElement('div');
-        el.id = 'lockedMonthNav';
-        el.style.cssText =
-          'position:absolute;z-index:520;display:flex;align-items:center;justify-content:center;' +
-          'gap:8px;opacity:0;pointer-events:none;' +
-          'transition:opacity ' + cfg.fadeMs + 'ms ease;' +
-          'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;';
-
-        const prev = document.createElement('button');
-        prev.type = 'button';
-        prev.textContent = '\u2190';
-        labelEl = document.createElement('span');
-        labelEl.style.cssText = 'font-weight:700;white-space:nowrap;width:120px;text-align:center;overflow:hidden;text-overflow:ellipsis;';
-        const next = document.createElement('button');
-        next.type = 'button';
-        next.textContent = '\u2192';
-
-        [prev, next].forEach((btn) => {
-          btn.style.cssText =
-            'background:none;border:1.5px solid #e2e2e2;border-radius:7px;' +
-            'width:20px;height:20px;display:flex;align-items:center;justify-content:center;' +
-            'cursor:pointer;font-size:11px;line-height:1;pointer-events:auto;';
-        });
-        prev.addEventListener('click', () => document.getElementById('prevMonth').click());
-        next.addEventListener('click', () => document.getElementById('nextMonth').click());
-
-        el.appendChild(prev);
-        el.appendChild(labelEl);
-        el.appendChild(next);
-        document.body.appendChild(el);
+        el = document.getElementById('lockedDateLabel');
+        dateLabelEl = el;
       }
 
       function render() {
         ensureBuilt();
-        const rect    = computeRect();
-        const panel   = computePanelRect();
-        const isNight = document.body.classList.contains('night-mode');
-        const monthLabelEl = document.getElementById('monthLabel');
+        if (!el) return;
 
-        // Centered on the WHOLE panel's width (day number + mini
-        // calendar together), not right-anchored under just the day
-        // number column like before — the day number itself keeps
-        // its own separate position untouched (DayShowcase, above).
-        const navWidth = el.offsetWidth || 176; // 176 = 20+8+120+8+20, matches the built children
-        const centerX  = panel.left + panel.width / 2;
-
-        el.style.top    = (rect.top + rect.height / 2 - 10 + window.scrollY) + 'px'; // vertically centered on the target band
-        el.style.right  = '';
-        el.style.left   = (centerX - navWidth / 2) + 'px';
-        labelEl.textContent = monthLabelEl ? monthLabelEl.textContent : '';
-        const color = isNight ? '#f5f5f5' : '#111';
-        labelEl.style.color = color;
-        el.querySelectorAll('button').forEach((btn) => { btn.style.color = color; });
-      }
-
-      function show() {
-        render();
-        requestAnimationFrame(() => { if (el) el.style.opacity = '1'; });
-      }
-
-      function hide() {
-        if (el) el.style.opacity = '0';
+        // "August 3rd" — plain text, no ordinal suffix for non-English
+        // languages (see ordinalSuffix's own comment).
+        const sel       = SelectedDayState.get();
+        const dict      = I18N[settings.language] || I18N.en;
+        const monthName = (dict.months || I18N.en.months)[sel.month];
+        const suffix    = settings.language === 'lt' ? '' : ordinalSuffix(sel.day);
+        dateLabelEl.textContent = monthName + ' ' + sel.day + suffix;
       }
 
       // Runs right after the existing prevMonth/nextMonth handlers'
@@ -5377,6 +5613,38 @@
       }
 
       function init() {
+        // Keep the "August 3rd" pill in sync with whichever day is
+        // actually selected. render() (which sets dateLabelEl's text)
+        // used to only get re-run from show() (entering LOCKED) and
+        // snapCurrentCellsToMini() (switching months) — so picking a
+        // different day within the SAME month, whether from the old
+        // mini-calendar or the new DayPickerModal, changed
+        // SelectedDayState but never re-ran render(), leaving the pill
+        // stuck on whatever day it last showed. Now the button shows
+        // the selected date in every view (Day, Week, and Month), not
+        // just while LOCKED into the day view, so this re-runs render()
+        // unconditionally on every change instead of gating it.
+        //
+        // SelectedDayState itself isn't declared until further down
+        // the file, and this whole init() runs synchronously the
+        // instant LockedMonthNav.init() is called (right after this
+        // module's own IIFE, a few lines below) — so referencing
+        // SelectedDayState directly here hits it mid-declaration
+        // (TDZ) and throws "Cannot access 'SelectedDayState' before
+        // initialization" the moment ANY event fires afterward.
+        // Deferring the subscription itself (not what it does once
+        // subscribed) past the current synchronous script run — a
+        // plain setTimeout 0 — lets the rest of the script, including
+        // SelectedDayState's own declaration, finish first. That same
+        // deferral is also used to paint the button's initial text
+        // (today's date) as soon as the page loads, instead of it
+        // sitting on the static "Select Day" markup until the day
+        // view is first opened.
+        setTimeout(() => {
+          render();
+          SelectedDayState.onChange(render);
+        }, 0);
+
         DayViewState.onChange((next) => {
           if (next === DayViewState.STATES.LOCKED) {
             requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -5398,22 +5666,183 @@
                 renderCalendar();
                 snapCurrentCellsToMini();
               }
-              show();
+              render();
             }));
-          } else {
-            hide();
           }
         });
 
 
       }
 
-      return { init, computeRect, snapCurrentCellsToMini };
+      return { init, computeRect, snapCurrentCellsToMini, goToPickedDate };
     })();
     LockedMonthNav.init();
     // Back-compat alias — LockedHeaderCard (section 12) reads the nav's
     // target rect via this name.
     const MonthNavRelocate = { computeTarget: LockedMonthNav.computeRect };
+
+    /* ============================================================
+       "SELECT DAY" CALENDAR POPUP.
+       Opened by the day-view's "Select Day" pill (LockedMonthNav's
+       openDatePicker(), above) — a small in-app month calendar
+       instead of the OS/browser's native date picker, reusing the
+       same look as the repeat-days "specific days" calendar. Tapping
+       any day jumps straight there and closes the popup; there's no
+       separate Save step since only one day can ever be picked here.
+    ============================================================ */
+    const DayPickerModal = (() => {
+      let overlayEl = null;
+      let calMonthLabel = null, calGridEl = null;
+      let calYear = 0, calMonth = 0;
+
+      function ensureBuilt() {
+        if (overlayEl) return;
+
+        overlayEl = document.createElement('div');
+        overlayEl.className = 'repeat-days-overlay';
+
+        const card = document.createElement('div');
+        card.className = 'repeat-days-card';
+
+        const title = document.createElement('div');
+        title.className = 'repeat-days-title';
+        title.textContent = 'Select Day';
+
+        const calNav = document.createElement('div');
+        calNav.className = 'repeat-days-cal-nav';
+
+        const prevBtn = document.createElement('button');
+        prevBtn.type = 'button';
+        prevBtn.className = 'repeat-days-cal-nav-btn';
+        prevBtn.setAttribute('aria-label', 'Previous month');
+        prevBtn.textContent = '\u2039';
+        prevBtn.addEventListener('click', () => navigate(-1));
+
+        calMonthLabel = document.createElement('div');
+        calMonthLabel.className = 'repeat-days-cal-month';
+
+        const nextBtn = document.createElement('button');
+        nextBtn.type = 'button';
+        nextBtn.className = 'repeat-days-cal-nav-btn';
+        nextBtn.setAttribute('aria-label', 'Next month');
+        nextBtn.textContent = '\u203a';
+        nextBtn.addEventListener('click', () => navigate(1));
+
+        calNav.appendChild(prevBtn);
+        calNav.appendChild(calMonthLabel);
+        calNav.appendChild(nextBtn);
+
+        const calWeekdays = document.createElement('div');
+        calWeekdays.className = 'repeat-days-cal-weekdays';
+        (t('weekdays') || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']).forEach((label) => {
+          const wd = document.createElement('div');
+          wd.className = 'repeat-days-cal-weekday';
+          wd.textContent = label;
+          calWeekdays.appendChild(wd);
+        });
+
+        calGridEl = document.createElement('div');
+        calGridEl.className = 'repeat-days-cal-grid';
+
+        const actions = document.createElement('div');
+        actions.className = 'repeat-days-actions';
+        const cancelBtn = document.createElement('button');
+        cancelBtn.type = 'button';
+        cancelBtn.textContent = 'Cancel';
+        cancelBtn.addEventListener('click', close);
+        actions.appendChild(cancelBtn);
+
+        card.appendChild(title);
+        card.appendChild(calNav);
+        card.appendChild(calWeekdays);
+        card.appendChild(calGridEl);
+        card.appendChild(actions);
+        overlayEl.appendChild(card);
+        document.body.appendChild(overlayEl);
+
+        // Tapping the dimmed backdrop (not the card itself) cancels,
+        // same convention as the repeat-days modal's own overlay.
+        overlayEl.addEventListener('click', (e) => { if (e.target === overlayEl) close(); });
+      }
+
+      function navigate(delta) {
+        calMonth += delta;
+        if (calMonth < 0) { calMonth = 11; calYear--; }
+        if (calMonth > 11) { calMonth = 0; calYear++; }
+        render();
+      }
+
+      function render() {
+        const dict = I18N[settings.language] || I18N.en;
+        const monthName = (dict.months || I18N.en.months)[calMonth];
+        calMonthLabel.textContent = monthName + ' ' + calYear;
+
+        calGridEl.innerHTML = '';
+
+        const todayDt    = new Date();
+        const todayKey   = EventStore.dateKeyFor(todayDt.getFullYear(), todayDt.getMonth(), todayDt.getDate());
+        const sel        = SelectedDayState.get();
+        const selectedKey = EventStore.dateKeyFor(sel.year, sel.month, sel.day);
+
+        const firstDow    = new Date(calYear, calMonth, 1).getDay();
+        const firstIdx    = mondayIdx(firstDow);
+        const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+
+        for (let i = 0; i < firstIdx; i++) {
+          const filler = document.createElement('div');
+          filler.className = 'repeat-days-cal-cell empty';
+          calGridEl.appendChild(filler);
+        }
+
+        for (let d = 1; d <= daysInMonth; d++) {
+          const dateKey = EventStore.dateKeyFor(calYear, calMonth, d);
+          const cell = document.createElement('div');
+          cell.className = 'repeat-days-cal-cell';
+          cell.textContent = String(d);
+          if (dateKey === todayKey) cell.classList.add('today');
+          if (dateKey === selectedKey) cell.classList.add('selected');
+          const y = calYear, m = calMonth; // capture for the closure below
+          cell.addEventListener('click', () => {
+            close();
+            // Behavior depends on whichever view was active when the
+            // picker was opened:
+            //  - Week view: just slides that week's scroll over to
+            //    center the picked date (like "Go to current day")
+            //    and leaves the week view open.
+            //  - Day view: routed through GlobalTopBar.goToDay(),
+            //    which lands you in the day view (a no-op transition-
+            //    wise since you're already there).
+            //  - Month view: routed through goToDateInMonthView()
+            //    instead — navigates the grid to the picked month if
+            //    it's different from what's showing, and shakes the
+            //    picked day's cell, but never locks into the day view.
+            if (typeof WeekView !== 'undefined' && WeekView.isOpen()) {
+              WeekView.goToDate(y, m, d);
+            } else if (typeof DayViewState !== 'undefined' && DayViewState.get() === DayViewState.STATES.LOCKED) {
+              GlobalTopBar.goToDay(y, m, d);
+            } else {
+              GlobalTopBar.goToDateInMonthView(y, m, d);
+            }
+          });
+          calGridEl.appendChild(cell);
+        }
+      }
+
+      function open() {
+        ensureBuilt();
+        const sel = SelectedDayState.get();
+        calYear  = sel.year;
+        calMonth = sel.month;
+        render();
+        overlayEl.classList.add('open');
+      }
+
+      function close() {
+        if (overlayEl) overlayEl.classList.remove('open');
+      }
+
+      return { open, close };
+    })();
 
     /* ============================================================
        SECTION 9 — Mini-calendar = the flown originals themselves
@@ -5498,7 +5927,7 @@
       const cfg = {
         gap:        28,   // px gap between the number's right edge and the mini-calendar's left edge
         heightFrac: 0.82, // number's font-size as a fraction of the mini-calendar's total height
-        fadeMs:     260,
+        fadeMs:     0,
       };
 
       let el = null;
@@ -5563,7 +5992,7 @@
         const isNight  = document.body.classList.contains('night-mode');
         const fontSize = rect.height * cfg.heightFrac;
 
-        el.style.top      = (rect.top + window.scrollY) + 'px';
+        el.style.top      = (rect.top + LockedViewAnchor.get()) + 'px';
         el.style.height   = rect.height + 'px';
         el.style.right    = (window.innerWidth - rect.rightEdge) + 'px';
         el.style.width    = maxDigitsWidth(fontSize) + 'px'; // fixed, not shrink-to-fit — see maxDigitsWidth
@@ -5616,7 +6045,16 @@
 
       return { init, computeRect, getRect };
     })();
-    DayShowcase.init();
+    // NOT calling DayShowcase.init() anymore — the giant single-digit
+    // number it used to show/hide has been replaced by the plain-text
+    // date label built into LockedMonthNav, directly above the Select
+    // Day button. Left un-initialized (rather than deleted) because
+    // LockedHeaderCard and LockedMonthNav still call DayShowcase.getRect()
+    // / .computeRect() as their geometry source for the white card box
+    // and panel width — with el never built, getRect() always returns
+    // null and both callers already fall back to the pure computeRect()
+    // prediction, so removing the visible showcase doesn't change their
+    // math at all.
 
     /* ============================================================
        SECTION 12 — Locked header card
@@ -5629,7 +6067,7 @@
        sync with where those pieces actually land.
     ============================================================ */
     const LockedHeaderCard = (() => {
-      const cfg = { padding: 20, fadeMs: 320 };
+      const cfg = { padding: 20, fadeMs: 0 };
       let el = null;
 
       function ensureBuilt() {
@@ -5688,7 +6126,7 @@
         const r = computeRect();
         const isNight = document.body.classList.contains('night-mode');
         el.style.left   = r.left + 'px';
-        el.style.top    = (r.top + window.scrollY) + 'px';
+        el.style.top    = (r.top + LockedViewAnchor.get()) + 'px';
         el.style.width  = r.width + 'px';
         el.style.height = r.height + 'px';
         el.classList.toggle('night', isNight);
@@ -5724,9 +6162,15 @@
 
       return { init, computeRect };
     })();
-    // The day-showcase, month nav, and mini-calendar are grouped into
-    // one visual shape behind them via LockedHeaderCard below.
-    LockedHeaderCard.init();
+    // NOT calling LockedHeaderCard.init() anymore — this white rounded
+    // box was sized to wrap the old giant-number + mini-calendar panel.
+    // Now that the giant number is gone (replaced by the small plain-
+    // text date label in LockedMonthNav), that same box is mostly empty
+    // dead space sitting behind a small line of text and a button —
+    // the "fatass box" complaint. Leaving el un-built means it's never
+    // shown at all now. computeRect() is left untouched and still
+    // callable on its own (it doesn't read `el`) since DayTimeGrid
+    // (section below) still positions itself off this card's bottom edge.
 
     /* ============================================================
        SECTION 13 — Day time grid (part 1/20: scaffold)
@@ -6130,6 +6574,27 @@
 
     SyncIndicator.bindUndo(() => EventStore.undoLast());
 
+    // A record only ever has ONE live box in the DOM at a time — but
+    // that box can be mounted by either DayTimeGrid (the single-day
+    // mini calendar) or the week view, and nothing was clearing
+    // record.el when a record handed off from one to the other. The
+    // result: after a box got created/rendered in the week view,
+    // opening that same day in the mini calendar saw record.el
+    // already set (pointing at the week view's now-hidden box) and
+    // skipped painting anything at all — the event silently
+    // disappeared from the day view. Both renderers now call this
+    // first, whenever they're about to mount a record's box
+    // themselves, so a box left over from the OTHER renderer gets
+    // torn down (and its cached inline editor, which is just as
+    // stale since it's built as a child of that old box) before the
+    // new one goes up.
+    function detachRecordBox(record) {
+      if (!record || !record.el) return;
+      record.el.remove();
+      record.el = null;
+      record._editor = null;
+    }
+
     // The debounced sync only ever fires from mini-calendar edits, so
     // make sure any pending batch goes out the instant the mini-
     // calendar (LOCKED) is left, rather than possibly waiting up to
@@ -6144,7 +6609,7 @@
     const DayTimeGrid = (() => {
       const cfg = {
         hourHeight: 76,  // px per hour — roughly 2cm, per feedback (was 38 / ~1cm)
-        fadeMs:     320, // must match the CSS transition duration below
+        fadeMs:     420, // must match the CSS transform transition duration below
       };
 
       let el = null;
@@ -6574,7 +7039,8 @@
         detachRenderedBoxes(renderedDateKey);
 
         EventStore.getForDate(dateKey).forEach((record) => {
-          if (record.el) return; // defensive — shouldn't happen after detach above
+          if (record.el && record.el.parentElement === innerEl) return; // already correctly mounted here
+          detachRecordBox(record); // steal it back if it's mounted somewhere else (e.g. the week view)
           paintEventBox(record);
         });
 
@@ -6605,7 +7071,8 @@
       function renderNewEventsForDate(dateKey, records) {
         if (dateKey !== renderedDateKey) return;
         records.forEach((record) => {
-          if (record.el) return;
+          if (record.el && record.el.parentElement === innerEl) return;
+          detachRecordBox(record);
           paintEventBox(record, { animate: true });
         });
         recomputeOverlapLayout();
@@ -7235,11 +7702,20 @@
       // page and pushes anything below it down, and scrolling to an
       // hour is real page scroll rather than a scrollbar inside a box.
       function computeRect() {
-        const card      = LockedHeaderCard.computeRect();
+        // Used to hang this off LockedHeaderCard.computeRect() — a
+        // box sized to wrap the day-number + nav + mini-calendar
+        // panel that USED to be visible up there. That panel (and
+        // LockedHeaderCard itself — see its own init() note, it's
+        // never actually shown) is gone, but its computeRect() still
+        // reserved a mini-calendar's worth of height, so this grid
+        // kept starting 150px+ further down the page than the one
+        // thing that's actually visible above it now: the date pill
+        // (LockedMonthNav). Anchoring off that pill's real rect
+        // instead removes the leftover blank gap.
+        const nav       = LockedMonthNav.computeRect();
         const container = MiniCalendarLayout.computeContainerRect();
-        const clearance = isPhoneVP() ? 36 : 18; // extra gap on phones so the hour
-                                                  // grid never crowds the mini-calendar's last row
-        const top       = card.top + card.height + clearance;
+        const clearance = isPhoneVP() ? 44 : 28; // gap below the date pill
+        const top       = nav.top + nav.height + clearance;
         return {
           left:   0,
           top:    top,
@@ -7253,7 +7729,7 @@
         const r = computeRect();
         const isNight = document.body.classList.contains('night-mode');
         el.style.left   = r.left + 'px';
-        el.style.top    = (r.top + window.scrollY) + 'px';
+        el.style.top    = (r.top + LockedViewAnchor.get()) + 'px';
         el.style.width  = r.width + 'px';
         el.style.height = r.height + 'px';
         el.classList.toggle('night', isNight);
@@ -7265,10 +7741,21 @@
       function show() {
         clearTimeout(hideTimer);
         ensureBuilt();
+        // Start parked below its resting position (see the base
+        // .day-time-grid transform in CSS) so display:block commits
+        // that as the "from" state before the rAF below moves it —
+        // same forced-commit pattern used by FlipAnimator elsewhere
+        // in this file.
+        el.style.transform = 'translateY(60px)';
         el.style.display = 'block';
+        void el.offsetHeight; // force the browser to commit the "from" state
         render();
         renderEventsForDate(EventStore.selectedDateKey());
-        requestAnimationFrame(() => { if (el) el.style.opacity = '1'; });
+        requestAnimationFrame(() => {
+          if (!el) return;
+          el.style.opacity = '1';
+          el.style.transform = 'translateY(0)'; // slides up into place
+        });
         if (!resizeHandler) {
           resizeHandler = () => { if (el && el.style.opacity === '1') { render(); recomputeOverlapLayout(); } };
           window.addEventListener('resize', resizeHandler);
@@ -7281,13 +7768,14 @@
       function hide() {
         if (!el) return;
         el.style.opacity = '0';
-        // Only fully removed from layout (display:none) AFTER the fade
-        // finishes, so it fades instead of hard-cutting. But it MUST
-        // end up display:none once hidden: while still `display:block`
-        // (even at opacity 0) it's a ~2000px-tall absolutely-positioned
-        // box that still occupies scrollable page space — exactly what
-        // was pushing the settings button/header out of place in the
-        // normal CALENDAR view.
+        el.style.transform = 'translateY(60px)'; // slides back down as it leaves
+        // Only fully removed from layout (display:none) AFTER the slide
+        // finishes, so it slides away instead of hard-cutting. But it
+        // MUST end up display:none once hidden: while still
+        // `display:block` (even at opacity 0) it's a ~2000px-tall
+        // absolutely-positioned box that still occupies scrollable page
+        // space — exactly what was pushing the settings button/header
+        // out of place in the normal CALENDAR view.
         clearTimeout(hideTimer);
         hideTimer = setTimeout(() => { if (el) el.style.display = 'none'; }, cfg.fadeMs);
         stopNowTimer();
@@ -8324,17 +8812,34 @@
     /* ============================================================
        REPEAT-ACROSS-DAYS MODAL.
        Opened by holding a box's notify bell (see EventEditor's
-       notifyBtn hold handler above). Lets a person pick how many of
-       the next days to copy the held box onto — same start time,
-       duration, color, title and description as the original —
-       each as its own independent event record (editing one later
-       doesn't affect the others).
+       notifyBtn hold handler above). Two modes, switched with the
+       tabs at the top:
+         COUNT    — original behavior: pick how many of the next
+                    days to copy the held box onto (stepper).
+         SPECIFIC — pick exact dates off a small calendar (any month,
+                    not just "the next N days").
+       Either way, each copy is its own independent event record —
+       same start time, duration, color, title and description as
+       the original — and editing one later doesn't affect the others.
     ============================================================ */
     const RepeatDaysModal = (() => {
       const cfg = { MIN_DAYS: 1, MAX_DAYS: 90, DEFAULT_DAYS: 7 };
+      const MODES = { COUNT: 'count', SPECIFIC: 'specific' };
       let overlayEl = null;
       let countInput = null;
       let currentRecord = null;
+      let mode = MODES.COUNT;
+
+      // Mode-tab elements + the two body sections they toggle between.
+      let countTab = null, specificTab = null;
+      let stepperWrap = null, calendarWrap = null;
+      let subEl = null;
+
+      // Calendar-picker state — its own little month view, independent
+      // of the main app calendar's viewYear/viewMonth.
+      let calYear = 0, calMonth = 0;
+      let calMonthLabel = null, calGridEl = null, selectedCountEl = null;
+      const selectedDates = new Set(); // dateKeys, e.g. "2026-09-14"
 
       function ensureBuilt() {
         if (overlayEl) return;
@@ -8349,9 +8854,31 @@
         title.className = 'repeat-days-title';
         title.textContent = 'Repeat this alert';
 
-        const sub = document.createElement('div');
-        sub.className = 'repeat-days-sub';
-        sub.textContent = 'Copies this box — same time, title, color and everything — onto each of the next however many days.';
+        subEl = document.createElement('div');
+        subEl.className = 'repeat-days-sub';
+
+        // --- Mode tabs ---
+        const tabs = document.createElement('div');
+        tabs.className = 'repeat-days-mode-tabs';
+
+        countTab = document.createElement('button');
+        countTab.type = 'button';
+        countTab.className = 'repeat-days-mode-tab';
+        countTab.textContent = 'Next N days';
+        countTab.addEventListener('click', () => setMode(MODES.COUNT));
+
+        specificTab = document.createElement('button');
+        specificTab.type = 'button';
+        specificTab.className = 'repeat-days-mode-tab';
+        specificTab.textContent = 'Specific days';
+        specificTab.addEventListener('click', () => setMode(MODES.SPECIFIC));
+
+        tabs.appendChild(countTab);
+        tabs.appendChild(specificTab);
+
+        // --- Mode 1: stepper (original behavior) ---
+        stepperWrap = document.createElement('div');
+        stepperWrap.className = 'repeat-days-stepper-wrap';
 
         const stepper = document.createElement('div');
         stepper.className = 'repeat-days-stepper';
@@ -8391,6 +8918,55 @@
         stepper.appendChild(minusBtn);
         stepper.appendChild(countWrap);
         stepper.appendChild(plusBtn);
+        stepperWrap.appendChild(stepper);
+
+        // --- Mode 2: pick specific days off a small calendar ---
+        calendarWrap = document.createElement('div');
+        calendarWrap.className = 'repeat-days-calendar-wrap';
+
+        const calNav = document.createElement('div');
+        calNav.className = 'repeat-days-cal-nav';
+
+        const calPrevBtn = document.createElement('button');
+        calPrevBtn.type = 'button';
+        calPrevBtn.className = 'repeat-days-cal-nav-btn';
+        calPrevBtn.setAttribute('aria-label', 'Previous month');
+        calPrevBtn.textContent = '\u2039';
+        calPrevBtn.addEventListener('click', () => navigateCalMonth(-1));
+
+        calMonthLabel = document.createElement('div');
+        calMonthLabel.className = 'repeat-days-cal-month';
+
+        const calNextBtn = document.createElement('button');
+        calNextBtn.type = 'button';
+        calNextBtn.className = 'repeat-days-cal-nav-btn';
+        calNextBtn.setAttribute('aria-label', 'Next month');
+        calNextBtn.textContent = '\u203a';
+        calNextBtn.addEventListener('click', () => navigateCalMonth(1));
+
+        calNav.appendChild(calPrevBtn);
+        calNav.appendChild(calMonthLabel);
+        calNav.appendChild(calNextBtn);
+
+        const calWeekdays = document.createElement('div');
+        calWeekdays.className = 'repeat-days-cal-weekdays';
+        (t('weekdays') || ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']).forEach((label) => {
+          const wd = document.createElement('div');
+          wd.className = 'repeat-days-cal-weekday';
+          wd.textContent = label;
+          calWeekdays.appendChild(wd);
+        });
+
+        calGridEl = document.createElement('div');
+        calGridEl.className = 'repeat-days-cal-grid';
+
+        selectedCountEl = document.createElement('div');
+        selectedCountEl.className = 'repeat-days-selected-count';
+
+        calendarWrap.appendChild(calNav);
+        calendarWrap.appendChild(calWeekdays);
+        calendarWrap.appendChild(calGridEl);
+        calendarWrap.appendChild(selectedCountEl);
 
         const actions = document.createElement('div');
         actions.className = 'repeat-days-actions';
@@ -8410,8 +8986,10 @@
         actions.appendChild(saveBtn);
 
         card.appendChild(title);
-        card.appendChild(sub);
-        card.appendChild(stepper);
+        card.appendChild(subEl);
+        card.appendChild(tabs);
+        card.appendChild(stepperWrap);
+        card.appendChild(calendarWrap);
         card.appendChild(actions);
         overlayEl.appendChild(card);
         document.body.appendChild(overlayEl);
@@ -8431,17 +9009,15 @@
         countInput.value = String(clamped);
       }
 
-      function open(record) {
-        if (!record) return;
-        ensureBuilt();
-        currentRecord = record;
-        setCount(cfg.DEFAULT_DAYS);
-        overlayEl.classList.add('open');
-      }
-
-      function close() {
-        if (overlayEl) overlayEl.classList.remove('open');
-        currentRecord = null;
+      function setMode(next) {
+        mode = next;
+        countTab.classList.toggle('active', mode === MODES.COUNT);
+        specificTab.classList.toggle('active', mode === MODES.SPECIFIC);
+        stepperWrap.classList.toggle('hidden', mode !== MODES.COUNT);
+        calendarWrap.classList.toggle('visible', mode === MODES.SPECIFIC);
+        subEl.textContent = mode === MODES.COUNT
+          ? 'Copies this box — same time, title, color and everything — onto each of the next however many days.'
+          : 'Copies this box onto each day you pick below. Tap a day to select or deselect it.';
       }
 
       // Parses a "YYYY-MM-DD" dateKey and returns the dateKey that's
@@ -8455,11 +9031,128 @@
         return EventStore.dateKeyFor(dt.getFullYear(), dt.getMonth(), dt.getDate());
       }
 
+      function navigateCalMonth(delta) {
+        calMonth += delta;
+        if (calMonth < 0) { calMonth = 11; calYear--; }
+        if (calMonth > 11) { calMonth = 0; calYear++; }
+        renderCalendar();
+      }
+
+      function renderCalendar() {
+        if (!calGridEl) return;
+        const dict = I18N[settings.language] || I18N.en;
+        const monthName = (dict.months || I18N.en.months)[calMonth];
+        calMonthLabel.textContent = monthName + ' ' + calYear;
+
+        calGridEl.innerHTML = '';
+
+        const todayDt   = new Date();
+        const todayKey  = EventStore.dateKeyFor(todayDt.getFullYear(), todayDt.getMonth(), todayDt.getDate());
+        const firstDow  = new Date(calYear, calMonth, 1).getDay();
+        const firstIdx  = mondayIdx(firstDow);
+        const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+
+        for (let i = 0; i < firstIdx; i++) {
+          const filler = document.createElement('div');
+          filler.className = 'repeat-days-cal-cell empty';
+          calGridEl.appendChild(filler);
+        }
+
+        for (let d = 1; d <= daysInMonth; d++) {
+          const dateKey = EventStore.dateKeyFor(calYear, calMonth, d);
+          const cell = document.createElement('div');
+          cell.className = 'repeat-days-cal-cell';
+          cell.textContent = String(d);
+          if (dateKey === todayKey) cell.classList.add('today');
+          if (selectedDates.has(dateKey)) cell.classList.add('selected');
+          cell.addEventListener('click', () => {
+            if (selectedDates.has(dateKey)) selectedDates.delete(dateKey);
+            else selectedDates.add(dateKey);
+            cell.classList.toggle('selected');
+            updateSelectedCount();
+          });
+          calGridEl.appendChild(cell);
+        }
+
+        updateSelectedCount();
+      }
+
+      function updateSelectedCount() {
+        if (!selectedCountEl) return;
+        const n = selectedDates.size;
+        selectedCountEl.textContent = n === 0
+          ? 'No days selected yet'
+          : n + ' day' + (n === 1 ? '' : 's') + ' selected';
+      }
+
+      function open(record) {
+        if (!record) return;
+        ensureBuilt();
+        currentRecord = record;
+        setCount(cfg.DEFAULT_DAYS);
+        selectedDates.clear();
+        const [y, m] = record.dateKey.split('-').map(Number);
+        calYear = y;
+        calMonth = m - 1;
+        renderCalendar();
+        setMode(MODES.COUNT);
+        overlayEl.classList.add('open');
+      }
+
+      function close() {
+        if (overlayEl) overlayEl.classList.remove('open');
+        currentRecord = null;
+      }
+
+      // Shared by both modes — pushes a fresh independent copy of
+      // `record` onto `dateKey`, same as the original stepper save()
+      // always did.
+      function copyRecordOnto(record, dateKey, touchedDates, newRecordsByDate) {
+        const newRecord = {
+          id: (window.crypto && crypto.randomUUID) ? crypto.randomUUID()
+              : 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8),
+          dateKey,
+          startMinutes: record.startMinutes,
+          durationMinutes: record.durationMinutes,
+          type: record.type || '',
+          color: record.color || '',
+          description: record.description || '',
+          manualLeftPx: record.manualLeftPx != null ? record.manualLeftPx : null,
+          manualWidthPx: record.manualWidthPx != null ? record.manualWidthPx : null,
+          notify: !!record.notify,
+          locked: !!record.locked,
+          el: null,
+        };
+        // Straight into EventStore's own live array for this date —
+        // the date is correctly cached the instant we confirm, not
+        // just once it happens to be the day currently open.
+        EventStore.getForDate(dateKey).push(newRecord);
+        touchedDates.add(dateKey);
+        (newRecordsByDate[dateKey] = newRecordsByDate[dateKey] || []).push(newRecord);
+        if (newRecord.notify) NotificationScheduler.schedule(newRecord);
+      }
+
       async function save() {
         const record = currentRecord;
         if (!record) return;
-        const days = currentCount();
+
+        // Specific-days mode: require at least one pick instead of
+        // silently closing with nothing copied.
+        if (mode === MODES.SPECIFIC && selectedDates.size === 0) {
+          toast('Pick at least one day first.', true);
+          return;
+        }
+
+        const dateKeys = mode === MODES.COUNT
+          ? Array.from({ length: currentCount() }, (_, i) => dateKeyPlusDays(record.dateKey, i + 1))
+          // The original day already has this event — copying it onto
+          // itself again would just duplicate the box, so it's skipped
+          // even if picked.
+          : Array.from(selectedDates).filter((k) => k !== record.dateKey);
+
         close();
+
+        if (!dateKeys.length) return;
 
         // Same reasoning as saveEvents (talk-ai.js) above — wait for
         // the initial server load so getForDate()/getAllSnapshot()
@@ -8477,32 +9170,7 @@
         const touchedDates = new Set();
         const newRecordsByDate = {}; // just this call's new boxes, for the pop-in paint below
 
-        for (let i = 1; i <= days; i++) {
-          const dateKey = dateKeyPlusDays(record.dateKey, i);
-          const newRecord = {
-            id: (window.crypto && crypto.randomUUID) ? crypto.randomUUID()
-                : 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8),
-            dateKey,
-            startMinutes: record.startMinutes,
-            durationMinutes: record.durationMinutes,
-            type: record.type || '',
-            color: record.color || '',
-            description: record.description || '',
-            manualLeftPx: record.manualLeftPx != null ? record.manualLeftPx : null,
-            manualWidthPx: record.manualWidthPx != null ? record.manualWidthPx : null,
-            notify: !!record.notify,
-            locked: !!record.locked,
-            el: null,
-          };
-          // Straight into EventStore's own live array for this date —
-          // same reasoning as saveEvents above: the date is correctly
-          // cached the instant we confirm, not just once it happens
-          // to be the day currently open.
-          EventStore.getForDate(dateKey).push(newRecord);
-          touchedDates.add(dateKey);
-          (newRecordsByDate[dateKey] = newRecordsByDate[dateKey] || []).push(newRecord);
-          if (newRecord.notify) NotificationScheduler.schedule(newRecord);
-        }
+        dateKeys.forEach((dateKey) => copyRecordOnto(record, dateKey, touchedDates, newRecordsByDate));
 
         if (!touchedDates.size) return;
 
@@ -8516,7 +9184,8 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ entries }),
           });
-          toast('Copied to ' + days + (days === 1 ? ' day.' : ' days.'));
+          const n = touchedDates.size;
+          toast('Copied to ' + n + (n === 1 ? ' day.' : ' days.'));
         } catch {
           toast('Save failed — try again.', true);
         }
@@ -9245,7 +9914,8 @@
     const WeekView = (() => {
       const cfg = {
         hourHeight: 60,   // px per hour in the scrollable grid
-        colWidth:   108,  // px width of each day column
+        colWidth:   108,  // px width of each day column (desktop is recomputed per-open — see computeColWidth)
+        visibleDaysDesktop: 5, // how many full day columns should fit on screen at once, desktop only
         initialDays: 21,  // how many days are rendered up front, starting at the selected day
         pageDays:   14,   // how many more days get added each time you scroll near an edge
         maxDays:    63,   // total days kept in the DOM at once — older/farther ones get trimmed
@@ -9262,13 +9932,14 @@
       const overlayEl  = document.getElementById('weekViewOverlay');
       const gridEl     = document.getElementById('weekViewGrid');
       const scrollEl   = document.getElementById('weekViewScroll');
-      const titleEl    = document.getElementById('weekViewTitle');
       const closeBtn   = document.getElementById('weekViewCloseBtn');
       const openBtn    = document.getElementById('weekViewBtn');
       const gotoTodayBtn = document.getElementById('weekViewGotoTodayBtn');
       const backToWeekBtn = document.getElementById('backToWeekBtn');
+      const dateInputEl = document.getElementById('weekViewDateInput');
 
       let isOpen = false;
+      let currentVisibleIdx = 0; // index within `dates` of whichever day updateForScroll last considered "current" — used to seed the date picker
       let isSelectingDay = false; // guards against a double-click firing this twice
       let scrollRafPending = false;
       let cameFromWeek = false; // true only when the day currently locked-in was clicked from inside the week view
@@ -9307,6 +9978,10 @@
         return WEEKDAY_ABBR[d.getDay()] + ', ' + MONTH_ABBR[d.getMonth()] + ' ' + d.getDate();
       }
 
+      function toISODate(d) {
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+      }
+
       function makeHeaderCell(d) {
         const today = new Date();
         const header = document.createElement('div');
@@ -9319,6 +9994,11 @@
         num.textContent = String(d.getDate());
         header.appendChild(wd);
         header.appendChild(num);
+        // Clicking the day header (weekday + date number) always
+        // drops you into that day's editor, on every viewport — the
+        // press-and-hold gesture on the grid body below is a separate,
+        // additional way to schedule something without leaving the
+        // week view.
         header.addEventListener('click', () => selectDayAndLockIn(d));
         return header;
       }
@@ -9351,27 +10031,20 @@
 
         const dateKey = EventStore.dateKeyFor(d.getFullYear(), d.getMonth(), d.getDate());
         EventStore.getForDate(dateKey).forEach((record) => {
-          const box = document.createElement('div');
-          box.className = 'week-view-event';
-          const top = (record.startMinutes / 60) * cfg.hourHeight;
-          const height = (record.durationMinutes / 60) * cfg.hourHeight;
-          box.style.top = top + 'px';
-          box.style.height = Math.max(height, 14) + 'px';
-          if (record.color) box.style.background = record.color;
-
-          const timeLine = document.createElement('div');
-          timeLine.className = 'week-view-event-time';
-          timeLine.textContent = formatClock(record.startMinutes);
-          const titleLine = document.createElement('div');
-          titleLine.className = 'week-view-event-title';
-          titleLine.textContent = record.type || 'Event';
-
-          box.appendChild(timeLine);
-          box.appendChild(titleLine);
-          col.appendChild(box);
+          buildWeekEventBox(record, col);
         });
 
-        col.addEventListener('click', () => selectDayAndLockIn(d));
+        // Same story as the header click above: on desktop, a plain
+        // click on the grid itself is now a no-op — only a completed
+        // hold creates anything or navigates anywhere.
+        col.addEventListener('click', () => { if (isPhoneVP()) selectDayAndLockIn(d); });
+        // Press-and-hold to schedule, desktop only (see weekHoldCfg
+        // block below) — mirrors the single-day grid's own
+        // hold-to-create gesture so any visible date in the week can
+        // get a timed event without first locking into that day.
+        if (!isPhoneVP()) {
+          col.addEventListener('pointerdown', (e) => onWeekHoldPointerDown(col, d, e));
+        }
         return col;
       }
 
@@ -9461,8 +10134,13 @@
         // CSS grid is unreliable on mobile WebKit, so this keeps the
         // gutter visually fixed on phones the same way it already
         // works on desktop.
-        const corner = document.createElement('div');
+        const corner = document.createElement('button');
+        corner.type = 'button';
         corner.className = 'week-view-corner';
+        corner.setAttribute('aria-label', 'Select day');
+        corner.title = 'Select day';
+        corner.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="16" y1="2" x2="16" y2="6"></line></svg>';
+        corner.addEventListener('click', openDatePicker);
         gridEl.appendChild(corner);
         cornerEl = corner;
 
@@ -9502,16 +10180,41 @@
         applyGutterPin();
       }
 
+      // Desktop shows a fixed number of full day columns at once
+      // (5, so the week doesn't feel as cramped as showing all 7) —
+      // computed from the actual viewport width each time the week
+      // view opens, rather than a flat pixel value, so exactly 5
+      // whole columns fit no matter how wide the window is. Phones
+      // keep the original fixed 108px column (narrower columns there
+      // are the point, since you're meant to swipe/scroll through
+      // days one at a time on a small screen).
+      function computeColWidth() {
+        if (isPhoneVP()) return 108;
+        const gutterW = 34;
+        const available = scrollEl.clientWidth - gutterW;
+        const desired = Math.floor(available / cfg.visibleDaysDesktop);
+        return Math.max(108, desired); // never narrower than the phone width, even on a tiny window
+      }
+
+      // Deliberately NOT SelectedDayState here. That state updates
+      // the moment you click into any day (a week-view header, a
+      // month-view cell, etc.) and then just sits there — so basing
+      // the week view's opening center on it meant only the very
+      // first-ever open (before SelectedDayState had been touched)
+      // actually landed on today; every later open just re-showed
+      // whichever day you'd last clicked into. The week view should
+      // always open centered on the real current day, no matter what
+      // was clicked or scrolled last time it was open.
       function render() {
-        const sel = SelectedDayState.get();
+        cfg.colWidth = computeColWidth();
+        const today = new Date();
         const half = Math.floor(cfg.initialDays / 2);
         const dateList = [];
         for (let i = -half; i < cfg.initialDays - half; i++) {
-          dateList.push(new Date(sel.year, sel.month, sel.day + i));
+          dateList.push(new Date(today.getFullYear(), today.getMonth(), today.getDate() + i));
         }
         selectedIdx = half;
         buildInitial(dateList);
-        titleEl.textContent = titleForDate(dates[selectedIdx]);
       }
 
       // Keeps the title in sync with whichever day column currently
@@ -9535,7 +10238,7 @@
         if (!dates.length) return;
         const idx = Math.round(scrollEl.scrollLeft / cfg.colWidth);
         const clamped = Math.max(0, Math.min(dates.length - 1, idx));
-        titleEl.textContent = titleForDate(dates[clamped]);
+        currentVisibleIdx = clamped;
 
         applyGutterPin();
 
@@ -9582,6 +10285,52 @@
         scrollEl.scrollTo({ left: centeredScrollLeftFor(idx), behavior: 'smooth' });
       }
 
+      // Opens the browser's own native date picker, seeded with
+      // whichever day is currently centered/visible. showPicker() is
+      // what actually launches it: on iOS Safari that's the native
+      // spinning year/month/day wheel, on desktop Chrome/Edge/Firefox
+      // it's their own native calendar dropdown — each platform's
+      // normal picker, automatically, with no manual OS-sniffing.
+      // Older browsers without showPicker() fall back to focusing +
+      // clicking the input, which still opens its native picker.
+      function openDatePicker() {
+        if (!dateInputEl || !dates.length) return;
+        const base = dates[currentVisibleIdx] || dates[selectedIdx] || dates[0];
+        dateInputEl.value = toISODate(base);
+        if (typeof dateInputEl.showPicker === 'function') {
+          try {
+            dateInputEl.showPicker();
+            return;
+          } catch (e) {
+            // fall through to the focus/click fallback below
+          }
+        }
+        dateInputEl.focus();
+        dateInputEl.click();
+      }
+
+      // Jumps the week/day scroll to an arbitrary picked date: if it's
+      // still within the loaded window, just slide over to it; if it's
+      // out of range, rebuild a fresh window centered on it first —
+      // same approach as goToToday, just for any target date.
+      function goToDate(y, m, d) {
+        if (!dates.length) return;
+        const target = new Date(y, m, d);
+        let idx = Math.round((target - dates[0]) / 86400000);
+
+        if (idx < 0 || idx >= dates.length) {
+          const half = Math.floor(cfg.initialDays / 2);
+          const dateList = [];
+          for (let i = -half; i < cfg.initialDays - half; i++) dateList.push(addDays(target, i));
+          buildInitial(dateList);
+          idx = half;
+        }
+
+        currentVisibleIdx = idx;
+        scrollToIndexCentered(idx);
+        updateGotoTodayVisibility();
+      }
+
       // "Go to current day": if today is still within the loaded
       // window, just slide over to it. If it's scrolled out of range
       // entirely, rebuild a fresh window centered on today first —
@@ -9600,7 +10349,6 @@
           idx = half;
         }
 
-        titleEl.textContent = titleForDate(dates[idx]);
         scrollToIndexCentered(idx);
         gotoTodayBtn.classList.remove('visible');
       }
@@ -9620,6 +10368,315 @@
         scrollEl.scrollTop = targetHour * cfg.hourHeight;
         scrollEl.scrollLeft = centeredScrollLeftFor(selectedIdx); // the selected day opens instantly centered
         applyGutterPin();
+      }
+
+      /* ----------------------------------------------------------
+         Hold-to-schedule (desktop only), like Google Calendar's week
+         view: press and hold anywhere on a day column's hour grid to
+         drop a new timed event right there, on THAT day, without
+         first having to lock into it — same gesture as the single-day
+         grid (DayTimeGrid's own hold-to-create above), just aimed at
+         whichever column is under the pointer instead of only the
+         one currently-locked day. Phones don't get this (see the
+         isPhoneVP() guard at the call site) since a press-and-hold is
+         easy to trigger by accident while scrolling/swiping there.
+         Completing the hold creates the record immediately, then
+         hands off to the existing lock-in flow so the new event opens
+         straight into its full editor (which only exists in the
+         single-day grid) instead of trying to cram that editor into
+         a ~100px-wide week column.
+      ---------------------------------------------------------- */
+      const weekHoldCfg = {
+        HOLD_MS:        420,
+        MOVE_CANCEL_PX: 10,
+        SNAP_MIN:       60,
+        CONFIRM_MS:     260,
+      };
+      let weekHoldTimer      = null;
+      let weekHoldPointerId  = null;
+      let weekHoldStartX     = 0;
+      let weekHoldStartY     = 0;
+      let weekHoldIndicatorEl = null;
+
+      // Builds the SAME kind of box + full inline editor that the
+      // single-day grid uses (day-time-grid-event-box +
+      // EventEditor.open), just mounted directly inside this week
+      // column instead of DayTimeGrid's own grid — so every field
+      // (type, time, description, color, notify, lock, delete) is
+      // available right here without leaving the week view. Position
+      // is computed with THIS module's own cfg.hourHeight (60), not
+      // DayTimeGrid's (76) — the two grids run at different scales.
+      // Vertical drag-resize for week-view boxes — a self-contained
+      // version of DayTimeGrid's attachBoxResize. It can't reuse that
+      // one directly: it closes over DayTimeGrid's OWN cfg.hourHeight
+      // (76px/hr, for the single-day grid) plus single-day-only
+      // machinery (hour auto-expand, that grid's own overlap layout),
+      // none of which applies to these narrow week columns, which run
+      // at this module's cfg.hourHeight (60px/hr) instead. Dragging
+      // the top or bottom strip changes duration; the opposite edge
+      // stays put.
+      const weekResizeCfg = { SNAP_MIN: 15, MIN_DURATION: 15 };
+
+      function attachWeekBoxResize(record, handles) {
+        const boxEl = record.el;
+        let resizePointerId  = null;
+        let edge              = null; // 'top' | 'bottom'
+        let startClientY      = 0;
+        let fixedMinutes       = 0; // the edge that does NOT move
+        let ownMinutesAtStart  = 0; // the edge that DOES move, before drag
+
+        function onMove(e) {
+          if (e.pointerId !== resizePointerId) return;
+          const dy = e.clientY - startClientY;
+          const deltaMinutes = (dy / cfg.hourHeight) * 60;
+          const rawMoving = ownMinutesAtStart + deltaMinutes;
+          const snapped   = Math.round(rawMoving / weekResizeCfg.SNAP_MIN) * weekResizeCfg.SNAP_MIN;
+
+          if (edge === 'bottom') {
+            const newEnd = Math.max(fixedMinutes + weekResizeCfg.MIN_DURATION, Math.min(24 * 60, snapped));
+            record.durationMinutes = newEnd - fixedMinutes;
+          } else {
+            const newStart = Math.min(fixedMinutes - weekResizeCfg.MIN_DURATION, snapped);
+            const clampedStart = Math.max(0, newStart);
+            record.startMinutes    = clampedStart;
+            record.durationMinutes = fixedMinutes - clampedStart;
+          }
+
+          const top    = (record.startMinutes / 60) * cfg.hourHeight;
+          const height = (record.durationMinutes / 60) * cfg.hourHeight;
+          boxEl.style.top    = top + 'px';
+          boxEl.style.height = Math.max(height, 15) + 'px';
+          if (typeof EventEditor !== 'undefined') {
+            EventEditor.updateTimeLabel(record);
+            EventEditor.updateFaceTime(record);
+          }
+        }
+
+        function onEnd(e) {
+          if (e.pointerId !== resizePointerId) return;
+          document.removeEventListener('pointermove', onMove);
+          document.removeEventListener('pointerup', onEnd);
+          document.removeEventListener('pointercancel', onEnd);
+          resizePointerId = null;
+          boxEl.classList.remove('resizing');
+          EventStore.save(record);
+          if (record.notify) NotificationScheduler.schedule(record);
+        }
+
+        function startResize(e, whichEdge) {
+          if (resizePointerId !== null) return;
+          if (record.locked) return;
+          if (e.button !== undefined && e.button !== 0) return;
+          e.stopPropagation();
+
+          resizePointerId = e.pointerId;
+          edge            = whichEdge;
+          startClientY    = e.clientY;
+
+          if (whichEdge === 'bottom') {
+            fixedMinutes      = record.startMinutes;
+            ownMinutesAtStart = record.startMinutes + record.durationMinutes;
+          } else {
+            fixedMinutes      = record.startMinutes + record.durationMinutes;
+            ownMinutesAtStart = record.startMinutes;
+          }
+
+          boxEl.classList.add('resizing');
+          document.addEventListener('pointermove', onMove);
+          document.addEventListener('pointerup', onEnd);
+          document.addEventListener('pointercancel', onEnd);
+        }
+
+        handles.topHandle.addEventListener('pointerdown', (e) => startResize(e, 'top'));
+        handles.bottomHandle.addEventListener('pointerdown', (e) => startResize(e, 'bottom'));
+      }
+
+      function buildWeekEventBox(record, colEl) {
+        // This record may already have a box mounted somewhere else —
+        // the single-day mini calendar, or a week column from an
+        // earlier open() of this same overlay (buildInitial wipes and
+        // rebuilds gridEl from scratch every time the week view
+        // opens, which detaches any old box from the document without
+        // ever clearing record.el). Tear that stale one down first so
+        // there's only ever one live box for this record, and so its
+        // cached inline editor (built as a child of the old box) gets
+        // rebuilt fresh against the new one instead of silently doing
+        // nothing.
+        detachRecordBox(record);
+
+        const boxEl = document.createElement('div');
+        boxEl.className = 'day-time-grid-event-box';
+        // Overrides the 34px/6px gutter offsets baked into the base
+        // class (sized for DayTimeGrid's own wide single-day grid) so
+        // the box actually fits this narrow week column.
+        boxEl.style.left = '2px';
+        boxEl.style.right = '2px';
+
+        const topHandle = document.createElement('div');
+        topHandle.className = 'day-time-grid-event-box-handle top';
+        const bottomHandle = document.createElement('div');
+        bottomHandle.className = 'day-time-grid-event-box-handle bottom';
+        boxEl.appendChild(topHandle);
+        boxEl.appendChild(bottomHandle);
+
+        const contentEl = document.createElement('div');
+        contentEl.className = 'day-time-grid-event-box-content';
+        contentEl.textContent = 'New Event';
+        boxEl.appendChild(contentEl);
+        // pointerdown must not bubble to the column's own hold-to-
+        // create listener (onWeekHoldPointerDown) — without this, a
+        // tap that starts on an existing box could still be read as
+        // the start of a hold on the empty track underneath it.
+        boxEl.addEventListener('pointerdown', (e) => e.stopPropagation());
+        // A plain click/tap on the box (re)opens its editor — this is
+        // what lets a box made in the week view (or an already-
+        // existing event shown here) be edited a second time. Clicks
+        // that land on the editor's own controls while it's open are
+        // left alone so typing/menus keep working normally.
+        boxEl.addEventListener('click', (e) => {
+          if (boxEl.classList.contains('editing') && e.target.closest('.day-time-grid-event-box-editor')) return;
+          e.stopPropagation();
+          if (typeof EventEditor !== 'undefined') EventEditor.open(record);
+        });
+
+        const notifyBadge = document.createElement('div');
+        notifyBadge.className = 'day-time-grid-event-box-notify-badge';
+        notifyBadge.innerHTML =
+          '<svg viewBox="0 0 24 24" width="7" height="7" fill="none" stroke="currentColor" ' +
+          'stroke-width="3" stroke-linecap="round" stroke-linejoin="round">' +
+          '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"></path>' +
+          '<path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>';
+        boxEl.appendChild(notifyBadge);
+
+        const lockBadge = document.createElement('div');
+        lockBadge.className = 'day-time-grid-event-box-lock-badge';
+        lockBadge.innerHTML =
+          '<svg viewBox="0 0 24 24" width="7" height="7" fill="none" stroke="currentColor" ' +
+          'stroke-width="3" stroke-linecap="round" stroke-linejoin="round">' +
+          '<rect x="4" y="10" width="16" height="10" rx="2"></rect>' +
+          '<path d="M7 10V7a5 5 0 0 1 10 0v3"></path></svg>';
+        boxEl.appendChild(lockBadge);
+
+        colEl.appendChild(boxEl);
+        const top    = (record.startMinutes / 60) * cfg.hourHeight;
+        const height = (record.durationMinutes / 60) * cfg.hourHeight;
+        boxEl.style.top    = top + 'px';
+        boxEl.style.height = Math.max(height, 15) + 'px';
+
+        record.el = boxEl;
+        if (typeof EventEditor !== 'undefined') EventEditor.renderBoxFace(record);
+        if (typeof DayTimeGrid !== 'undefined') {
+          DayTimeGrid.setNotifyBadge(record, record.notify);
+          DayTimeGrid.setLockedState(record, record.locked);
+        }
+        attachWeekBoxResize(record, { topHandle, bottomHandle });
+        return boxEl;
+      }
+
+      function weekMinutesFromClientY(colEl, clientY) {
+        const rect = colEl.getBoundingClientRect();
+        const localY = clientY - rect.top;
+        const rawMinutes = (localY / cfg.hourHeight) * 60;
+        const snapped = Math.round(rawMinutes / weekHoldCfg.SNAP_MIN) * weekHoldCfg.SNAP_MIN;
+        return Math.max(0, Math.min(24 * 60 - weekHoldCfg.SNAP_MIN, snapped));
+      }
+
+      function weekPositionHoldIndicator(minutes) {
+        if (!weekHoldIndicatorEl) return;
+        const top    = (minutes / 60) * cfg.hourHeight;
+        const height = (weekHoldCfg.SNAP_MIN / 60) * cfg.hourHeight;
+        weekHoldIndicatorEl.style.top    = top + 'px';
+        weekHoldIndicatorEl.style.height = height + 'px';
+      }
+
+      function weekBeginHoldVisual(colEl, minutes) {
+        weekHoldIndicatorEl = document.createElement('div');
+        weekHoldIndicatorEl.className = 'week-view-hold-indicator';
+        colEl.appendChild(weekHoldIndicatorEl);
+        weekPositionHoldIndicator(minutes);
+        weekHoldIndicatorEl.style.transition = 'none';
+        weekHoldIndicatorEl.style.opacity = '0';
+        // eslint-disable-next-line no-unused-expressions
+        weekHoldIndicatorEl.offsetHeight; // force reflow
+        weekHoldIndicatorEl.style.transition = 'opacity ' + weekHoldCfg.HOLD_MS + 'ms linear';
+        weekHoldIndicatorEl.style.opacity = '1';
+      }
+
+      function weekCancelHoldVisual() {
+        if (!weekHoldIndicatorEl) return;
+        const el = weekHoldIndicatorEl;
+        weekHoldIndicatorEl = null;
+        el.style.transition = 'opacity 140ms ease';
+        el.style.opacity = '0';
+        setTimeout(() => el.remove(), 160);
+      }
+
+      function weekConfirmHoldVisual() {
+        if (!weekHoldIndicatorEl) return;
+        const el = weekHoldIndicatorEl;
+        weekHoldIndicatorEl = null;
+        el.style.transition = 'opacity 120ms ease';
+        el.style.opacity = '1';
+        el.classList.add('confirmed');
+        setTimeout(() => {
+          el.style.transition = 'opacity 220ms ease';
+          el.style.opacity = '0';
+          setTimeout(() => el.remove(), 240);
+        }, weekHoldCfg.CONFIRM_MS);
+      }
+
+      function weekClearHoldState() {
+        if (weekHoldTimer) { clearTimeout(weekHoldTimer); weekHoldTimer = null; }
+        weekHoldPointerId = null;
+        document.removeEventListener('pointermove', onWeekHoldPointerMove);
+        document.removeEventListener('pointerup', onWeekHoldPointerEnd);
+        document.removeEventListener('pointercancel', onWeekHoldPointerEnd);
+      }
+
+      function onWeekHoldPointerMove(e) {
+        if (e.pointerId !== weekHoldPointerId) return;
+        const dx = e.clientX - weekHoldStartX;
+        const dy = e.clientY - weekHoldStartY;
+        if (Math.hypot(dx, dy) > weekHoldCfg.MOVE_CANCEL_PX) {
+          weekCancelHoldVisual();
+          weekClearHoldState();
+        }
+      }
+
+      function onWeekHoldPointerEnd(e) {
+        if (e.pointerId !== weekHoldPointerId) return;
+        // Timer already fired and handed off to the lock-in flow —
+        // nothing left to cancel, just drop pointer tracking.
+        if (!weekHoldTimer) { weekClearHoldState(); return; }
+        weekCancelHoldVisual();
+        weekClearHoldState();
+      }
+
+      function onWeekHoldPointerDown(colEl, d, e) {
+        if (weekHoldPointerId !== null) return;
+        if (e.button !== undefined && e.button !== 0) return;
+        // Only the empty grid track itself — not an existing event
+        // box, which handles its own click/drag.
+        if (e.target !== colEl && !e.target.classList.contains('week-view-hour-line')) return;
+
+        weekHoldPointerId = e.pointerId;
+        weekHoldStartX = e.clientX;
+        weekHoldStartY = e.clientY;
+        const minutes = weekMinutesFromClientY(colEl, e.clientY);
+        weekBeginHoldVisual(colEl, minutes);
+
+        document.addEventListener('pointermove', onWeekHoldPointerMove);
+        document.addEventListener('pointerup', onWeekHoldPointerEnd);
+        document.addEventListener('pointercancel', onWeekHoldPointerEnd);
+
+        weekHoldTimer = setTimeout(() => {
+          weekHoldTimer = null;
+          weekConfirmHoldVisual();
+          const dateKey = EventStore.dateKeyFor(d.getFullYear(), d.getMonth(), d.getDate());
+          const record = EventStore.create(dateKey, minutes, weekHoldCfg.SNAP_MIN);
+          buildWeekEventBox(record, colEl);
+          if (typeof EventEditor !== 'undefined') EventEditor.open(record);
+        }, weekHoldCfg.HOLD_MS);
       }
 
       // Clicking a day here: select it the same way the mini calendar
@@ -9695,14 +10752,224 @@
         scrollEl.addEventListener('scroll', onScroll, { passive: true });
         if (gotoTodayBtn) gotoTodayBtn.addEventListener('click', goToToday);
         if (backToWeekBtn) backToWeekBtn.addEventListener('click', open);
+        if (dateInputEl) {
+          dateInputEl.addEventListener('change', () => {
+            if (!dateInputEl.value) return;
+            const parts = dateInputEl.value.split('-');
+            const y = parseInt(parts[0], 10);
+            const m = parseInt(parts[1], 10) - 1;
+            const d = parseInt(parts[2], 10);
+            if (!isNaN(y) && !isNaN(m) && !isNaN(d)) goToDate(y, m, d);
+          });
+        }
         if (typeof DayViewState !== 'undefined') {
           DayViewState.onChange((next) => updateBackToWeekBtn(next));
         }
       }
 
-      return { init, open, close, isOpen: () => isOpen };
+      return { init, open, close, isOpen: () => isOpen, goToDate };
     })();
     WeekView.init();
+
+    /* ============================================================
+       GLOBAL TOP BAR — Day / Week / Month tabs + Select Day.
+       The persistent bar itself (#globalTopBar) is plain HTML/CSS
+       fixed to the top of the page (see its own CSS block near the
+       top of <style>) — nothing needs to build or position it here.
+       This module only wires up its three buttons, on top of the
+       existing DayViewState/DayViewScroll/WeekView machinery instead
+       of duplicating any of it:
+         Day   -> DayViewScroll.triggerForward()  (same as a real
+                  scroll/swipe lock-in gesture would do)
+         Week  -> WeekView.open()                 (same as the old
+                  month-nav "Week" button / backToWeekBtn)
+         Month -> DayViewScroll.triggerBackward() + WeekView.close()
+       "Select Day" opens the same DayPickerModal the old per-day-view
+       button used, but its date cells now route through this
+       module's goToDay() so picking a date works correctly from
+       ANY view, not just from inside an already-open day view.
+    ============================================================ */
+    const GlobalTopBar = (() => {
+      const dayTab       = document.getElementById('globalTabDay');
+      const weekTab      = document.getElementById('globalTabWeek');
+      const monthTab     = document.getElementById('globalTabMonth');
+      const selectDayBtn = document.getElementById('globalSelectDayBtn');
+      const weekOverlayEl = document.getElementById('weekViewOverlay');
+
+      function setActiveTab(view) {
+        if (dayTab)   dayTab.classList.toggle('active', view === 'day');
+        if (weekTab)  weekTab.classList.toggle('active', view === 'week');
+        if (monthTab) monthTab.classList.toggle('active', view === 'month');
+      }
+
+      // Reads the ACTUAL current view straight from the two things
+      // that determine it (WeekView's overlay + DayViewState), rather
+      // than tracking a separate "which tab is active" flag of its
+      // own — the week/day view can also be opened from several other
+      // buttons that predate this top bar (month-nav's own Week
+      // button, backToWeekBtn, a day-cell click), so a self-tracked
+      // flag would drift out of sync the moment one of those was used
+      // instead of a tab.
+      function currentView() {
+        if (weekOverlayEl && weekOverlayEl.classList.contains('open')) return 'week';
+        if (typeof DayViewState !== 'undefined' && DayViewState.get() === DayViewState.STATES.LOCKED) return 'day';
+        return 'month';
+      }
+
+      function refreshActiveTab() { setActiveTab(currentView()); }
+
+      function goToDayView() {
+        if (typeof WeekView !== 'undefined' && WeekView.isOpen()) WeekView.close();
+        if (typeof DayViewState !== 'undefined' && DayViewState.get() !== DayViewState.STATES.LOCKED) {
+          DayViewScroll.triggerForward();
+        }
+      }
+
+      function goToWeekView() {
+        if (typeof WeekView !== 'undefined' && !WeekView.isOpen()) WeekView.open();
+      }
+
+      function goToMonthView() {
+        if (typeof WeekView !== 'undefined' && WeekView.isOpen()) WeekView.close();
+        if (typeof DayViewState !== 'undefined' && DayViewState.get() === DayViewState.STATES.LOCKED) {
+          DayViewScroll.triggerBackward();
+        }
+      }
+
+      // Called from DayPickerModal's date cells (see its own comment)
+      // instead of LockedMonthNav.goToPickedDate directly — always
+      // ends up showing the picked day's own detail view, no matter
+      // which view the picker happened to be opened from.
+      function goToDay(y, m, d) {
+        LockedMonthNav.goToPickedDate(y, m, d);
+        goToDayView();
+      }
+
+      // Only used when the picker was opened from the Month view
+      // (see DayPickerModal's cell click handler). Doesn't care what
+      // day was previously selected — it only checks whether the
+      // picked date falls in a different month than what's currently
+      // shown, and navigates the grid there if so. Never locks into
+      // the day view; instead it just briefly shakes the picked
+      // day's own cell so it's easy to spot in the grid.
+      function goToDateInMonthView(y, m, d) {
+        if (y !== viewYear || m !== viewMonth) {
+          viewYear = y;
+          viewMonth = m;
+          renderCalendar();
+        }
+        SelectedDayState.set(y, m, d);
+
+        // Wait a frame so a just-rebuilt grid (month changed) has its
+        // fresh cells in the DOM before we go looking for the target.
+        requestAnimationFrame(() => {
+          const grid = document.getElementById('daysGrid');
+          if (!grid) return;
+          const cells = grid.querySelectorAll('.day-cell:not(.empty)');
+          for (const cell of cells) {
+            const numEl = cell.querySelector('.day-num');
+            if (numEl && parseInt(numEl.textContent, 10) === d) {
+              // Remove + force a reflow before re-adding, so picking
+              // the same day twice in a row still restarts the shake
+              // instead of it being a no-op (class already present).
+              cell.classList.remove('daycell-shake');
+              void cell.offsetWidth;
+              cell.classList.add('daycell-shake');
+              cell.addEventListener('animationend', () => cell.classList.remove('daycell-shake'), { once: true });
+
+              // SelectedDayState.set() above also puts the persistent
+              // blue "selected-mini-day" ring on this cell (via
+              // applyMiniDaySelectionHighlight, elsewhere in the
+              // file) — that ring is meant to last indefinitely when
+              // it's marking the day locked into the day view, but
+              // here it's just part of this one-off "here's the day
+              // you picked" callout, so fade it back out after a few
+              // seconds instead of leaving it on forever.
+              setTimeout(() => cell.classList.remove('selected-mini-day'), 2200);
+              break;
+            }
+          }
+        });
+      }
+
+      function init() {
+        if (dayTab)   dayTab.addEventListener('click', goToDayView);
+        if (weekTab)  weekTab.addEventListener('click', goToWeekView);
+        if (monthTab) monthTab.addEventListener('click', goToMonthView);
+        if (selectDayBtn) selectDayBtn.addEventListener('click', () => DayPickerModal.open());
+
+        if (typeof DayViewState !== 'undefined') DayViewState.onChange(refreshActiveTab);
+        // Week view has no onChange hook of its own (unlike
+        // DayViewState) and can be opened/closed from several older
+        // buttons besides this bar's own Week tab — watching its
+        // overlay's own open/close class directly catches all of them.
+        if (weekOverlayEl && typeof MutationObserver !== 'undefined') {
+          new MutationObserver(refreshActiveTab)
+            .observe(weekOverlayEl, { attributes: true, attributeFilter: ['class'] });
+        }
+        refreshActiveTab();
+      }
+
+      return { init, goToDay, goToDateInMonthView };
+    })();
+    GlobalTopBar.init();
+
+    /* ============================================================
+       ZOOM BANNER — detects an accidental pinch/double-tap browser
+       zoom (e.g. a mistimed double-tap that lands as a zoom gesture
+       instead of two single taps) and offers a one-tap way back to
+       normal scale, instead of leaving the person to pinch back out
+       manually. Uses the Visual Viewport API (window.visualViewport),
+       which reports the actual on-screen zoom scale independent of
+       layout — not supported in every browser, so this whole feature
+       just doesn't activate where it's missing (no error, no banner).
+    ============================================================ */
+    const ZoomBanner = (() => {
+      const bannerEl = document.getElementById('zoomBanner');
+      const btnEl    = document.getElementById('zoomBannerBtn');
+      const vv       = window.visualViewport;
+      // A little slack above 1.0 so ordinary sub-pixel rounding from
+      // the browser doesn't flicker the banner on/off at rest.
+      const THRESHOLD = 1.05;
+
+      function isZoomed() {
+        return !!vv && vv.scale > THRESHOLD;
+      }
+
+      function update() {
+        if (!bannerEl) return;
+        bannerEl.classList.toggle('show', isZoomed());
+      }
+
+      // There's no direct JS API to reset pinch-zoom. The standard
+      // cross-browser workaround is to briefly force the viewport's
+      // own maximum-scale/user-scalable down (which snaps the browser
+      // back to 1x) and then restore the page's normal viewport meta
+      // right after, so pinch/double-tap zoom keeps working normally
+      // afterward instead of being permanently disabled.
+      function unzoom() {
+        const meta = document.querySelector('meta[name="viewport"]');
+        if (!meta) return;
+        const original = meta.getAttribute('content');
+        meta.setAttribute('content', original + ', maximum-scale=1.0, user-scalable=no');
+        setTimeout(() => {
+          meta.setAttribute('content', original);
+          update();
+        }, 260);
+      }
+
+      function init() {
+        if (!vv || !bannerEl) return;
+        vv.addEventListener('resize', update);
+        vv.addEventListener('scroll', update);
+        if (btnEl) btnEl.addEventListener('click', unzoom);
+        update();
+      }
+
+      return { init };
+    })();
+    ZoomBanner.init();
+
   </script>
 </body>
 </html>
