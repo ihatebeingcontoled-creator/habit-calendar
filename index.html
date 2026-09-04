@@ -6358,8 +6358,8 @@
           type: record.type || '',
           color: record.color || '',
           description: record.description || '',
-          manualLeftPx: record.manualLeftPx != null ? record.manualLeftPx : null,
-          manualWidthPx: record.manualWidthPx != null ? record.manualWidthPx : null,
+          manualLeftUnits: record.manualLeftUnits != null ? record.manualLeftUnits : null,
+          manualWidthUnits: record.manualWidthUnits != null ? record.manualWidthUnits : null,
           notify: !!record.notify,
           locked: !!record.locked,
         };
@@ -6539,8 +6539,8 @@
           type: '',
           color: '',
           description: '',
-          manualLeftPx: null,
-          manualWidthPx: null,
+          manualLeftUnits: null,
+          manualWidthUnits: null,
           notify: false,
           locked: false,
           el: null,
@@ -7128,28 +7128,53 @@
 
       const widthResizeCfg = {
         MIN_WIDTH_PX: 20,
+        // Horizontal size/position is stored as this many discrete
+        // steps (1-10 for width, 0-10 for left) of the track's OWN
+        // width, not raw pixels. Raw pixels broke across devices: a
+        // box dragged to "full width" on a narrow phone track saved
+        // some small px number, and that same px number is only a
+        // sliver of a wider desktop track when opened there. Storing
+        // a unit count and multiplying it by *today's* track width
+        // at render time keeps "10x" meaning "full width" everywhere.
+        UNITS: 10,
       };
 
       function trackWidthPx() {
         return innerEl.clientWidth - overlapCfg.trackLeft - overlapCfg.trackRightGap;
       }
 
-      // Applies a record's own saved width/left-offset (in px, already
-      // snapped to the cm grid by attachBoxWidthResize) — clamped to
-      // whatever room actually exists right now, since the track can
-      // be narrower after a window resize than it was when the box
-      // was last resized. A record that's never been manually resized
-      // just gets the full track, same as before.
+      // Width of one horizontal unit on the current device/track.
+      function unitPx(tw) {
+        return tw / widthResizeCfg.UNITS;
+      }
+
+      // Clamped read helpers — a record that's never been manually
+      // resized just gets the full track (10 units), same as before.
+      function readWidthUnits(record) {
+        return record.manualWidthUnits != null
+          ? Math.max(1, Math.min(widthResizeCfg.UNITS, record.manualWidthUnits))
+          : widthResizeCfg.UNITS;
+      }
+      function readLeftUnits(record, widthUnits) {
+        const maxLeftUnits = widthResizeCfg.UNITS - widthUnits;
+        return record.manualLeftUnits != null
+          ? Math.max(0, Math.min(maxLeftUnits, record.manualLeftUnits))
+          : 0;
+      }
+
+      // Applies a record's own saved width/left-offset (stored as
+      // unit counts, converted to px against whatever room actually
+      // exists right now) — so the box is always sized proportionally
+      // to the device it's currently being viewed on.
       function applyManualBoxPosition(record) {
         const boxEl = record.el;
         if (!boxEl) return;
         const tw = trackWidthPx();
-        const leftPx = record.manualLeftPx != null
-          ? Math.max(0, Math.min(record.manualLeftPx, tw - widthResizeCfg.MIN_WIDTH_PX))
-          : 0;
-        const widthPx = record.manualWidthPx != null
-          ? Math.min(record.manualWidthPx, tw - leftPx)
-          : (tw - leftPx);
+        const uPx = unitPx(tw);
+        const widthUnits = readWidthUnits(record);
+        const leftUnits  = readLeftUnits(record, widthUnits);
+        const leftPx  = leftUnits * uPx;
+        const widthPx = widthUnits * uPx;
         boxEl.style.left  = (overlapCfg.trackLeft + leftPx) + 'px';
         boxEl.style.width = Math.max(widthPx, widthResizeCfg.MIN_WIDTH_PX) + 'px';
       }
@@ -7381,13 +7406,17 @@
           positionEventBox(boxEl, record.startMinutes, record.durationMinutes);
 
           // Horizontal — slide sideways within the track, snapped to
-          // the same px-per-"cm" unit the width-resize handles use.
+          // the same 1/10th-of-track units the width-resize handles
+          // use, so the offset stays proportionally correct no matter
+          // which device the box is opened on.
           const tw     = trackWidthPx();
-          const cmPx   = cfg.hourHeight;
-          const rawLeft     = startLeftPx + dx;
-          const snappedLeft = Math.round(rawLeft / cmPx) * cmPx;
-          const widthPx     = record.manualWidthPx != null ? record.manualWidthPx : tw;
-          record.manualLeftPx = Math.max(0, Math.min(snappedLeft, tw - widthPx));
+          const uPx    = unitPx(tw);
+          const widthUnits = readWidthUnits(record);
+          const widthPx    = widthUnits * uPx;
+          const rawLeft       = startLeftPx + dx;
+          const snappedLeft   = Math.round(rawLeft / uPx) * uPx;
+          const clampedLeftPx = Math.max(0, Math.min(snappedLeft, tw - widthPx));
+          record.manualLeftUnits = Math.round(clampedLeftPx / uPx);
           applyManualBoxPosition(record);
 
           EventEditor.updateTimeLabel(record);
@@ -7446,16 +7475,16 @@
           }
 
           const tw = trackWidthPx();
-          const widthPx = record.manualWidthPx != null ? record.manualWidthPx : tw;
+          const uPx = unitPx(tw);
+          const widthUnits = readWidthUnits(record);
+          const leftUnits  = readLeftUnits(record, widthUnits);
 
           dragPointerId   = e.pointerId;
           dragPointerType = e.pointerType || 'mouse';
           startClientX    = e.clientX;
           startClientY    = e.clientY;
           startMinutesAt  = record.startMinutes;
-          startLeftPx     = record.manualLeftPx != null
-            ? Math.max(0, Math.min(record.manualLeftPx, tw - widthPx))
-            : 0;
+          startLeftPx     = leftUnits * uPx;
 
           document.addEventListener('pointermove', onMove);
           document.addEventListener('pointerup', onEnd);
@@ -7611,20 +7640,20 @@
         function onMove(e) {
           if (e.pointerId !== pointerId) return;
           const tw  = trackWidthPx();
+          const uPx = unitPx(tw);
           const dx  = e.clientX - startClientX;
-          const cmPx = cfg.hourHeight;
           const rawMoving = ownPxAtStart + dx;
-          const snapped   = Math.round(rawMoving / cmPx) * cmPx;
+          const snapped   = Math.round(rawMoving / uPx) * uPx;
 
           if (edge === 'right') {
-            const newRight = Math.max(fixedPx + widthResizeCfg.MIN_WIDTH_PX, Math.min(tw, snapped));
-            record.manualLeftPx  = fixedPx;
-            record.manualWidthPx = newRight - fixedPx;
+            const newRight = Math.max(fixedPx + uPx, Math.min(tw, snapped));
+            record.manualLeftUnits  = Math.round(fixedPx / uPx);
+            record.manualWidthUnits = Math.max(1, Math.round((newRight - fixedPx) / uPx));
           } else {
-            const newLeft = Math.min(fixedPx - widthResizeCfg.MIN_WIDTH_PX, snapped);
+            const newLeft = Math.min(fixedPx - uPx, snapped);
             const clampedLeft = Math.max(0, newLeft);
-            record.manualLeftPx  = clampedLeft;
-            record.manualWidthPx = fixedPx - clampedLeft;
+            record.manualLeftUnits  = Math.round(clampedLeft / uPx);
+            record.manualWidthUnits = Math.max(1, Math.round((fixedPx - clampedLeft) / uPx));
           }
           applyManualBoxPosition(record);
         }
@@ -7655,12 +7684,11 @@
           e.stopPropagation();
 
           const tw = trackWidthPx();
-          const leftPx = record.manualLeftPx != null
-            ? Math.max(0, Math.min(record.manualLeftPx, tw - widthResizeCfg.MIN_WIDTH_PX))
-            : 0;
-          const widthPx = record.manualWidthPx != null
-            ? Math.min(record.manualWidthPx, tw - leftPx)
-            : (tw - leftPx);
+          const uPx = unitPx(tw);
+          const widthUnits = readWidthUnits(record);
+          const leftUnits  = readLeftUnits(record, widthUnits);
+          const leftPx  = leftUnits * uPx;
+          const widthPx = widthUnits * uPx;
 
           pointerId    = e.pointerId;
           edge         = whichEdge;
@@ -9117,8 +9145,8 @@
           type: record.type || '',
           color: record.color || '',
           description: record.description || '',
-          manualLeftPx: record.manualLeftPx != null ? record.manualLeftPx : null,
-          manualWidthPx: record.manualWidthPx != null ? record.manualWidthPx : null,
+          manualLeftUnits: record.manualLeftUnits != null ? record.manualLeftUnits : null,
+          manualWidthUnits: record.manualWidthUnits != null ? record.manualWidthUnits : null,
           notify: !!record.notify,
           locked: !!record.locked,
           el: null,
@@ -9664,8 +9692,8 @@
             type: ev.title || '',
             color: ev.color || '#3b82f6',
             description: ev.description || '',
-            manualLeftPx: null,
-            manualWidthPx: null,
+            manualLeftUnits: null,
+            manualWidthUnits: null,
             notify: false,
             locked: false,
             el: null,
@@ -10079,6 +10107,18 @@
         dates = newDates.concat(dates);
         headerEls = newHeaders.concat(headerEls);
         colEls = newCols.concat(colEls);
+
+        // Everything just shifted `n` slots to the right within the
+        // `dates` array too, so any index pointing at a specific day
+        // (selectedIdx = "today", set once when the week view opens)
+        // has to shift by the same amount — otherwise a prepend that
+        // fires before the initial center-on-today scroll (e.g. from
+        // a scroll-snap adjustment right after the grid is built)
+        // leaves selectedIdx pointing at the wrong day, and the
+        // instant open-centered-on-today scroll lands somewhere else
+        // entirely, off screen.
+        selectedIdx += n;
+        currentVisibleIdx += n;
 
         // Keep the visible days exactly where they were on screen —
         // everything just shifted `n` columns to the right in the
