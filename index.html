@@ -1510,6 +1510,101 @@
       display: flex; align-items: center; gap: 1px; pointer-events: none;
     }
 
+    /* Small floating tag on the day-cell itself (top-right, clear of
+       .day-num which owns top-left) — reads like a little pop-up label
+       sitting on top of the date rather than a modal, per the request:
+       "like a pop up 'ben's birthday'". Multiple birthdays on the same
+       day just stack as separate tags. */
+    .birthday-badge {
+      position: absolute; top: 6px; right: 5px; max-width: calc(100% - 24px);
+      font-size: 8px; font-weight: 700; color: #92400e;
+      background: #fef3c7; border: 1px solid rgba(146,64,14,0.25);
+      border-radius: 6px; padding: 1px 5px; line-height: 1.4;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      pointer-events: none; z-index: 3;
+    }
+    body.night-mode .birthday-badge { background: #3a2a0f; color: #fcd34d; border-color: rgba(252,211,77,0.3); }
+
+    /* ---- Birthdays sidebar panel (sits under the Color Guide) ---- */
+    .birthdays-panel { margin-top: 18px; padding-top: 14px; border-top: 1px solid #eee; }
+    body.night-mode .birthdays-panel { border-top-color: #333; }
+    .birthdays-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .birthdays-title { font-size: 12px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: 0.4px; }
+    body.night-mode .birthdays-title { color: #888; }
+
+    .birthdays-toggle { position: relative; display: inline-block; width: 30px; height: 17px; cursor: pointer; flex-shrink: 0; }
+    .birthdays-toggle input { opacity: 0; width: 0; height: 0; }
+    .birthdays-toggle-slider {
+      position: absolute; inset: 0; background: #ddd; border-radius: 17px; transition: background 0.15s;
+    }
+    .birthdays-toggle-slider::before {
+      content: ''; position: absolute; width: 13px; height: 13px; left: 2px; top: 2px;
+      background: #fff; border-radius: 50%; transition: transform 0.15s;
+    }
+    .birthdays-toggle input:checked + .birthdays-toggle-slider { background: #3b82f6; }
+    .birthdays-toggle input:checked + .birthdays-toggle-slider::before { transform: translateX(13px); }
+    body.night-mode .birthdays-toggle-slider { background: #3a3a3c; }
+
+    .birthdays-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; max-height: 160px; overflow-y: auto; }
+    .birthdays-row {
+      display: flex; align-items: center; gap: 6px; font-size: 12px; color: #333;
+      background: #fafafa; border-radius: 7px; padding: 5px 7px;
+    }
+    body.night-mode .birthdays-row { background: #1c1c1c; color: #ddd; }
+    .birthdays-row-icon { flex-shrink: 0; }
+    .birthdays-row-name { flex: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .birthdays-row-date { flex-shrink: 0; color: #999; font-size: 10.5px; }
+    .birthdays-row-del {
+      flex-shrink: 0; border: none; background: none; color: #bbb; font-size: 14px; line-height: 1;
+      cursor: pointer; padding: 0 2px; font-family: inherit;
+    }
+    .birthdays-row-del:hover { color: #e6362a; }
+    .birthdays-empty { font-size: 11.5px; color: #aaa; padding: 4px 2px; }
+
+    /* Single button that opens the "Add Birthday" popup — replaces
+       the old cramped inline name+date+add row, which didn't leave
+       enough width for the name field on narrow/sidebar layouts. */
+    .birthdays-open-add-btn {
+      display: block; width: 100%; padding: 10px 12px; margin-top: 2px;
+      border-radius: 9px; border: 1.5px dashed #cfcfcf; background: #fafafa;
+      color: #555; font-size: 13px; font-weight: 700; cursor: pointer;
+      font-family: inherit; transition: background 0.15s, border-color 0.15s;
+    }
+    .birthdays-open-add-btn:hover { background: #f0f6ff; border-color: #93c5fd; color: #2f6fda; }
+    body.night-mode .birthdays-open-add-btn { background: #1a1a1a; border-color: #3a3a3c; color: #ccc; }
+    body.night-mode .birthdays-open-add-btn:hover { background: #17233a; border-color: #3b82f6; color: #93c5fd; }
+
+    /* ---- Fields inside the "Add Birthday" popup (BirthdayPickerModal) ---- */
+    .birthday-picker-card { max-width: 320px; }
+    .birthday-name-label {
+      font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px;
+      color: #999; margin: 14px 0 6px;
+    }
+    body.night-mode .birthday-name-label { color: #888; }
+    /* Huge, auto-growing typing bar — starts roomy and expands upward
+       as text wraps, up to a cap, then scrolls internally. */
+    .birthday-name-textarea {
+      width: 100%; font-size: 16px; padding: 12px 13px; border-radius: 11px;
+      border: 1.5px solid #e2e2e2; font-family: inherit; color: #222;
+      resize: none; overflow-y: auto; line-height: 1.4; min-height: 52px; max-height: 140px;
+      transition: border-color 0.15s;
+    }
+    .birthday-name-textarea:focus { border-color: #3b82f6; outline: none; }
+    body.night-mode .birthday-name-textarea { background: #1a1a1a; border-color: #333; color: #f5f5f5; }
+    body.night-mode .birthday-name-textarea:focus { border-color: #3b82f6; }
+
+    /* ---- Yearly-repeat toggle row inside BirthdayPickerModal ----
+       Reuses the same pill switch as the sidebar's show/hide toggle
+       (.birthdays-toggle) so the two controls in this app look
+       consistent, just wrapped in a labeled row for the modal. */
+    .repeat-days-yearly-row {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-top: 12px; padding-top: 12px; border-top: 1px solid #ececec;
+    }
+    .repeat-days-yearly-label { font-size: 13px; font-weight: 600; color: #333; }
+    body.night-mode .repeat-days-yearly-row { border-top-color: #333; }
+    body.night-mode .repeat-days-yearly-label { color: #eee; }
+
     .overlay {
       position: fixed; inset: 0; background: rgba(0,0,0,0.38); backdrop-filter: blur(5px);
       z-index: 200; display: flex; align-items: center; justify-content: center;
@@ -2182,20 +2277,10 @@
       grid-template-columns: 34px repeat(var(--week-view-days, 21), var(--week-view-col-w, 108px));
       grid-template-rows: 56px auto;
     }
-    .week-view-corner {
-      position: sticky;
-      top: 0;
-      z-index: 6;
-      background: #fff;
-      grid-column: 1; grid-row: 1;
-      border-bottom: 1.5px solid #ececec;
-    }
-    body.night-mode .week-view-corner { background: #000; border-bottom-color: #2c2c2e; }
-
     .week-view-daycol-header {
       position: sticky;
       top: 0;
-      z-index: 5;
+      z-index: 9;
       background: #fff;
       display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
       grid-row: 1;
@@ -2227,7 +2312,7 @@
        still measure "top" from this box, not from .week-view-grid. */
     .week-view-gutter-body {
       position: relative;
-      z-index: 4;
+      z-index: 9;
       background: #fff;
       grid-column: 1; grid-row: 2;
     }
@@ -2408,6 +2493,23 @@
           <div class="legend-row">10<span class="legend-swatch" style="background:#fff;border-color:#adf623"></span></div>
           <div class="legend-row">11<span class="legend-swatch" style="background:#dcfce7;border-color:rgba(34,197,94,0.7)"></span></div>
           <div class="legend-row">12<span class="legend-swatch legend-swatch-perfect" style="background:#dcfce7;"></span></div>
+        </div>
+
+        <!-- Birthdays — sits right under the Color Guide, same sidebar
+             column (see .legend-panel above). Toggle just controls
+             whether BirthdaysStore's entries get badged onto the month
+             grid (fillDayCell reads settings.showBirthdays); it doesn't
+             affect whether they're saved or whether reminders fire. -->
+        <div class="birthdays-panel">
+          <div class="birthdays-header">
+            <div class="birthdays-title" id="birthdaysTitleEl">Birthdays</div>
+            <label class="birthdays-toggle" title="Show birthdays on the month view">
+              <input type="checkbox" id="birthdaysShowToggle" checked>
+              <span class="birthdays-toggle-slider"></span>
+            </label>
+          </div>
+          <div class="birthdays-list" id="birthdaysList"></div>
+          <button type="button" id="birthdayAddOpenBtn" class="birthdays-open-add-btn">+ Add Birthday</button>
         </div>
       </div>
 
@@ -2762,6 +2864,8 @@
         removedToast: 'Removed.',
         targetSavedToast: 'Target saved.',
         targetSaveFailedToast: 'Failed to save target.',
+        birthdaySavedToast: '🎂 {name}\'s birthday added!',
+        birthdaySaveFailedToast: 'Failed to save birthday — please try again.',
         enterValidTarget: 'Enter a valid target and date.',
         removeFailedToast: 'Failed to remove.',
         noCustomTargets: 'No custom targets set yet — default is {n}.',
@@ -2854,6 +2958,8 @@
         removedToast: 'Pašalinta.',
         targetSavedToast: 'Tikslas išsaugotas.',
         targetSaveFailedToast: 'Nepavyko išsaugoti tikslo.',
+        birthdaySavedToast: '🎂 {name} gimtadienis pridėtas!',
+        birthdaySaveFailedToast: 'Nepavyko išsaugoti gimtadienio — bandykite dar kartą.',
         enterValidTarget: 'Įveskite galiojantį tikslą ir datą.',
         removeFailedToast: 'Pašalinti nepavyko.',
         noCustomTargets: 'Individualūs tikslai dar nenustatyti — numatytasis yra {n}.',
@@ -2924,6 +3030,7 @@
       nightMode:               false,
       warnUnsavedChanges:      true,
       language:                'en',
+      showBirthdays:           true,
     };
 
     function loadSettings() {
@@ -3231,6 +3338,170 @@
       await loadTargets();
     }
 
+    /* ============================================================
+       BIRTHDAYS — same D1-via-/api/habits convention as targets/
+       settings above (a `resource` query param routes to its own
+       table server-side). Each entry is {id, name, month, day, year,
+       repeatYearly}. Picked via BirthdayPickerModal (a full 1:1
+       calendar popup, same family as the top bar's "Select Day"
+       picker) rather than a native <input type=date>, with a
+       "Repeats every year" switch in that popup:
+         - repeatYearly=true  (default) → year is just whatever year
+           was showing when it was picked; ignored for matching —
+           it recurs on month/day every year, same as before.
+         - repeatYearly=false → year IS the match key too, so it only
+           ever shows/fires on that one specific date.
+       Whether a birthday is *shown* on the grid is controlled
+       separately via settings.showBirthdays (persisted through the
+       existing settings save path), so toggling display never
+       touches the saved birthdays themselves.
+
+       NOTE: actually reminding the person (a real push notification,
+       the same way event notify-bells do) has to happen server-side —
+       this file only has the client half of that (the push
+       subscription is already registered via /api/push-subscribe,
+       see PushManager setup below). The backend's push job needs a
+       matching case: for /api/habits?resource=birthdays entries whose
+       month/day match today, send a push (title e.g. "🎂", body
+       "<name>'s birthday!") to every subscribed device — that part
+       isn't in this file and needs to be added on the server. ── */
+    let birthdaysData = [];
+    const BIRTHDAYS_CACHE_KEY = 'habitcal_birthdays_cache';
+
+    function loadBirthdaysCache() {
+      try {
+        const raw = localStorage.getItem(BIRTHDAYS_CACHE_KEY);
+        if (raw) birthdaysData = JSON.parse(raw);
+      } catch { /* ignore */ }
+    }
+    function cacheBirthdaysLocally() {
+      try { localStorage.setItem(BIRTHDAYS_CACHE_KEY, JSON.stringify(birthdaysData)); } catch { /* ignore */ }
+    }
+
+    async function loadBirthdays() {
+      loadBirthdaysCache();
+      try {
+        const r = await fetch('/api/habits?resource=birthdays', { cache: 'no-store' });
+        if (r.ok) {
+          birthdaysData = await r.json();
+          cacheBirthdaysLocally();
+        }
+      } catch { /* offline → keep cached list */ }
+    }
+
+    // One-time (non-yearly) birthdays only match the exact year they
+    // were saved for; yearly ones (the default) match every year on
+    // that month/day, same as before.
+    function birthdaysForMonthDay(year, month, day) {
+      return birthdaysData.filter((b) => {
+        if (b.month !== month || b.day !== day) return false;
+        if (b.repeatYearly === false) return b.year === year;
+        return true;
+      });
+    }
+
+    async function addBirthday(name, month, day, year, repeatYearly) {
+      const r = await fetch('/api/habits?resource=birthdays', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, month, day, year, repeatYearly }),
+      });
+      if (!r.ok) throw new Error('Save failed: ' + r.status);
+      await loadBirthdays();
+    }
+
+    async function deleteBirthday(id) {
+      const r = await fetch('/api/habits?resource=birthdays&id=' + encodeURIComponent(id), { method: 'DELETE' });
+      if (!r.ok) throw new Error('Delete failed: ' + r.status);
+      await loadBirthdays();
+    }
+
+    const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+    function renderBirthdaysList() {
+      const listEl = document.getElementById('birthdaysList');
+      if (!listEl) return;
+      listEl.innerHTML = '';
+      if (!birthdaysData.length) {
+        const empty = document.createElement('div');
+        empty.className = 'birthdays-empty';
+        empty.textContent = 'No birthdays added yet.';
+        listEl.appendChild(empty);
+        return;
+      }
+      // Sorted by month/day so the list reads in calendar order rather
+      // than insertion order.
+      const sorted = birthdaysData.slice().sort((a, b) => (a.month - b.month) || (a.day - b.day));
+      sorted.forEach((b) => {
+        const row = document.createElement('div');
+        row.className = 'birthdays-row';
+
+        const icon = document.createElement('span');
+        icon.className = 'birthdays-row-icon';
+        icon.textContent = '🎂';
+
+        const name = document.createElement('span');
+        name.className = 'birthdays-row-name';
+        name.textContent = b.name;
+
+        const date = document.createElement('span');
+        date.className = 'birthdays-row-date';
+        date.textContent = MONTH_SHORT[b.month - 1] + ' ' + b.day
+          + (b.repeatYearly === false ? ', ' + b.year : '');
+
+        const del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'birthdays-row-del';
+        del.textContent = '×';
+        del.title = 'Delete';
+        del.addEventListener('click', async () => {
+          del.disabled = true;
+          try {
+            await deleteBirthday(b.id);
+            renderBirthdaysList();
+            renderCalendar();
+          } catch {
+            del.disabled = false;
+          }
+        });
+
+        row.appendChild(icon);
+        row.appendChild(name);
+        row.appendChild(date);
+        row.appendChild(del);
+        listEl.appendChild(row);
+      });
+    }
+
+    function wireBirthdaysPanel() {
+      const openBtn = document.getElementById('birthdayAddOpenBtn');
+      const toggle  = document.getElementById('birthdaysShowToggle');
+
+      openBtn.addEventListener('click', () => {
+        BirthdayPickerModal.open({
+          async onSave(name, month, day, year, repeatYearly) {
+            openBtn.disabled = true;
+            try {
+              await addBirthday(name, month, day, year, repeatYearly);
+              renderBirthdaysList();
+              renderCalendar();
+              toast(tf('birthdaySavedToast', { name }));
+            } catch {
+              toast(t('birthdaySaveFailedToast'), true);
+            } finally {
+              openBtn.disabled = false;
+            }
+          },
+        });
+      });
+
+      toggle.addEventListener('change', () => {
+        settings.showBirthdays = toggle.checked;
+        saveSettingsToServer().catch(() => { /* local cache already updated */ });
+        renderCalendar();
+      });
+    }
+
     // A field "passes" for a day when its value meets or beats that day's target.
     // If daily targets are disabled in Settings, fall back to the simple ">0 counts as done" rule.
     function fieldIsActive(value, fieldKey, dateStr) {
@@ -3511,6 +3782,17 @@
         dot.title = t('wakeUpDone');
         dot.textContent = '⏰';
         cell.appendChild(dot);
+      }
+
+      if (settings.showBirthdays) {
+        const bdays = birthdaysForMonthDay(viewYear, viewMonth + 1, d);
+        if (bdays.length) {
+          const bBadge = document.createElement('div');
+          bBadge.className = 'birthday-badge';
+          bBadge.textContent = '🎂 ' + bdays.map((b) => b.name).join(', ');
+          bBadge.title = bdays.map((b) => b.name + "'s birthday").join(', ');
+          cell.appendChild(bBadge);
+        }
       }
 
       // Bind the click handler once per element — on a reused cell it's
@@ -4394,14 +4676,19 @@
       }, 150);
     });
 
+    wireBirthdaysPanel();
+
     (async () => {
       applyStatsBarVisibility();
       applyNightMode();
       applyLanguage();
-      await Promise.all([loadAllHabits(), loadAllFiles(), loadTargets(), loadSettingsFromServer()]);
+      await Promise.all([loadAllHabits(), loadAllFiles(), loadTargets(), loadSettingsFromServer(), loadBirthdays()]);
       applyStatsBarVisibility();
       applyNightMode();
       applyLanguage();
+      const birthdaysToggleEl = document.getElementById('birthdaysShowToggle');
+      if (birthdaysToggleEl) birthdaysToggleEl.checked = settings.showBirthdays;
+      renderBirthdaysList();
       renderCalendar();
     })();
 
@@ -5833,6 +6120,234 @@
         calMonth = sel.month;
         render();
         overlayEl.classList.add('open');
+      }
+
+      function close() {
+        if (overlayEl) overlayEl.classList.remove('open');
+      }
+
+      return { open, close };
+    })();
+
+    /* ============================================================
+       "ADD BIRTHDAY" CALENDAR POPUP.
+       Same look/structure as DayPickerModal just above (reuses the
+       .repeat-days-overlay/-card/-title/-cal-nav/-cal-grid family —
+       "1:1 like the day selector at the top"), with two differences:
+         1) picking a day doesn't jump anywhere or close the popup —
+            it just marks that cell selected, since there's a
+            Save step (the yearly toggle needs to be set first).
+         2) a "Repeats every year" switch sits under the grid. On by
+            default, since that's what a birthday normally is; turning
+            it off means this is a one-time date (the currently-viewed
+            calMonth/calYear is saved alongside month/day so it only
+            ever matches that specific year).
+       onSave(month, day, year, repeatYearly) is supplied by whoever
+       calls open(); the birthdays panel below is the only caller.
+    ============================================================ */
+    const BirthdayPickerModal = (() => {
+      let overlayEl = null;
+      let calMonthLabel = null, calGridEl = null, yearlyToggle = null;
+      let nameTextarea = null, saveBtn = null;
+      let calYear = 0, calMonth = 0, selectedDay = null;
+      let onSaveCb = null;
+
+      function ensureBuilt() {
+        if (overlayEl) return;
+
+        overlayEl = document.createElement('div');
+        overlayEl.className = 'repeat-days-overlay';
+
+        const card = document.createElement('div');
+        card.className = 'repeat-days-card birthday-picker-card';
+
+        const title = document.createElement('div');
+        title.className = 'repeat-days-title';
+        title.textContent = 'Add Birthday';
+
+        // Big name field up top — "a huge typing bar" — auto-grows as
+        // you type (see autosizeName below), same idea as the sidebar
+        // field it replaces, just with real room to breathe now that
+        // it isn't squeezed next to a date field in a narrow sidebar.
+        const nameLabel = document.createElement('div');
+        nameLabel.className = 'birthday-name-label';
+        nameLabel.textContent = 'Name';
+
+        nameTextarea = document.createElement('textarea');
+        nameTextarea.className = 'birthday-name-textarea';
+        nameTextarea.placeholder = "e.g. Ben's birthday";
+        nameTextarea.maxLength = 40;
+        nameTextarea.rows = 1;
+        nameTextarea.addEventListener('input', () => {
+          autosizeName();
+          refreshSaveEnabled();
+        });
+        // Enter submits instead of inserting a newline — names don't
+        // need multiple lines.
+        nameTextarea.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') { e.preventDefault(); save(); }
+        });
+
+        const calNav = document.createElement('div');
+        calNav.className = 'repeat-days-cal-nav';
+
+        const prevBtn = document.createElement('button');
+        prevBtn.type = 'button';
+        prevBtn.className = 'repeat-days-cal-nav-btn';
+        prevBtn.setAttribute('aria-label', 'Previous month');
+        prevBtn.textContent = '\u2039';
+        prevBtn.addEventListener('click', () => navigate(-1));
+
+        calMonthLabel = document.createElement('div');
+        calMonthLabel.className = 'repeat-days-cal-month';
+
+        const nextBtn = document.createElement('button');
+        nextBtn.type = 'button';
+        nextBtn.className = 'repeat-days-cal-nav-btn';
+        nextBtn.setAttribute('aria-label', 'Next month');
+        nextBtn.textContent = '\u203a';
+        nextBtn.addEventListener('click', () => navigate(1));
+
+        calNav.appendChild(prevBtn);
+        calNav.appendChild(calMonthLabel);
+        calNav.appendChild(nextBtn);
+
+        const calWeekdays = document.createElement('div');
+        calWeekdays.className = 'repeat-days-cal-weekdays';
+        (t('weekdays') || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']).forEach((label) => {
+          const wd = document.createElement('div');
+          wd.className = 'repeat-days-cal-weekday';
+          wd.textContent = label;
+          calWeekdays.appendChild(wd);
+        });
+
+        calGridEl = document.createElement('div');
+        calGridEl.className = 'repeat-days-cal-grid';
+
+        const yearlyRow = document.createElement('div');
+        yearlyRow.className = 'repeat-days-yearly-row';
+        const yearlyLabel = document.createElement('div');
+        yearlyLabel.className = 'repeat-days-yearly-label';
+        yearlyLabel.textContent = 'Repeats every year';
+        const yearlyToggleLabel = document.createElement('label');
+        yearlyToggleLabel.className = 'birthdays-toggle';
+        yearlyToggle = document.createElement('input');
+        yearlyToggle.type = 'checkbox';
+        yearlyToggle.checked = true;
+        const yearlyToggleSlider = document.createElement('span');
+        yearlyToggleSlider.className = 'birthdays-toggle-slider';
+        yearlyToggleLabel.appendChild(yearlyToggle);
+        yearlyToggleLabel.appendChild(yearlyToggleSlider);
+        yearlyRow.appendChild(yearlyLabel);
+        yearlyRow.appendChild(yearlyToggleLabel);
+
+        const actions = document.createElement('div');
+        actions.className = 'repeat-days-actions';
+        const cancelBtn = document.createElement('button');
+        cancelBtn.type = 'button';
+        cancelBtn.textContent = 'Cancel';
+        cancelBtn.addEventListener('click', close);
+        saveBtn = document.createElement('button');
+        saveBtn.type = 'button';
+        saveBtn.className = 'primary';
+        saveBtn.textContent = 'Add Birthday';
+        saveBtn.disabled = true;
+        saveBtn.addEventListener('click', save);
+        actions.appendChild(cancelBtn);
+        actions.appendChild(saveBtn);
+
+        card.appendChild(title);
+        card.appendChild(nameLabel);
+        card.appendChild(nameTextarea);
+        card.appendChild(calNav);
+        card.appendChild(calWeekdays);
+        card.appendChild(calGridEl);
+        card.appendChild(yearlyRow);
+        card.appendChild(actions);
+        overlayEl.appendChild(card);
+        document.body.appendChild(overlayEl);
+
+        overlayEl.addEventListener('click', (e) => { if (e.target === overlayEl) close(); });
+      }
+
+      function autosizeName() {
+        nameTextarea.style.height = 'auto';
+        nameTextarea.style.height = nameTextarea.scrollHeight + 'px';
+      }
+
+      function refreshSaveEnabled() {
+        saveBtn.disabled = !(nameTextarea.value.trim() && selectedDay);
+      }
+
+      function navigate(delta) {
+        calMonth += delta;
+        if (calMonth < 0) { calMonth = 11; calYear--; }
+        if (calMonth > 11) { calMonth = 0; calYear++; }
+        render();
+      }
+
+      function render() {
+        const dict = I18N[settings.language] || I18N.en;
+        const monthName = (dict.months || I18N.en.months)[calMonth];
+        calMonthLabel.textContent = monthName + ' ' + calYear;
+
+        calGridEl.innerHTML = '';
+
+        const todayDt  = new Date();
+        const isTodayMonth = todayDt.getFullYear() === calYear && todayDt.getMonth() === calMonth;
+
+        const firstDow    = new Date(calYear, calMonth, 1).getDay();
+        const firstIdx    = mondayIdx(firstDow);
+        const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+
+        for (let i = 0; i < firstIdx; i++) {
+          const filler = document.createElement('div');
+          filler.className = 'repeat-days-cal-cell empty';
+          calGridEl.appendChild(filler);
+        }
+
+        for (let d = 1; d <= daysInMonth; d++) {
+          const cell = document.createElement('div');
+          cell.className = 'repeat-days-cal-cell';
+          cell.textContent = String(d);
+          if (isTodayMonth && d === todayDt.getDate()) cell.classList.add('today');
+          if (selectedDay === d) cell.classList.add('selected');
+          cell.addEventListener('click', () => {
+            selectedDay = d;
+            render();
+            refreshSaveEnabled();
+          });
+          calGridEl.appendChild(cell);
+        }
+      }
+
+      // Opens fresh every time (this is now always "add", not "edit" —
+      // the sidebar's "+ Add Birthday" button is the only caller).
+      function open({ onSave } = {}) {
+        ensureBuilt();
+        const now = new Date();
+        calYear  = now.getFullYear();
+        calMonth = now.getMonth();
+        selectedDay = null;
+        yearlyToggle.checked = true;
+        nameTextarea.value = '';
+        onSaveCb = onSave || null;
+        render();
+        autosizeName();
+        refreshSaveEnabled();
+        overlayEl.classList.add('open');
+        // Focus after the open transition starts so mobile keyboards
+        // don't fight the popup's entrance animation.
+        setTimeout(() => nameTextarea.focus(), 50);
+      }
+
+      function save() {
+        const name = nameTextarea.value.trim();
+        if (!name || !selectedDay) return; // require both a name and a day pick
+        const repeatYearly = yearlyToggle.checked;
+        const month = calMonth + 1, day = selectedDay, year = calYear;
+        close();
+        if (onSaveCb) onSaveCb(name, month, day, year, repeatYearly);
       }
 
       function close() {
@@ -9495,11 +10010,20 @@
         setStatus('Thinking…', true);
         try {
           const nowISO = new Date().toISOString();
+          // nowISO alone is a bare UTC instant — the model has no way
+          // to know what "today"/"the past hour"/"3pm" mean in the
+          // person's own day without also knowing their offset from
+          // UTC. Reuse whatever TimezoneModal already has (the
+          // person's explicit pick, or their device's offset if they
+          // never touched it) rather than introducing a second source
+          // of truth for "what timezone is this person in."
+          const tzOffsetMinutes = (typeof TimezoneModal !== 'undefined') ? TimezoneModal.getSelected() : -new Date().getTimezoneOffset();
+          const tzLabel = (typeof TimezoneModal !== 'undefined') ? TimezoneModal.label(tzOffsetMinutes) : null;
           const existingEvents = await gatherExistingEventsContext();
           const r = await fetch('/api/talk-ai', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ transcript, nowISO, existingEvents }),
+            body: JSON.stringify({ transcript, nowISO, tzOffsetMinutes, tzLabel, existingEvents }),
           });
           if (!r.ok) throw new Error('talk-ai request failed: ' + r.status);
           const { items } = await r.json();
@@ -9533,8 +10057,12 @@
           const now = new Date();
           const minDate = new Date(now); minDate.setDate(minDate.getDate() - EXISTING_EVENTS_WINDOW_DAYS);
           const maxDate = new Date(now); maxDate.setDate(maxDate.getDate() + EXISTING_EVENTS_WINDOW_DAYS);
-          const minKey = minDate.toISOString().slice(0, 10);
-          const maxKey = maxDate.toISOString().slice(0, 10);
+          // Local date-key, not toISOString().slice(0,10) — that reads
+          // the date in UTC, which quietly clips off the local
+          // "today" (or duplicates yesterday) for anyone not at
+          // UTC+00:00, worst right around their own midnight.
+          const minKey = EventStore.dateKeyFor(minDate.getFullYear(), minDate.getMonth(), minDate.getDate());
+          const maxKey = EventStore.dateKeyFor(maxDate.getFullYear(), maxDate.getMonth(), maxDate.getDate());
 
           const out = {};
           Object.keys(snapshot).forEach((dateKey) => {
@@ -10185,11 +10713,6 @@
         // CSS grid is unreliable on mobile WebKit, so this keeps the
         // gutter visually fixed on phones the same way it already
         // works on desktop.
-        const corner = document.createElement('div');
-        corner.className = 'week-view-corner';
-        gridEl.appendChild(corner);
-        cornerEl = corner;
-
         const gutterBody = document.createElement('div');
         gutterBody.className = 'week-view-gutter-body';
         gutterBody.style.height = (cfg.hourHeight * 24) + 'px';
@@ -11023,7 +11546,12 @@
         if (overlayEl) overlayEl.classList.remove('open');
       }
 
-      return { open, close, updateButtonLabel };
+      // Exposed so other modules (TalkAI) can tell the backend which
+      // offset the person is actually looking at — getSelected()
+      // already falls back to the device's own offset when nothing's
+      // been explicitly picked, and label() turns either into the
+      // same "GMT+03:00" string shown on the top-bar button.
+      return { open, close, updateButtonLabel, getSelected, label };
     })();
     TimezoneModal.updateButtonLabel();
 
