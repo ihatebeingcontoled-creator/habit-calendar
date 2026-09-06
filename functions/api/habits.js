@@ -120,6 +120,42 @@ async function postSettings(request, env) {
   return json({ ok: true });
 }
 
+/* ── birthdays sub-handlers ── */
+
+async function getBirthdays(env) {
+  const { results } = await env.DB.prepare(
+    'SELECT id, name, month, day, year, repeatYearly FROM habit_birthdays ORDER BY month ASC, day ASC'
+  ).all();
+  return json(results);
+}
+
+async function postBirthday(request, env) {
+  const b = await request.json();
+  if (!b.name || !b.month || !b.day) {
+    return json({ error: 'Missing name, month, or day' }, 400);
+  }
+  const id = crypto.randomUUID();
+  await env.DB.prepare(`
+    INSERT INTO habit_birthdays (id, name, month, day, year, repeatYearly)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).bind(
+    id,
+    b.name,
+    b.month,
+    b.day,
+    b.year ?? null,
+    b.repeatYearly === false ? 0 : 1
+  ).run();
+  return json({ ok: true, id });
+}
+
+async function deleteBirthday(url, env) {
+  const id = url.searchParams.get('id');
+  if (!id) return json({ error: 'Missing id' }, 400);
+  await env.DB.prepare('DELETE FROM habit_birthdays WHERE id = ?').bind(id).run();
+  return json({ ok: true });
+}
+
 /* ── GET: habits, or targets if ?resource=targets ── */
 export async function onRequestGet({ request, env }) {
   try {
@@ -129,6 +165,9 @@ export async function onRequestGet({ request, env }) {
     }
     if (url.searchParams.get('resource') === 'settings') {
       return await getSettings(env);
+    }
+    if (url.searchParams.get('resource') === 'birthdays') {
+      return await getBirthdays(env);
     }
 
     const { results } = await env.DB.prepare('SELECT * FROM habits').all();
@@ -170,6 +209,9 @@ export async function onRequestPost({ request, env }) {
     }
     if (url.searchParams.get('resource') === 'settings') {
       return await postSettings(request, env);
+    }
+    if (url.searchParams.get('resource') === 'birthdays') {
+      return await postBirthday(request, env);
     }
 
     const t = await request.json();
@@ -239,6 +281,9 @@ export async function onRequestDelete({ request, env }) {
     const url = new URL(request.url);
     if (url.searchParams.get('resource') === 'targets') {
       return await deleteTarget(url, env);
+    }
+    if (url.searchParams.get('resource') === 'birthdays') {
+      return await deleteBirthday(url, env);
     }
     return json({ error: 'Not supported' }, 400);
   } catch (e) {
