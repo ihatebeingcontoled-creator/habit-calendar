@@ -70,6 +70,27 @@
     body.night-mode .global-topbar-selectday { background: #1c1c1e; border-color: #3a3a3a; color: #f5f5f5; }
     body.night-mode .global-topbar-selectday:hover { background: #2a2a2c; }
 
+    .global-topbar-right { display: flex; align-items: center; gap: 8px; }
+
+    /* Same look as .global-topbar-selectday (same button family), just
+       its own class so the phone-hide rule below can target it alone
+       without also hiding Select Day. */
+    .global-topbar-tz-btn {
+      display: flex; align-items: center; gap: 6px;
+      border: 1.5px solid #e2e2e2; background: #fff; border-radius: 9px;
+      height: 32px; padding: 0 14px;
+      font-size: 12.5px; font-weight: 700; color: #111; cursor: pointer;
+      font-family: inherit; transition: background 0.15s, border-color 0.15s;
+    }
+    .global-topbar-tz-btn:hover { background: #f7f7f7; }
+    body.night-mode .global-topbar-tz-btn { background: #1c1c1e; border-color: #3a3a3a; color: #f5f5f5; }
+    body.night-mode .global-topbar-tz-btn:hover { background: #2a2a2c; }
+    /* Desktop-only — matches the phone breakpoint already used for
+       the "Kalendorius" title and color-guide legend panel. */
+    @media (max-width: 760px) {
+      .global-topbar-tz-btn { display: none; }
+    }
+
     body::before {
       content: '';
       position: fixed;
@@ -1154,6 +1175,30 @@
     body.night-mode .repeat-days-actions button:hover { background: #2c2c2e; }
     body.night-mode .repeat-days-actions button.primary { background: #3b82f6; border-color: #3b82f6; color: #fff; }
 
+    /* Timezone picker — reuses .repeat-days-overlay/-card/-title/
+       -actions (generic popup shell) for everything except the
+       scrollable option list itself. */
+    .tz-picker-list {
+      max-height: 320px;
+      overflow-y: auto;
+      margin-bottom: 14px;
+      border: 1.5px solid #ececec;
+      border-radius: 10px;
+    }
+    .tz-picker-option {
+      display: block; width: 100%; text-align: left;
+      padding: 9px 12px; font-size: 12.5px; font-weight: 700; color: #333;
+      background: none; border: none; border-bottom: 1px solid #f0f0f0;
+      cursor: pointer; font-family: inherit; transition: background 0.12s;
+    }
+    .tz-picker-option:last-child { border-bottom: none; }
+    .tz-picker-option:hover { background: #f4f4f4; }
+    .tz-picker-option.selected { background: #eff6ff; color: #3b82f6; }
+    body.night-mode .tz-picker-list { border-color: #333; }
+    body.night-mode .tz-picker-option { color: #eee; border-bottom-color: #2c2c2e; }
+    body.night-mode .tz-picker-option:hover { background: #262626; }
+    body.night-mode .tz-picker-option.selected { background: #1e3a5f; color: #7db8ff; }
+
     /* Mode tabs — switches the modal between "next N days" (the
        original stepper) and "specific days" (pick exact dates off a
        small calendar below). Only one of the two body sections is
@@ -2029,37 +2074,18 @@
        (WeekView) and never touches DayViewState, DayTimeGrid, or
        any other existing module — it only *reads* from EventStore.
     ============================================================ */
-    .week-view-btn {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      background: #fff;
-      border: 1.5px solid #e2e2e2;
-      border-radius: 9px;
-      padding: 7px 12px;
-      font-size: 12.5px;
-      font-weight: 700;
-      color: #444;
-      cursor: pointer;
-      transition: background 0.15s, border-color 0.15s;
-      margin-left: 10px;
-      white-space: nowrap;
-    }
-    .week-view-btn:hover { background: #f4f4f4; border-color: #ccc; }
-    body.night-mode .week-view-btn { background: #1c1c1c; border-color: #333; color: #ddd; }
-    body.night-mode .week-view-btn:hover { background: #262626; }
-    /* On phones, the month-nav row is already tight (arrows + label
-       + this button) — keep just the calendar icon there and drop
-       the "Week" text so nothing wraps or gets squeezed. */
-    @media (max-width: 640px) {
-      .week-view-btn { padding: 7px 9px; }
-      .week-view-btn-label { display: none; }
+    /* Phone-only: hide the "Kalendorius" title and the color-guide
+       legend panel. Desktop/tablet keep both — this rule only fires
+       under the phone breakpoint, matching the .app-layout stacking
+       breakpoint above. */
+    @media (max-width: 760px) {
+      .app-title { display: none; }
+      .legend-panel { display: none; }
     }
 
     /* Floating "Week" / "Back to week" button — shown only while
-       locked into a single day's hourly view, since the normal
-       .week-view-btn up in .month-nav fades away in that state (see
-       AuxPanelExit). Fixed to the viewport rather than laid out
+       locked into a single day's hourly view. Fixed to the viewport
+       rather than laid out
        alongside the other locked-view widgets (LockedHeaderCard etc.)
        since those use fragile, measurement-based positioning that
        this doesn't need to participate in. */
@@ -2163,44 +2189,8 @@
       background: #fff;
       grid-column: 1; grid-row: 1;
       border-bottom: 1.5px solid #ececec;
-      /* Now doubles as the "select day" button — reset default button
-         chrome so it still just looks like the plain corner box, with
-         its icon centered. */
-      border-left: none; border-right: none; border-top: none;
-      margin: 0; padding: 0; font: inherit; color: #999;
-      display: flex; align-items: center; justify-content: center;
-      cursor: pointer;
     }
-    .week-view-corner:hover { background: #f2f2f2; color: #555; }
-    body.night-mode .week-view-corner { background: #000; border-bottom-color: #2c2c2e; color: #777; }
-    body.night-mode .week-view-corner:hover { background: #1c1c1c; color: #ccc; }
-
-    /* Hidden but interactive native date input used to launch the
-       platform's own day/month/year picker — iOS Safari renders this
-       as its native spinning wheel picker, desktop browsers render
-       their own native calendar dropdown, automatically, with no
-       manual OS detection needed. Kept in normal layout flow (not
-       display:none/visibility:hidden) since some browsers refuse to
-       open the picker on an input that isn't actually rendered. */
-    .week-view-date-input {
-      position: absolute;
-      top: 0; left: 0;
-      width: 1px; height: 1px;
-      opacity: 0;
-      border: 0; padding: 0;
-      pointer-events: none;
-    }
-    .week-view-gmt {
-      position: sticky;
-      top: 0;
-      z-index: 6;
-      font-size: 8.5px; font-weight: 700; color: #bbb;
-      align-self: end; padding: 0 0 4px 0;
-      background: #fff;
-      grid-column: 1; grid-row: 1;
-      border-bottom: 1.5px solid #ececec;
-    }
-    body.night-mode .week-view-gmt { background: #000; border-bottom-color: #2c2c2e; }
+    body.night-mode .week-view-corner { background: #000; border-bottom-color: #2c2c2e; }
 
     .week-view-daycol-header {
       position: sticky;
@@ -2373,15 +2363,28 @@
       <button type="button" class="global-topbar-tab" id="globalTabWeek" data-view="week">Week</button>
       <button type="button" class="global-topbar-tab active" id="globalTabMonth" data-view="month">Month</button>
     </div>
-    <!-- Single merged button: reads "Select Day" normally, and swaps
-         to the locked day's date (e.g. "August 13th") while the day
-         view is open — see LockedMonthNav in the script, which owns
-         the inner span's text. Either way, clicking it opens the
-         same day picker. -->
-    <button type="button" class="global-topbar-selectday" id="globalSelectDayBtn">
-      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="16" y1="2" x2="16" y2="6"></line></svg>
-      <span id="lockedDateLabel">Select Day</span>
-    </button>
+    <div class="global-topbar-right">
+      <!-- Desktop-only (see its own CSS media query) — hidden on
+           phone, where screen width makes a third top-bar button too
+           cramped next to the view tabs and Select Day. Opens
+           TimezoneModal, a plain pick-a-timezone popup; purely a
+           display label (see TimezoneModal below) — it doesn't shift
+           any event times or grid positions, same as the old
+           auto-detected corner label it replaces. -->
+      <button type="button" class="global-topbar-tz-btn" id="globalTzBtn" title="Select timezone">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><polyline points="12 7 12 12 16 14"></polyline></svg>
+        <span id="globalTzLabel">GMT+00:00</span>
+      </button>
+      <!-- Single merged button: reads "Select Day" normally, and swaps
+           to the locked day's date (e.g. "August 13th") while the day
+           view is open — see LockedMonthNav in the script, which owns
+           the inner span's text. Either way, clicking it opens the
+           same day picker. -->
+      <button type="button" class="global-topbar-selectday" id="globalSelectDayBtn">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="16" y1="2" x2="16" y2="6"></line></svg>
+        <span id="lockedDateLabel">Select Day</span>
+      </button>
+    </div>
   </div>
 
   <div class="app">
@@ -2413,10 +2416,6 @@
           <button class="nav-btn" id="prevMonth">&#8592;</button>
           <span class="month-label" id="monthLabel"></span>
           <button class="nav-btn" id="nextMonth">&#8594;</button>
-          <button type="button" class="week-view-btn" id="weekViewBtn" title="Week view">
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="16" y1="2" x2="16" y2="6"></line></svg>
-            <span class="week-view-btn-label">Week</span>
-          </button>
         </div>
 
         <div class="stats-bar">
@@ -2498,7 +2497,6 @@
       <div class="week-view-grid" id="weekViewGrid"></div>
     </div>
     <button type="button" class="week-view-goto-today" id="weekViewGotoTodayBtn">Go to current day</button>
-    <input type="date" id="weekViewDateInput" class="week-view-date-input" aria-hidden="true" tabindex="-1" />
   </div>
 
   <!-- Day detail modal -->
@@ -9224,6 +9222,15 @@
         if (openDateKey && newRecordsByDate[openDateKey] && typeof DayTimeGrid !== 'undefined' && DayTimeGrid.renderNewEventsForDate) {
           DayTimeGrid.renderNewEventsForDate(openDateKey, newRecordsByDate[openDateKey]);
         }
+        // Same idea, but for the week view: any of the copied-to dates
+        // (not just a single "open" day) might currently be showing
+        // as one of its visible columns, so check every touched date
+        // rather than just one.
+        if (typeof WeekView !== 'undefined' && WeekView.isOpen() && WeekView.renderNewEventsForDate) {
+          Object.keys(newRecordsByDate).forEach((dateKey) => {
+            WeekView.renderNewEventsForDate(dateKey, newRecordsByDate[dateKey]);
+          });
+        }
       }
 
       return { open, close };
@@ -9736,6 +9743,11 @@
         if (openDateKey && newRecordsByDate[openDateKey] && typeof DayTimeGrid !== 'undefined' && DayTimeGrid.renderNewEventsForDate) {
           DayTimeGrid.renderNewEventsForDate(openDateKey, newRecordsByDate[openDateKey]);
         }
+        if (typeof WeekView !== 'undefined' && WeekView.isOpen() && WeekView.renderNewEventsForDate) {
+          Object.keys(newRecordsByDate).forEach((dateKey) => {
+            WeekView.renderNewEventsForDate(dateKey, newRecordsByDate[dateKey]);
+          });
+        }
       }
 
       /* ── Saving: edits to an existing event → same /api/events
@@ -9964,7 +9976,6 @@
       const openBtn    = document.getElementById('weekViewBtn');
       const gotoTodayBtn = document.getElementById('weekViewGotoTodayBtn');
       const backToWeekBtn = document.getElementById('backToWeekBtn');
-      const dateInputEl = document.getElementById('weekViewDateInput');
 
       let isOpen = false;
       let currentVisibleIdx = 0; // index within `dates` of whichever day updateForScroll last considered "current" — used to seed the date picker
@@ -9980,7 +9991,7 @@
       let dates = [];
       let headerEls = [];
       let colEls = [];
-      let cornerEl = null, gmtEl = null, gutterBodyEl = null; // the 3 left-pinned elements — kept in sync via JS transform, see applyGutterPin
+      let cornerEl = null, gutterBodyEl = null; // the 2 left-pinned elements — kept in sync via JS transform, see applyGutterPin
       let selectedIdx = 0; // index within `dates` of the originally-selected day, so open() can center on it
 
       function formatClock(totalMinutes) {
@@ -10174,13 +10185,8 @@
         // CSS grid is unreliable on mobile WebKit, so this keeps the
         // gutter visually fixed on phones the same way it already
         // works on desktop.
-        const corner = document.createElement('button');
-        corner.type = 'button';
+        const corner = document.createElement('div');
         corner.className = 'week-view-corner';
-        corner.setAttribute('aria-label', 'Select day');
-        corner.title = 'Select day';
-        corner.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="16" y1="2" x2="16" y2="6"></line></svg>';
-        corner.addEventListener('click', openDatePicker);
         gridEl.appendChild(corner);
         cornerEl = corner;
 
@@ -10196,14 +10202,6 @@
         }
         gridEl.appendChild(gutterBody);
         gutterBodyEl = gutterBody;
-
-        // GMT label sits over the gutter, in the header row.
-        const gmt = document.createElement('div');
-        gmt.className = 'week-view-gmt';
-        const offsetH = -Math.round(new Date().getTimezoneOffset() / 60);
-        gmt.textContent = 'GMT' + (offsetH >= 0 ? '+' : '-') + String(Math.abs(offsetH)).padStart(2, '0');
-        gridEl.appendChild(gmt);
-        gmtEl = gmt;
 
         dates = dateList.slice();
         headerEls = [];
@@ -10262,7 +10260,7 @@
       // rendered range in either direction once you scroll near its
       // current edge, so browsing days feels endless in both
       // directions rather than being capped at the initial batch.
-      // Keeps the hour gutter (and its corner/GMT label) visually
+      // Keeps the hour gutter (and its corner) visually
       // fixed at the left edge as the grid scrolls horizontally.
       // Driven by JS rather than left:0 CSS so it's reliable on
       // mobile WebKit, where sticky-left inside a horizontally-
@@ -10270,7 +10268,6 @@
       function applyGutterPin() {
         const x = scrollEl.scrollLeft + 'px';
         if (cornerEl) cornerEl.style.transform = 'translateX(' + x + ')';
-        if (gmtEl) gmtEl.style.transform = 'translateX(' + x + ')';
         if (gutterBodyEl) gutterBodyEl.style.transform = 'translateX(' + x + ')';
       }
 
@@ -10323,30 +10320,6 @@
       // in the visible (non-gutter) part of the scroll area.
       function scrollToIndexCentered(idx) {
         scrollEl.scrollTo({ left: centeredScrollLeftFor(idx), behavior: 'smooth' });
-      }
-
-      // Opens the browser's own native date picker, seeded with
-      // whichever day is currently centered/visible. showPicker() is
-      // what actually launches it: on iOS Safari that's the native
-      // spinning year/month/day wheel, on desktop Chrome/Edge/Firefox
-      // it's their own native calendar dropdown — each platform's
-      // normal picker, automatically, with no manual OS-sniffing.
-      // Older browsers without showPicker() fall back to focusing +
-      // clicking the input, which still opens its native picker.
-      function openDatePicker() {
-        if (!dateInputEl || !dates.length) return;
-        const base = dates[currentVisibleIdx] || dates[selectedIdx] || dates[0];
-        dateInputEl.value = toISODate(base);
-        if (typeof dateInputEl.showPicker === 'function') {
-          try {
-            dateInputEl.showPicker();
-            return;
-          } catch (e) {
-            // fall through to the focus/click fallback below
-          }
-        }
-        dateInputEl.focus();
-        dateInputEl.click();
       }
 
       // Jumps the week/day scroll to an arbitrary picked date: if it's
@@ -10457,6 +10430,131 @@
       // stays put.
       const weekResizeCfg = { SNAP_MIN: 15, MIN_DURATION: 15 };
 
+      // Drag-to-move for week-view boxes — a self-contained version of
+      // DayTimeGrid's attachBoxDrag, adapted for a week of side-by-side
+      // day columns instead of one wide single-day track. Vertical
+      // movement changes time-of-day exactly like the single-day grid;
+      // horizontal movement snaps the box over to whichever day column
+      // the pointer is currently over, moving the record itself out of
+      // its original date's EventStore array and into the new one —
+      // that's what lets a box get dragged clean out of the day it was
+      // created on (yesterday, tomorrow, any other day still loaded in
+      // this window).
+      const weekDragCfg = {
+        SNAP_MIN:                15,
+        MOVE_THRESHOLD_PX:       10, // mouse / pen — small and precise
+        TOUCH_MOVE_THRESHOLD_PX: 20, // a finger wobbles more than this on a plain tap
+      };
+
+      function attachWeekBoxDrag(record) {
+        const boxEl = record.el;
+        let dragPointerId   = null;
+        let dragPointerType = 'mouse';
+        let dragging        = false;
+        let startClientX    = 0;
+        let startClientY    = 0;
+        let startMinutesAt  = 0;
+        let startColIndex   = 0;    // index into dates/colEls this box started in
+        let originalDateKey = null; // record.dateKey at drag start — onEnd needs this to know whether the day actually changed
+
+        function onMove(e) {
+          if (e.pointerId !== dragPointerId) return;
+          if (record.locked) return; // locked boxes don't move — a plain
+                                      // tap still reaches onEnd below and
+                                      // opens the editor as normal.
+          const dx = e.clientX - startClientX;
+          const dy = e.clientY - startClientY;
+
+          if (!dragging) {
+            const threshold = dragPointerType === 'touch'
+              ? weekDragCfg.TOUCH_MOVE_THRESHOLD_PX
+              : weekDragCfg.MOVE_THRESHOLD_PX;
+            if (Math.hypot(dx, dy) < threshold) return;
+            dragging = true;
+            boxEl.classList.add('dragging');
+          }
+
+          // Vertical — time of day, same math as the single-day grid's
+          // own drag, just at this module's own hourHeight.
+          const deltaMinutes = (dy / cfg.hourHeight) * 60;
+          const rawStart      = startMinutesAt + deltaMinutes;
+          const snapped        = Math.round(rawStart / weekDragCfg.SNAP_MIN) * weekDragCfg.SNAP_MIN;
+          record.startMinutes = Math.max(0, Math.min(24 * 60 - record.durationMinutes, snapped));
+          boxEl.style.top = ((record.startMinutes / 60) * cfg.hourHeight) + 'px';
+
+          // Horizontal — snap over to whichever day column the pointer
+          // has moved past, clamped to whatever's currently loaded.
+          const deltaCols = Math.round(dx / cfg.colWidth);
+          const targetIdx = Math.max(0, Math.min(dates.length - 1, startColIndex + deltaCols));
+          if (colEls[targetIdx] && boxEl.parentElement !== colEls[targetIdx]) {
+            colEls[targetIdx].appendChild(boxEl);
+            const oldList = EventStore.getForDate(record.dateKey);
+            const idx = oldList.indexOf(record);
+            if (idx !== -1) oldList.splice(idx, 1);
+            const d = dates[targetIdx];
+            record.dateKey = EventStore.dateKeyFor(d.getFullYear(), d.getMonth(), d.getDate());
+            EventStore.getForDate(record.dateKey).push(record);
+          }
+
+          if (typeof EventEditor !== 'undefined') {
+            EventEditor.updateTimeLabel(record);
+            EventEditor.updateFaceTime(record);
+          }
+        }
+
+        function onEnd(e) {
+          if (e.pointerId !== dragPointerId) return;
+          document.removeEventListener('pointermove', onMove);
+          document.removeEventListener('pointerup', onEnd);
+          document.removeEventListener('pointercancel', onEnd);
+          dragPointerId = null;
+
+          const wasDragging = dragging;
+          dragging = false;
+          boxEl.classList.remove('dragging');
+
+          if (wasDragging) {
+            EventStore.save(record);
+            // The day it started on also needs a sync if it's no
+            // longer there, or the server keeps a stale copy on the
+            // old date forever.
+            if (record.dateKey !== originalDateKey) EventStore.save({ dateKey: originalDateKey });
+            if (record.notify) NotificationScheduler.schedule(record);
+          } else if (e.type === 'pointerup') {
+            if (boxEl.classList.contains('editing') && e.target.closest('.day-time-grid-event-box-editor')) return;
+            if (typeof EventEditor !== 'undefined') EventEditor.open(record);
+          }
+        }
+
+        boxEl.addEventListener('pointerdown', (e) => {
+          if (dragPointerId !== null) return;
+          if (e.button !== undefined && e.button !== 0) return;
+          // Don't let this bubble up into the column's own hold-to-
+          // create listener (onWeekHoldPointerDown).
+          e.stopPropagation();
+
+          // While this box is in its inline-edit state, clicks on its
+          // own editor controls (textarea, type/color buttons,
+          // dropdowns) should behave like normal form interactions —
+          // not get hijacked into a drag-move or a tap-to-reopen.
+          if (boxEl.classList.contains('editing') && e.target.closest('.day-time-grid-event-box-editor')) {
+            return;
+          }
+
+          dragPointerId   = e.pointerId;
+          dragPointerType = e.pointerType || 'mouse';
+          startClientX    = e.clientX;
+          startClientY    = e.clientY;
+          startMinutesAt  = record.startMinutes;
+          startColIndex   = colEls.indexOf(boxEl.parentElement);
+          originalDateKey = record.dateKey;
+
+          document.addEventListener('pointermove', onMove);
+          document.addEventListener('pointerup', onEnd);
+          document.addEventListener('pointercancel', onEnd);
+        });
+      }
+
       function attachWeekBoxResize(record, handles) {
         const boxEl = record.el;
         let resizePointerId  = null;
@@ -10563,21 +10661,11 @@
         contentEl.className = 'day-time-grid-event-box-content';
         contentEl.textContent = 'New Event';
         boxEl.appendChild(contentEl);
-        // pointerdown must not bubble to the column's own hold-to-
-        // create listener (onWeekHoldPointerDown) — without this, a
-        // tap that starts on an existing box could still be read as
-        // the start of a hold on the empty track underneath it.
-        boxEl.addEventListener('pointerdown', (e) => e.stopPropagation());
-        // A plain click/tap on the box (re)opens its editor — this is
-        // what lets a box made in the week view (or an already-
-        // existing event shown here) be edited a second time. Clicks
-        // that land on the editor's own controls while it's open are
-        // left alone so typing/menus keep working normally.
-        boxEl.addEventListener('click', (e) => {
-          if (boxEl.classList.contains('editing') && e.target.closest('.day-time-grid-event-box-editor')) return;
-          e.stopPropagation();
-          if (typeof EventEditor !== 'undefined') EventEditor.open(record);
-        });
+        // Press-and-drag (or a plain tap) on the box is handled by
+        // attachWeekBoxDrag below — it stops the pointerdown from
+        // bubbling into the column's own hold-to-create listener,
+        // moves the box (time and/or day) while dragging, and reopens
+        // the editor on a plain tap that never turns into a drag.
 
         const notifyBadge = document.createElement('div');
         notifyBadge.className = 'day-time-grid-event-box-notify-badge';
@@ -10609,8 +10697,23 @@
           DayTimeGrid.setNotifyBadge(record, record.notify);
           DayTimeGrid.setLockedState(record, record.locked);
         }
+        attachWeekBoxDrag(record);
         attachWeekBoxResize(record, { topHandle, bottomHandle });
         return boxEl;
+      }
+
+      // Counterpart to DayTimeGrid.renderNewEventsForDate, for the
+      // week grid: paints freshly-created records straight into
+      // whichever visible day column matches dateKey, so a "copy to
+      // other days" (or AI-created event) that lands on a date
+      // already showing in this week view appears immediately —
+      // without this, the box only exists in EventStore until the
+      // week view is closed/reopened (or the page is refreshed) and
+      // buildInitial() re-reads EventStore from scratch.
+      function renderNewEventsForDate(dateKey, records) {
+        const idx = dates.findIndex((d) => EventStore.dateKeyFor(d.getFullYear(), d.getMonth(), d.getDate()) === dateKey);
+        if (idx === -1 || !colEls[idx]) return;
+        records.forEach((record) => buildWeekEventBox(record, colEls[idx]));
       }
 
       function weekMinutesFromClientY(colEl, clientY) {
@@ -10786,30 +10889,143 @@
       }
 
       function init() {
-        if (!openBtn || !overlayEl) return;
-        openBtn.addEventListener('click', open);
+        if (!overlayEl) return;
+        if (openBtn) openBtn.addEventListener('click', open);
         closeBtn.addEventListener('click', close);
         scrollEl.addEventListener('scroll', onScroll, { passive: true });
         if (gotoTodayBtn) gotoTodayBtn.addEventListener('click', goToToday);
         if (backToWeekBtn) backToWeekBtn.addEventListener('click', open);
-        if (dateInputEl) {
-          dateInputEl.addEventListener('change', () => {
-            if (!dateInputEl.value) return;
-            const parts = dateInputEl.value.split('-');
-            const y = parseInt(parts[0], 10);
-            const m = parseInt(parts[1], 10) - 1;
-            const d = parseInt(parts[2], 10);
-            if (!isNaN(y) && !isNaN(m) && !isNaN(d)) goToDate(y, m, d);
-          });
-        }
         if (typeof DayViewState !== 'undefined') {
           DayViewState.onChange((next) => updateBackToWeekBtn(next));
         }
       }
 
-      return { init, open, close, isOpen: () => isOpen, goToDate };
+      return { init, open, close, isOpen: () => isOpen, goToDate, renderNewEventsForDate };
     })();
     WeekView.init();
+
+    /* ============================================================
+       TIMEZONE PICKER — a plain, purely informational "which
+       timezone am I looking at" label + popup, opened from the
+       desktop-only button in the global top bar. It doesn't shift
+       any event times or grid positions (same as the old
+       auto-detected corner label in the week view that it replaces)
+       — selecting an entry just changes what the top-bar button
+       displays, persisted in localStorage so it survives a reload.
+    ============================================================ */
+    const TimezoneModal = (() => {
+      const STORAGE_KEY = 'habitcal_tz_offset_min';
+      // Every half-hour offset from UTC-12:00 to UTC+14:00 — covers
+      // every real-world zone except the rare :45 outliers (Nepal,
+      // Chatham Islands), which aren't worth the extra list noise here.
+      const OPTIONS = [];
+      for (let m = -12 * 60; m <= 14 * 60; m += 30) OPTIONS.push(m);
+
+      function label(offsetMin) {
+        const sign = offsetMin < 0 ? '-' : '+';
+        const abs  = Math.abs(offsetMin);
+        const h    = String(Math.floor(abs / 60)).padStart(2, '0');
+        const m    = String(abs % 60).padStart(2, '0');
+        return 'GMT' + sign + h + ':' + m;
+      }
+
+      function deviceOffsetMinutes() {
+        return -new Date().getTimezoneOffset();
+      }
+
+      function getSelected() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (raw !== null) {
+            const n = parseInt(raw, 10);
+            if (Number.isFinite(n)) return n;
+          }
+        } catch { /* ignore */ }
+        return deviceOffsetMinutes();
+      }
+
+      function updateButtonLabel() {
+        const labelEl = document.getElementById('globalTzLabel');
+        if (labelEl) labelEl.textContent = label(getSelected());
+      }
+
+      function setSelected(offsetMin) {
+        try { localStorage.setItem(STORAGE_KEY, String(offsetMin)); } catch { /* ignore */ }
+        updateButtonLabel();
+      }
+
+      let overlayEl = null, listEl = null;
+
+      function ensureBuilt() {
+        if (overlayEl) return;
+
+        overlayEl = document.createElement('div');
+        overlayEl.className = 'repeat-days-overlay';
+
+        const card = document.createElement('div');
+        card.className = 'repeat-days-card';
+
+        const title = document.createElement('div');
+        title.className = 'repeat-days-title';
+        title.textContent = 'Select Timezone';
+
+        listEl = document.createElement('div');
+        listEl.className = 'tz-picker-list';
+        OPTIONS.forEach((offsetMin) => {
+          const opt = document.createElement('button');
+          opt.type = 'button';
+          opt.className = 'tz-picker-option';
+          opt.textContent = label(offsetMin);
+          opt.dataset.offset = String(offsetMin);
+          opt.addEventListener('click', () => {
+            setSelected(offsetMin);
+            render();
+            close();
+          });
+          listEl.appendChild(opt);
+        });
+
+        const actions = document.createElement('div');
+        actions.className = 'repeat-days-actions';
+        const closeBtn = document.createElement('button');
+        closeBtn.type = 'button';
+        closeBtn.textContent = 'Close';
+        closeBtn.addEventListener('click', close);
+        actions.appendChild(closeBtn);
+
+        card.appendChild(title);
+        card.appendChild(listEl);
+        card.appendChild(actions);
+        overlayEl.appendChild(card);
+        document.body.appendChild(overlayEl);
+
+        // Tapping the dimmed backdrop (not the card itself) closes it,
+        // same convention as the other popups in the app.
+        overlayEl.addEventListener('click', (e) => { if (e.target === overlayEl) close(); });
+      }
+
+      function render() {
+        const current = getSelected();
+        listEl.querySelectorAll('.tz-picker-option').forEach((opt) => {
+          opt.classList.toggle('selected', parseInt(opt.dataset.offset, 10) === current);
+        });
+      }
+
+      function open() {
+        ensureBuilt();
+        render();
+        overlayEl.classList.add('open');
+        const sel = listEl.querySelector('.tz-picker-option.selected');
+        if (sel) sel.scrollIntoView({ block: 'center' });
+      }
+
+      function close() {
+        if (overlayEl) overlayEl.classList.remove('open');
+      }
+
+      return { open, close, updateButtonLabel };
+    })();
+    TimezoneModal.updateButtonLabel();
 
     /* ============================================================
        GLOBAL TOP BAR — Day / Week / Month tabs + Select Day.
@@ -10834,6 +11050,7 @@
       const weekTab      = document.getElementById('globalTabWeek');
       const monthTab     = document.getElementById('globalTabMonth');
       const selectDayBtn = document.getElementById('globalSelectDayBtn');
+      const tzBtn        = document.getElementById('globalTzBtn');
       const weekOverlayEl = document.getElementById('weekViewOverlay');
 
       function setActiveTab(view) {
@@ -10937,6 +11154,7 @@
         if (weekTab)  weekTab.addEventListener('click', goToWeekView);
         if (monthTab) monthTab.addEventListener('click', goToMonthView);
         if (selectDayBtn) selectDayBtn.addEventListener('click', () => DayPickerModal.open());
+        if (tzBtn) tzBtn.addEventListener('click', () => TimezoneModal.open());
 
         if (typeof DayViewState !== 'undefined') DayViewState.onChange(refreshActiveTab);
         // Week view has no onChange hook of its own (unlike
