@@ -160,6 +160,20 @@ async function encryptPayload(payloadText, p256dhB64, authB64) {
 
 function pad(n) { return String(n).padStart(2, '0'); }
 
+const MONTH_NAMES = ['January','February','March','April','May','June',
+                      'July','August','September','October','November','December'];
+
+// Today's Y/M/D as seen in the given timezone right now — used to know
+// which habit_birthdays rows count as "today" and to find local midnight.
+function todayInTZ(timeZone) {
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
+  });
+  const map = {};
+  for (const p of dtf.formatToParts(new Date())) map[p.type] = p.value;
+  return { y: parseInt(map.year), mo: parseInt(map.month), d: parseInt(map.day) };
+}
+
 async function sendPush(sub, payloadObj, env) {
   const body = await encryptPayload(JSON.stringify(payloadObj), sub.p256dh, sub.auth);
   const authorization = await createVapidAuthHeader(
@@ -180,6 +194,8 @@ async function sendPush(sub, payloadObj, env) {
 export async function onRequestGet({ env }) {
   try {
     const nowMs = Date.now();
+
+    // ── due events (unchanged) ──
     const { results } = await env.DB.prepare(
       'SELECT * FROM habit_events WHERE notify = 1'
     ).all();
@@ -195,20 +211,50 @@ export async function onRequestGet({ env }) {
         due.push(ev);
       }
     }
-    if (!due.length) return json({ ok: true, sent: 0 });
 
-    const placeholders = due.map(() => '?').join(',');
-    const { results: alreadySentRows } = await env.DB.prepare(
-      `SELECT event_id FROM sent_notifications WHERE event_id IN (${placeholders})`
-    ).bind(...due.map((e) => e.id)).all();
-    const sentIds = new Set(alreadySentRows.map((r) => r.event_id));
-    const toSend = due.filter((e) => !sentIds.has(e.id));
-    if (!toSend.length) return json({ ok: true, sent: 0 });
+    let toSend = [];
+    if (due.length) {
+      const placeholders = due.map(() => '?').join(',');
+      const { results: alreadySentRows } = await env.DB.prepare(
+        `SELECT event_id FROM sent_notifications WHERE event_id IN (${placeholders})`
+      ).bind(...due.map((e) => e.id)).all();
+      const sentIds = new Set(alreadySentRows.map((r) => r.event_id));
+      toSend = due.filter((e) => !sentIds.has(e.id));
+    }
+
+    // ── due birthdays — fire once, at local (Europe/Vilnius) midnight ──
+    // sent_notifications is shared with events; birthdays use a
+    // "birthday-<id>-<year>" key so the same person can fire again next
+    // year without colliding with this year's row (or with event ids).
+    const { y: ty, mo: tmo, d: td } = todayInTZ('Europe/Vilnius');
+    const midnightMs = zonedTimeToUtc(ty, tmo, td, 0, 0, 'Europe/Vilnius');
+    const inMidnightWindow = nowMs >= midnightMs && nowMs < midnightMs + 90 * 1000;
+
+    let dueBirthdays = [];
+    if (inMidnightWindow) {
+      const { results: birthdays } = await env.DB.prepare(
+        'SELECT * FROM habit_birthdays WHERE month = ? AND day = ?'
+      ).bind(tmo, td).all();
+      const candidates = birthdays.filter((b) => b.repeatYearly !== 0 || b.year === ty);
+
+      if (candidates.length) {
+        const bKeys = candidates.map((b) => `birthday-${b.id}-${ty}`);
+        const bPlaceholders = bKeys.map(() => '?').join(',');
+        const { results: alreadySentB } = await env.DB.prepare(
+          `SELECT event_id FROM sent_notifications WHERE event_id IN (${bPlaceholders})`
+        ).bind(...bKeys).all();
+        const sentBKeys = new Set(alreadySentB.map((r) => r.event_id));
+        dueBirthdays = candidates.filter((b) => !sentBKeys.has(`birthday-${b.id}-${ty}`));
+      }
+    }
+
+    if (!toSend.length && !dueBirthdays.length) return json({ ok: true, sent: 0 });
 
     const { results: subs } = await env.DB.prepare('SELECT * FROM push_subscriptions').all();
 
     let sentCount = 0;
     const markStmts = [];
+
     for (const ev of toSend) {
       const payload = {
         title: ev.type || 'Reminder',
@@ -231,6 +277,27 @@ export async function onRequestGet({ env }) {
           .bind(ev.id, Date.now())
       );
     }
+
+    for (const b of dueBirthdays) {
+      const payload = { title: b.name, body: `${MONTH_NAMES[b.month - 1]} ${b.day}` };
+      for (const sub of subs) {
+        try {
+          const res = await sendPush(sub, payload, env);
+          if (res.status === 404 || res.status === 410) {
+            await env.DB.prepare('DELETE FROM push_subscriptions WHERE id = ?').bind(sub.id).run();
+          } else {
+            sentCount++;
+          }
+        } catch (err) {
+          /* one bad subscription shouldn't block the rest */
+        }
+      }
+      markStmts.push(
+        env.DB.prepare('INSERT OR REPLACE INTO sent_notifications (event_id, sent_at) VALUES (?, ?)')
+          .bind(`birthday-${b.id}-${ty}`, Date.now())
+      );
+    }
+
     if (markStmts.length) await env.DB.batch(markStmts);
 
     return json({ ok: true, sent: sentCount });
