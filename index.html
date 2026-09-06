@@ -1525,6 +1525,16 @@
     }
     body.night-mode .birthday-badge { background: #3a2a0f; color: #fcd34d; border-color: rgba(252,211,77,0.3); }
 
+    /* Full name version, inside the day modal — no ellipsis, no
+       nowrap, wraps onto multiple lines for a long name instead of
+       cutting it off the way the tiny month-cell badge has to. */
+    .modal-birthday-banner {
+      background: #fef3c7; border: 1.5px solid rgba(146,64,14,0.25); color: #92400e;
+      border-radius: 10px; padding: 10px 14px; font-size: 13px; font-weight: 700;
+      margin-bottom: 14px; white-space: normal; word-break: break-word; line-height: 1.4;
+    }
+    body.night-mode .modal-birthday-banner { background: #3a2a0f; color: #fcd34d; border-color: rgba(252,211,77,0.3); }
+
     /* ---- Birthdays sidebar panel (sits under the Color Guide) ---- */
     .birthdays-panel { margin-top: 18px; padding-top: 14px; border-top: 1px solid #eee; }
     body.night-mode .birthdays-panel { border-top-color: #333; }
@@ -2608,6 +2618,12 @@
         <span class="modal-title" id="modalTitle">Day</span>
         <button class="close-btn" id="closeBtn">&times;</button>
       </div>
+
+      <!-- Full, untruncated birthday name(s) for this date — the badge
+           on the month-cell itself has to ellipsis long names to fit a
+           tiny box, so this is where the full name actually shows.
+           Hidden entirely on days with no birthday. -->
+      <div class="modal-birthday-banner" id="modalBirthdayBanner" style="display:none;"></div>
 
       <button type="button" class="wake-5am-btn" id="wake5amBtn">
         ⏰ Wake up at 5am
@@ -4269,6 +4285,15 @@
       const [y, m, d] = dateStr.split('-');
       document.getElementById('modalTitle').textContent =
         t('months')[parseInt(m) - 1] + ' ' + parseInt(d) + ', ' + y;
+
+      const bdays = birthdaysForMonthDay(parseInt(y), parseInt(m), parseInt(d));
+      const bBanner = document.getElementById('modalBirthdayBanner');
+      if (bdays.length) {
+        bBanner.textContent = '🎂 ' + bdays.map((b) => b.name).join(', ');
+        bBanner.style.display = '';
+      } else {
+        bBanner.style.display = 'none';
+      }
 
       formState = defaultEntry(dateStr);
       document.getElementById('dayTitle').value = '';
