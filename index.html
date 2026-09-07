@@ -72,6 +72,22 @@
 
     .global-topbar-right { display: flex; align-items: center; gap: 8px; }
 
+    /* Same look as .global-topbar-selectday (same button family) —
+       PC-only control for cfg.hourHeight in Day/Week view. See the
+       phone-hide media query below and HourGapControl in the script. */
+    .global-topbar-hourgap {
+      display: flex; align-items: center; gap: 8px;
+      border: 1.5px solid #e2e2e2; background: #fff; border-radius: 9px;
+      height: 32px; padding: 0 12px; color: #888;
+    }
+    body.night-mode .global-topbar-hourgap { background: #1c1c1e; border-color: #3a3a3a; color: #888; }
+    .global-topbar-hourgap input[type="range"] {
+      width: 84px; accent-color: #3b82f6; cursor: pointer;
+    }
+    @media (max-width: 760px) {
+      .global-topbar-hourgap { display: none; }
+    }
+
     /* Same look as .global-topbar-selectday (same button family), just
        its own class so the phone-hide rule below can target it alone
        without also hiding Select Day. */
@@ -2459,6 +2475,15 @@
       <button type="button" class="global-topbar-tab active" id="globalTabMonth" data-view="month">Month</button>
     </div>
     <div class="global-topbar-right">
+      <!-- Desktop-only (see its own CSS media query) — a display-
+           density preference, not something worth the width on
+           phone. Drags cfg.hourHeight live in both DayTimeGrid and
+           WeekView (see HourGapControl near the end of the script),
+           persisted in localStorage. -->
+      <div class="global-topbar-hourgap" id="globalHourGapControl" title="Hour row spacing">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="7" x2="20" y2="7"></line><line x1="4" y1="12" x2="20" y2="12"></line><line x1="4" y1="17" x2="20" y2="17"></line></svg>
+        <input type="range" id="globalHourGapSlider" min="40" max="140" step="2" value="76" aria-label="Hour row spacing">
+      </div>
       <!-- Desktop-only (see its own CSS media query) — hidden on
            phone, where screen width makes a third top-bar button too
            cramped next to the view tabs and Select Day. Opens
@@ -8386,7 +8411,28 @@
         recomputeOverlapLayout();
       }
 
-      return { init, computeRect, onHoldCreate, onBoxCreated, recomputeOverlapLayout, setNotifyBadge, setLockedState, positionEventBox, renderEventsForDate, renderNewEventsForDate, refreshEditedRecords, removeRecordsFromDate, forceRerenderDate };
+      // Live hour-row-spacing control (topbar slider, desktop only).
+      // Safe to call before the grid has ever been built — it just
+      // updates cfg.hourHeight so whenever ensureBuilt()/buildHours()
+      // does run, it picks up the new spacing from the start. If the
+      // grid already exists, reposition every hour line/label plus
+      // the current-day's event boxes in place (positionEventBox
+      // reads cfg.hourHeight live, so forceRerenderDate is enough —
+      // no need to touch EventStore or any record data).
+      function setHourHeight(px) {
+        cfg.hourHeight = px;
+        if (!innerEl) return;
+        innerEl.style.height = (cfg.hourHeight * 24) + 'px';
+        for (let h = 0; h <= 24; h++) {
+          const y = h * cfg.hourHeight;
+          if (hourLineEls[h]) hourLineEls[h].style.top = y + 'px';
+          if (hourLabelEls[h]) hourLabelEls[h].style.top = y + 'px';
+        }
+        if (el && el.style.display === 'block') render();
+        if (renderedDateKey) forceRerenderDate(renderedDateKey);
+      }
+
+      return { init, computeRect, onHoldCreate, onBoxCreated, recomputeOverlapLayout, setNotifyBadge, setLockedState, positionEventBox, renderEventsForDate, renderNewEventsForDate, refreshEditedRecords, removeRecordsFromDate, forceRerenderDate, setHourHeight, getHourHeight: () => cfg.hourHeight };
     })();
     DayTimeGrid.init();
 
@@ -11448,9 +11494,97 @@
         }
       }
 
-      return { init, open, close, isOpen: () => isOpen, goToDate, renderNewEventsForDate };
+      // Live hour-row-spacing control (topbar slider, desktop only),
+      // counterpart to DayTimeGrid.setHourHeight. The week grid isn't
+      // rebuilt on every open the way DayTimeGrid's is lazy-built —
+      // buildInitial() already ran by the time anyone can reach this
+      // slider — so rather than a full rebuild (which would reset
+      // scroll position) this just repositions everything already in
+      // the DOM in place: the gutter labels, each column's hour
+      // lines, the current-time indicator, and every mounted event
+      // box (read back from EventStore per date, same source
+      // buildWeekEventBox used to place them originally).
+      function setHourHeight(px) {
+        cfg.hourHeight = px;
+        if (!gutterBodyEl) return; // week view never opened yet — cfg change alone is enough
+        gridEl.style.setProperty('--week-view-hour-h', cfg.hourHeight + 'px');
+        gutterBodyEl.style.height = (cfg.hourHeight * 24) + 'px';
+        gutterBodyEl.querySelectorAll('.week-view-hour-label').forEach((label, h) => {
+          label.style.top = (h * cfg.hourHeight) + 'px';
+        });
+
+        const today = new Date();
+        const nowMinutes = today.getHours() * 60 + today.getMinutes();
+
+        colEls.forEach((col, i) => {
+          col.style.height = (cfg.hourHeight * 24) + 'px';
+          let h = 0;
+          col.querySelectorAll('.week-view-hour-line').forEach((line) => {
+            line.style.top = (h * cfg.hourHeight) + 'px';
+            h++;
+          });
+
+          const nowLine = col.querySelector('.week-view-now-line');
+          const nowDot = col.querySelector('.week-view-now-dot');
+          if (nowLine && nowDot) {
+            const y = (nowMinutes / 60) * cfg.hourHeight;
+            nowLine.style.top = y + 'px';
+            nowDot.style.top = y + 'px';
+          }
+
+          const d = dates[i];
+          if (!d) return;
+          const dateKey = EventStore.dateKeyFor(d.getFullYear(), d.getMonth(), d.getDate());
+          EventStore.getForDate(dateKey).forEach((record) => {
+            if (!record.el || record.el.parentElement !== col) return;
+            const top = (record.startMinutes / 60) * cfg.hourHeight;
+            const height = (record.durationMinutes / 60) * cfg.hourHeight;
+            record.el.style.top = top + 'px';
+            record.el.style.height = Math.max(height, 15) + 'px';
+          });
+        });
+      }
+
+      return { init, open, close, isOpen: () => isOpen, goToDate, renderNewEventsForDate, setHourHeight, getHourHeight: () => cfg.hourHeight };
     })();
     WeekView.init();
+
+    /* ============================================================
+       HOUR GAP CONTROL — desktop-only topbar slider that drags
+       cfg.hourHeight (the px-per-hour spacing between the hour
+       counters/lines) live in both DayTimeGrid and WeekView. Purely
+       a personal display-density preference, persisted in
+       localStorage — never touches EventStore or any event data.
+    ============================================================ */
+    const HourGapControl = (() => {
+      const STORAGE_KEY = 'nb_hourGapPx';
+      const slider = document.getElementById('globalHourGapSlider');
+
+      function apply(px) {
+        if (typeof DayTimeGrid !== 'undefined') DayTimeGrid.setHourHeight(px);
+        if (typeof WeekView !== 'undefined') WeekView.setHourHeight(px);
+      }
+
+      function init() {
+        if (!slider) return;
+        const saved = parseInt(localStorage.getItem(STORAGE_KEY), 10);
+        if (!Number.isNaN(saved)) {
+          slider.value = saved;
+          apply(saved);
+        }
+        // 'input' fires continuously while dragging, so both grids
+        // track the handle live rather than only snapping once on
+        // release.
+        slider.addEventListener('input', () => {
+          const px = parseInt(slider.value, 10);
+          apply(px);
+          localStorage.setItem(STORAGE_KEY, String(px));
+        });
+      }
+
+      return { init };
+    })();
+    HourGapControl.init();
 
     /* ============================================================
        TIMEZONE PICKER — a plain, purely informational "which
