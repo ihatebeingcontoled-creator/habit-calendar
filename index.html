@@ -1494,13 +1494,14 @@
        so a finger-drag on the box always reaches our own pointermove
        handler instead of the browser trying to pan the page. Locked
        boxes don't need that — letting the browser recognize a
-       vertical swipe as its own pan means a scroll gesture starting
-       on a locked box actually scrolls (the browser takes over and
-       fires pointercancel, which onEnd already treats as "not a
-       tap" — see attachBoxDrag), while a real stationary tap still
-       resolves as a normal tap/click and opens the editor. */
+       swipe (any direction, not just vertical) as its own pan means
+       a scroll/swipe gesture starting on a locked box is never
+       swallowed (the browser takes over and fires pointercancel,
+       which onEnd already treats as "not a tap" — see
+       attachBoxDrag), while a real stationary tap still resolves as
+       a normal tap/click and opens the editor. */
     .day-time-grid-event-box.locked:not(.editing) {
-      touch-action: pan-y;
+      touch-action: auto;
     }
 
     .day-num { position: absolute; top: 7px; left: 9px; font-size: 11.5px; font-weight: 700; color: #aaa; z-index: 5; }
@@ -9931,6 +9932,51 @@
           });
         });
       } catch { /* ignore malformed/missing storage */ }
+    })();
+
+    /* ============================================================
+       YESTERDAY AUTO-LOCK ON LOAD.
+       Every time the app opens, yesterday gets one check: if every
+       box on it is already locked, it's left exactly as is —
+       nothing to do, no toast. But if even one box was left
+       unlocked, the whole day gets swept closed behind the person,
+       box by box, with a couple of toasts marking the before/after
+       so it's not a silent change. Waits for EventStore.whenReady()
+       so it's reading the real saved state for yesterday rather
+       than an empty in-memory cache.
+    ============================================================ */
+    (async function autoLockYesterday() {
+      await EventStore.whenReady();
+
+      const now = new Date();
+      const y = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      y.setDate(y.getDate() - 1);
+      const yesterdayKey = EventStore.dateKeyFor(y.getFullYear(), y.getMonth(), y.getDate());
+
+      const records = EventStore.getForDate(yesterdayKey);
+      if (!records.length) return; // nothing on the board — nothing to lock, no toast
+
+      const allAlreadyLocked = records.every((r) => r.locked);
+      if (allAlreadyLocked) return; // already fully locked — leave it alone, no toast
+
+      toast('Locking yesterday\u2019s boxes\u2026');
+
+      records.forEach((r) => {
+        r.locked = true;
+        EventStore.save(r);
+      });
+
+      // If yesterday happens to already be painted on screen (the day
+      // view left open on it, or the week view spanning it), repaint
+      // so the padlocks show up right away rather than waiting for
+      // some unrelated redraw to catch up.
+      if (typeof DayTimeGrid !== 'undefined' && DayTimeGrid.forceRerenderDate) {
+        DayTimeGrid.forceRerenderDate(yesterdayKey);
+      }
+
+      EventStore.flushNow().then(() => {
+        toast('All of yesterday\u2019s boxes are locked!');
+      });
     })();
 
     /* ============================================================
