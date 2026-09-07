@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" id="viewportMetaTag" content="width=device-width, initial-scale=1.0" />
   <title>Habit Calendar</title>
   <link rel="icon" type="image/png" href="/favicon.png" />
   <link rel="apple-touch-icon" href="/favicon.png" />
@@ -2261,13 +2261,16 @@
     body.night-mode .week-view-overlay { background: #000; }
 
     .week-view-topbar {
-      display: flex;
-      align-items: center;
-      justify-content: flex-end;
-      padding: 14px 16px 10px;
-      flex-shrink: 0;
+      /* No longer a flex row that reserves its own height at the top
+         of the week view — it's just a positioning wrapper now, so
+         the close button floats over the content instead of pushing
+         it down. */
+      display: contents;
     }
     .week-view-close {
+      position: absolute;
+      top: 10px; right: 12px;
+      z-index: 10;
       width: 32px; height: 32px; border-radius: 50%;
       border: none; background: #f2f2f2; color: #555;
       font-size: 18px; line-height: 1; cursor: pointer;
@@ -2767,6 +2770,15 @@
           </label>
         </div>
 
+        <div class="settings-cell">
+          <button type="button" class="info-btn" id="disableZoomInfoBtn" data-info="Turns off pinch-to-zoom and double-tap zoom on phones, and Ctrl+scroll / Ctrl +/- zoom on PC. Applies to this website only, on every device you're synced to.">i</button>
+          <span class="settings-cell-label" id="disableZoomLabelEl">Disable zoom</span>
+          <label class="switch switch-sm">
+            <input type="checkbox" id="toggleDisableZoom">
+            <span class="switch-track"></span>
+          </label>
+        </div>
+
         <div class="settings-cell settings-cell-charlimit">
           <button type="button" class="info-btn" id="phoneCharsInfoBtn" data-info="Truncates day titles on phone screens once they pass this many characters.">i</button>
           <span class="settings-cell-label" id="phoneCharsLabelEl">Phone chars:</span>
@@ -2920,6 +2932,8 @@
         nightModeInfo: 'Switches the app to a darker color scheme, easier on the eyes in low light.',
         warnUnsavedLabel: 'Unsaved warning',
         warnUnsavedInfo: 'Warns you before closing a day or leaving settings if you have unsaved changes.',
+        disableZoomLabel: 'Disable zoom',
+        disableZoomInfo: "Turns off pinch-to-zoom and double-tap zoom on phones, and Ctrl+scroll / Ctrl +/- zoom on PC. Applies to this website only, on every device you're synced to.",
         phoneChars: 'Phone chars:',
         phoneCharsInfo: 'Truncates day titles on phone screens once they pass this many characters.',
         pcChars: 'PC chars:',
@@ -3014,6 +3028,8 @@
         nightModeInfo: 'Perjungia programėlę į tamsesnę spalvų schemą, švelnesnę akims prastame apšvietime.',
         warnUnsavedLabel: 'Neišsaugotų perspėjimas',
         warnUnsavedInfo: 'Perspėja prieš uždarant dieną ar nustatymus, jei yra neišsaugotų pakeitimų.',
+        disableZoomLabel: 'Išjungti mastelio keitimą',
+        disableZoomInfo: 'Išjungia suspaudimo ir dvigubo bakstelėjimo mastelio keitimą telefone bei Ctrl+slinkties / Ctrl +/- mastelio keitimą kompiuteryje. Galioja tik šiai svetainei, visuose sinchronizuotuose įrenginiuose.',
         phoneChars: 'Telefono simboliai:',
         phoneCharsInfo: 'Sutrumpina dienos pavadinimus telefono ekranuose, kai jie viršija šį simbolių skaičių.',
         pcChars: 'Kompiuterio simboliai:',
@@ -3072,6 +3088,7 @@
       warnUnsavedChanges:      true,
       language:                'en',
       showBirthdays:           true,
+      disableZoom:             false,
     };
 
     function loadSettings() {
@@ -3123,9 +3140,35 @@
     function applyNightMode() {
       document.body.classList.toggle('night-mode', !!settings.nightMode);
     }
+
+    // Disable zoom setting — same switch, two mechanisms:
+    //  - Phone: pinch/double-tap zoom is controlled by the viewport
+    //    meta tag, so we swap maximum-scale/user-scalable in and out.
+    //  - PC: there's no meta-tag equivalent for Ctrl+scroll or
+    //    Ctrl +/-/0, so those are caught by the wheel/keydown
+    //    listeners registered once below, which just check the live
+    //    setting each time rather than being added/removed.
+    function applyZoomSetting() {
+      const vp = document.getElementById('viewportMetaTag');
+      if (!vp) return;
+      vp.setAttribute('content', settings.disableZoom
+        ? 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no'
+        : 'width=device-width, initial-scale=1.0');
+    }
+    window.addEventListener('wheel', (e) => {
+      if (settings.disableZoom && e.ctrlKey) e.preventDefault();
+    }, { passive: false });
+    window.addEventListener('keydown', (e) => {
+      if (!settings.disableZoom) return;
+      if ((e.ctrlKey || e.metaKey) && ['=', '+', '-', '_', '0'].includes(e.key)) {
+        e.preventDefault();
+      }
+    });
+
     function applySettingsEffects() {
       applyStatsBarVisibility();
       applyNightMode();
+      applyZoomSetting();
       applyLanguage();
       renderCalendar();
     }
@@ -3179,6 +3222,8 @@
       document.getElementById('nightModeInfoBtn').dataset.info    = t('nightModeInfo');
       document.getElementById('warnUnsavedLabelEl').textContent   = t('warnUnsavedLabel');
       document.getElementById('warnUnsavedInfoBtn').dataset.info  = t('warnUnsavedInfo');
+      document.getElementById('disableZoomLabelEl').textContent   = t('disableZoomLabel');
+      document.getElementById('disableZoomInfoBtn').dataset.info  = t('disableZoomInfo');
       document.getElementById('phoneCharsLabelEl').textContent    = t('phoneChars');
       document.getElementById('phoneCharsInfoBtn').dataset.info   = t('phoneCharsInfo');
       document.getElementById('pcCharsLabelEl').textContent       = t('pcChars');
@@ -3209,6 +3254,7 @@
       document.getElementById('desktopTitleLimitInput').disabled  = !pendingSettings.desktopTitleLimitEnabled;
       document.getElementById('toggleNightMode').checked          = pendingSettings.nightMode;
       document.getElementById('toggleWarnUnsaved').checked        = pendingSettings.warnUnsavedChanges;
+      document.getElementById('toggleDisableZoom').checked        = pendingSettings.disableZoom;
       document.querySelectorAll('.lang-btn').forEach(b => {
         b.classList.toggle('active', b.dataset.lang === pendingSettings.language);
       });
@@ -4694,6 +4740,10 @@
       pendingSettings.warnUnsavedChanges = e.target.checked;
     });
 
+    document.getElementById('toggleDisableZoom').addEventListener('change', (e) => {
+      pendingSettings.disableZoom = e.target.checked;
+    });
+
     document.querySelectorAll('.lang-btn').forEach(b => {
       b.addEventListener('click', () => {
         pendingSettings.language = b.dataset.lang;
@@ -4731,10 +4781,12 @@
     (async () => {
       applyStatsBarVisibility();
       applyNightMode();
+      applyZoomSetting();
       applyLanguage();
       await Promise.all([loadAllHabits(), loadAllFiles(), loadTargets(), loadSettingsFromServer(), loadBirthdays()]);
       applyStatsBarVisibility();
       applyNightMode();
+      applyZoomSetting();
       applyLanguage();
       const birthdaysToggleEl = document.getElementById('birthdaysShowToggle');
       if (birthdaysToggleEl) birthdaysToggleEl.checked = settings.showBirthdays;
