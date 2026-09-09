@@ -7942,7 +7942,21 @@
       }
 
       function renderEventsForDate(dateKey) {
-        if (dateKey === renderedDateKey) return; // already showing this date's boxes
+        if (dateKey === renderedDateKey) {
+          // Same date as last time, so normally nothing to do — but
+          // other code (chiefly WeekView, which "steals" a record's
+          // box element to paint it into its own columns — see
+          // detachRecordBox) can yank boxes out from under this grid
+          // without ever telling it, leaving renderedDateKey
+          // pointing at a date that looks cached but is actually
+          // sitting empty. Verify every record for this date still
+          // has a box actually mounted here before trusting the
+          // cache; if anything's missing, fall through to a real
+          // repaint instead of silently showing nothing.
+          const stillMounted = EventStore.getForDate(dateKey)
+            .every((record) => record.el && record.el.parentElement === innerEl);
+          if (stillMounted) return;
+        }
         detachRenderedBoxes(renderedDateKey);
 
         EventStore.getForDate(dateKey).forEach((record) => {
