@@ -39,6 +39,15 @@
       backdrop-filter: blur(10px);
       border-bottom: 1.5px solid #ececec;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      /* backdrop-filter on a fixed element forces the browser to keep
+         resampling whatever's now scrolled underneath it — on a busy
+         page that recompute can't keep up with the scroll and the bar
+         visibly trails a frame or two behind. transform: translateZ(0)
+         (plus will-change) promotes it to its own GPU compositing
+         layer so it's positioned instantly by the compositor instead
+         of being repainted in step with scroll. */
+      transform: translateZ(0);
+      will-change: transform;
     }
     body.night-mode .global-topbar {
       background: rgba(18,18,20,0.96);
@@ -462,16 +471,22 @@
     .day-time-grid.night .day-time-grid-quarter-label { color: #60a5fa; }
 
     /* Current-time indicator — only shown when the locked day is
-       actually today (see DayTimeGrid.updateNowLine). Sits above the
-       hour lines (z-index) and lines up with the same left offset as
-       .day-time-grid-hour-line so it spans the same track width. */
+       actually today (see DayTimeGrid.updateNowLine). Above the hour
+       lines (z-index) AND above a normal, non-editing event box
+       (z-index 5) so it's always readable — it used to sit under
+       event boxes here, making the time hard to tell when something
+       was scheduled right at "now". Still stays below a box that's
+       actively being dragged/resized (z-index 20) or opened for
+       editing (z-index 25), so it doesn't cut across the editor UI.
+       Lines up with the same left offset as .day-time-grid-hour-line
+       so it spans the same track width. */
     .day-time-grid-now-line {
       position: absolute;
       left: 30px;
       right: 0;
       height: 2px;
       background: #e6362a;
-      z-index: 3;
+      z-index: 6;
       pointer-events: none;
       display: none;
     }
@@ -483,7 +498,7 @@
       border-radius: 50%;
       background: #e6362a;
       transform: translate(-50%, -50%);
-      z-index: 3;
+      z-index: 6;
       pointer-events: none;
       display: none;
     }
@@ -2291,7 +2306,15 @@
       overflow: auto;
       position: relative;
       -webkit-overflow-scrolling: touch;
-      scroll-snap-type: x proximity;
+      /* scroll-snap-type used to live here ("x proximity") to snap to
+         the nearest day after a flick. Removed: it makes the browser
+         run its own native settle-animation after every scroll/drag,
+         separate from the input that caused it, which fought with
+         other scroll-driven logic (edge-loading, the settle-window
+         idle timer). Plain scrolling with no snap fires 'scroll'
+         continuously and predictably instead. scroll-snap-align on
+         the day columns/headers below is now inert without a
+         snap-type on this ancestor — harmless to leave in place. */
     }
     .week-view-grid {
       position: relative;
@@ -2333,13 +2356,14 @@
     /* Gutter body — grid-row 2, holding all 24 hour labels absolutely
        positioned inside it (set to the full 24-hour pixel height via
        JS, same number as every day column below so row 2 sizes
-       consistently). Pinned to the left edge via JS transform
-       (WeekView.applyGutterPin) rather than position:sticky — sticky-
-       left inside a horizontally-scrolling CSS grid doesn't reliably
-       stay put on mobile WebKit, so a plain positioned element that
-       gets translateX'd on every scroll event works everywhere. Kept
-       position:relative so its absolutely-positioned hour labels
-       still measure "top" from this box, not from .week-view-grid. */
+       consistently). Pinned to the left edge with a plain JS
+       transform (WeekView.applyGutterPin), driven by a rAF loop that
+       runs continuously while the week view is open — CSS
+       position:sticky was tried here twice (once as the grid item
+       directly, once split into a wrapper + sticky child) and both
+       versions either lagged or, in one case, stopped rendering
+       entirely, so this drops sticky altogether in favor of a plain,
+       always-correct transform every frame. */
     .week-view-gutter-body {
       position: relative;
       z-index: 9;
@@ -2487,6 +2511,15 @@
       <div class="global-topbar-hourgap" id="globalHourGapControl" title="Hour row spacing">
         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="7" x2="20" y2="7"></line><line x1="4" y1="12" x2="20" y2="12"></line><line x1="4" y1="17" x2="20" y2="17"></line></svg>
         <input type="range" id="globalHourGapSlider" min="40" max="140" step="2" value="76" aria-label="Hour row spacing">
+      </div>
+      <!-- Desktop-only (see its own CSS media query) — horizontal
+           counterpart to the hour-row slider above. Drags cfg.colWidth
+           live in WeekView (see DayWidthControl near the end of the
+           script), persisted in localStorage. Reuses the
+           .global-topbar-hourgap look since it's the same control family. -->
+      <div class="global-topbar-hourgap" id="globalDayWidthControl" title="Day column spacing">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="4" x2="7" y2="20"></line><line x1="12" y1="4" x2="12" y2="20"></line><line x1="17" y1="4" x2="17" y2="20"></line></svg>
+        <input type="range" id="globalDayWidthSlider" min="90" max="300" step="5" value="140" aria-label="Day column spacing">
       </div>
       <!-- Desktop-only (see its own CSS media query) — hidden on
            phone, where screen width makes a third top-bar button too
@@ -10652,11 +10685,13 @@
       const cfg = {
         hourHeight: 60,   // px per hour in the scrollable grid
         colWidth:   108,  // px width of each day column (desktop is recomputed per-open — see computeColWidth)
+        colWidthOverride: null, // set by DayWidthControl once the user drags the day-width slider; when present, computeColWidth uses this instead of auto-fitting visibleDaysDesktop
         visibleDaysDesktop: 5, // how many full day columns should fit on screen at once, desktop only
-        initialDays: 21,  // how many days are rendered up front, starting at the selected day
-        pageDays:   14,   // how many more days get added each time you scroll near an edge
-        maxDays:    63,   // total days kept in the DOM at once — older/farther ones get trimmed
+        windowDays: 30,   // the day range the grid gets trimmed back down to once scrolling is let go — see settleWindow()
+        pageDays:   14,   // how many extra days get loaded ahead of you as you scroll near an edge, so an active drag/swipe never hits a hard wall before windowDays kicks back in
         edgeThresholdCols: 3, // start loading more once you're within this many columns of an edge
+        maxDays:    120,  // safety valve only, in case one continuous scroll never goes idle — the real cap is windowDays, applied on let-go
+        settleIdleMs: 220, // how long scrolling must be silent (AND the pointer must already be up) before we treat it as "let go" and re-trim to windowDays
         appExitMs:  320,  // must match .app.week-view-exiting transition
         slideMs:    420,  // must match .week-view-overlay transition
         gotoTodayThresholdDays: 2, // show the "go to current day" button once the centered day is this many days from today
@@ -10675,10 +10710,18 @@
       const backToWeekBtn = document.getElementById('backToWeekBtn');
 
       let isOpen = false;
+      let gutterPinRafId = null; // rAF handle for the continuous gutter-pin loop, running the whole time the week view is open — see open()/close()
       let currentVisibleIdx = 0; // index within `dates` of whichever day updateForScroll last considered "current" — used to seed the date picker
       let isSelectingDay = false; // guards against a double-click firing this twice
       let scrollRafPending = false;
       let cameFromWeek = false; // true only when the day currently locked-in was clicked from inside the week view
+      // Whether a mouse button/finger/pen is currently down anywhere on
+      // the scroll area. Used only to gate settleWindow() — see
+      // scheduleSettleCheck() — so hitting the physical edge of the
+      // loaded days while still holding the gesture down (no more
+      // scroll events fire, since there's nowhere further to go) is
+      // never mistaken for "let go".
+      let pointerDown = false;
 
       // `dates[i]` always corresponds to grid-column `i + 2` (column 1
       // is the fixed hour gutter) — every header/day cell gets that
@@ -10688,7 +10731,7 @@
       let dates = [];
       let headerEls = [];
       let colEls = [];
-      let cornerEl = null, gutterBodyEl = null; // the 2 left-pinned elements — kept in sync via JS transform, see applyGutterPin
+      let cornerEl = null, gutterBodyEl = null; // gutterBodyEl is pinned via applyGutterPin's JS transform, see there
       let selectedIdx = 0; // index within `dates` of the originally-selected day, so open() can center on it
 
       function formatClock(totalMinutes) {
@@ -10798,6 +10841,10 @@
         }
       }
 
+      // Loads `n` more days onto the front, purely to keep an active
+      // scroll/drag from hitting a hard wall before it lets go. Only a
+      // safety-valve cap (cfg.maxDays) applies here — the real
+      // windowDays limit is enforced afterwards, by settleWindow().
       function prependDays(n) {
         const newDates = [];
         const newHeaders = [];
@@ -10819,30 +10866,24 @@
         // Everything just shifted `n` slots to the right within the
         // `dates` array too, so any index pointing at a specific day
         // (selectedIdx = "today", set once when the week view opens)
-        // has to shift by the same amount — otherwise a prepend that
-        // fires before the initial center-on-today scroll (e.g. from
-        // a scroll-snap adjustment right after the grid is built)
-        // leaves selectedIdx pointing at the wrong day, and the
-        // instant open-centered-on-today scroll lands somewhere else
-        // entirely, off screen.
+        // has to shift by the same amount.
         selectedIdx += n;
         currentVisibleIdx += n;
 
-        // Keep the visible days exactly where they were on screen —
-        // everything just shifted `n` columns to the right in the
-        // underlying coordinate space, so scrollLeft has to shift by
-        // the same amount to compensate.
-        scrollEl.scrollLeft += n * cfg.colWidth;
-
-        // Trim off the far (newest) end if we've grown past the cap.
         while (dates.length > cfg.maxDays) {
           headerEls.pop().remove();
           colEls.pop().remove();
           dates.pop();
         }
+
+        // Must run BEFORE the scrollLeft compensation below — see
+        // appendDays for why (same reasoning, mirrored).
         reindexColumns();
+        scrollEl.scrollLeft += n * cfg.colWidth;
       }
 
+      // Loads `n` more days onto the end — the forward-scroll
+      // counterpart to prependDays above, same purpose.
       function appendDays(n) {
         const last = dates[dates.length - 1];
         for (let i = 1; i <= n; i++) {
@@ -10856,9 +10897,6 @@
           colEls.push(c);
         }
 
-        // Trim off the far (oldest) end if we've grown past the cap,
-        // and shift scrollLeft back by however much we removed so
-        // the visible days don't jump.
         let removed = 0;
         while (dates.length > cfg.maxDays) {
           headerEls.shift().remove();
@@ -10870,18 +10908,35 @@
         reindexColumns();
       }
 
+      // Rebuilds the grid from scratch to exactly cfg.windowDays days
+      // centered on `centerDate`, discarding every previously-loaded
+      // day outside that range. This is the one place the visible day
+      // range gets set, used both to open the view and to re-center
+      // it after scrolling settles (see settleWindow) — so the loaded
+      // window can never grow past cfg.windowDays no matter what got
+      // scrolled through to reach it. Returns the index of centerDate
+      // within the freshly-built `dates` array.
+      function buildWindowCentered(centerDate) {
+        const half = Math.floor(cfg.windowDays / 2);
+        const dateList = [];
+        for (let i = -half; i < cfg.windowDays - half; i++) dateList.push(addDays(centerDate, i));
+        buildInitial(dateList);
+        return half;
+      }
+
       function buildInitial(dateList) {
         gridEl.innerHTML = '';
         gridEl.style.setProperty('--week-view-col-w', cfg.colWidth + 'px');
         gridEl.style.setProperty('--week-view-hour-h', cfg.hourHeight + 'px');
 
-        // Corner + gutter (column of hour labels), spanning the full
-        // 24h height so it lines up with every day column. Pinned to
-        // the left edge via JS transform (applyGutterPin) rather than
-        // pure CSS position:sticky — sticky-left inside a 2D-scrolling
-        // CSS grid is unreliable on mobile WebKit, so this keeps the
-        // gutter visually fixed on phones the same way it already
-        // works on desktop.
+        // Gutter (column of hour labels), spanning the full 24h
+        // height so it lines up with every day column. Plain grid
+        // item, pinned to the left edge via a JS transform kept in
+        // sync every frame (see applyGutterPin / the rAF loop started
+        // in open()) rather than CSS position:sticky — sticky was
+        // tried twice here and both versions either lagged or
+        // stopped rendering, so this keeps it simple and just drives
+        // the transform directly.
         const gutterBody = document.createElement('div');
         gutterBody.className = 'week-view-gutter-body';
         gutterBody.style.height = (cfg.hourHeight * 24) + 'px';
@@ -10920,6 +10975,7 @@
       // days one at a time on a small screen).
       function computeColWidth() {
         if (isPhoneVP()) return 108;
+        if (cfg.colWidthOverride) return cfg.colWidthOverride; // manual slider pick wins over the auto-fit-5-columns default
         const gutterW = 34;
         const available = scrollEl.clientWidth - gutterW;
         const desired = Math.floor(available / cfg.visibleDaysDesktop);
@@ -10938,13 +10994,8 @@
       function render() {
         cfg.colWidth = computeColWidth();
         const today = new Date();
-        const half = Math.floor(cfg.initialDays / 2);
-        const dateList = [];
-        for (let i = -half; i < cfg.initialDays - half; i++) {
-          dateList.push(new Date(today.getFullYear(), today.getMonth(), today.getDate() + i));
-        }
-        selectedIdx = half;
-        buildInitial(dateList);
+        const todayMid = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        selectedIdx = buildWindowCentered(todayMid);
       }
 
       // Keeps the title in sync with whichever day column currently
@@ -10952,15 +11003,16 @@
       // rendered range in either direction once you scroll near its
       // current edge, so browsing days feels endless in both
       // directions rather than being capped at the initial batch.
-      // Keeps the hour gutter (and its corner) visually
-      // fixed at the left edge as the grid scrolls horizontally.
-      // Driven by JS rather than left:0 CSS so it's reliable on
-      // mobile WebKit, where sticky-left inside a horizontally-
-      // scrolling CSS grid is inconsistent.
+      // Pins the hour gutter to the left edge by mirroring scrollLeft
+      // onto it as a transform. Called both from the 'scroll' event
+      // (onScroll, below) and from the continuous rAF loop started in
+      // open()/stopped in close() (gutterPinLoop) — the loop is what
+      // actually keeps it glued during fast/momentum scrolling, since
+      // 'scroll' events alone can be throttled by the browser; calling
+      // it here too just means the very first frame after any scroll
+      // is already correct instead of waiting one tick for the loop.
       function applyGutterPin() {
-        const x = scrollEl.scrollLeft + 'px';
-        if (cornerEl) cornerEl.style.transform = 'translateX(' + x + ')';
-        if (gutterBodyEl) gutterBodyEl.style.transform = 'translateX(' + x + ')';
+        if (gutterBodyEl) gutterBodyEl.style.transform = 'translateX(' + scrollEl.scrollLeft + 'px)';
       }
 
       function updateForScroll() {
@@ -10971,6 +11023,11 @@
 
         applyGutterPin();
 
+        // Keep loading a bit further ahead as you approach an edge —
+        // purely so an active drag/swipe never hits a hard physical
+        // wall. This is allowed to push dates.length above windowDays
+        // during the gesture; settleWindow() is what trims it back
+        // down to windowDays once you actually let go.
         const edge = cfg.edgeThresholdCols * cfg.colWidth;
         if (scrollEl.scrollLeft < edge) {
           prependDays(cfg.pageDays);
@@ -11014,6 +11071,30 @@
         scrollEl.scrollTo({ left: centeredScrollLeftFor(idx), behavior: 'smooth' });
       }
 
+      // Animates scrollLeft from wherever it is now to `targetLeft`
+      // over `durationMs`, eased in/out. Used for the goToToday
+      // "flight" below instead of the native scrollTo({behavior:
+      // 'smooth'}) — native smooth-scroll duration/feel varies a lot
+      // by browser and distance, and over a 50-day trip that can look
+      // either instant or jerky. This keeps it a slow, consistent
+      // drift no matter how far the trip is. Every frame it just
+      // writes scrollLeft, which fires real 'scroll' events, so all
+      // the usual machinery (gutter pin, edge-loading, settle timer)
+      // keeps working exactly as if the user had scrolled it by hand.
+      function animateScrollTo(targetLeft, durationMs) {
+        const startLeft = scrollEl.scrollLeft;
+        const delta = targetLeft - startLeft;
+        if (Math.abs(delta) < 1) { scrollEl.scrollLeft = targetLeft; return; }
+        const startTime = performance.now();
+        function ease(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
+        function step(now) {
+          const t = Math.min(1, (now - startTime) / durationMs);
+          scrollEl.scrollLeft = startLeft + delta * ease(t);
+          if (t < 1) requestAnimationFrame(step);
+        }
+        requestAnimationFrame(step);
+      }
+
       // Jumps the week/day scroll to an arbitrary picked date: if it's
       // still within the loaded window, just slide over to it; if it's
       // out of range, rebuild a fresh window centered on it first —
@@ -11024,11 +11105,7 @@
         let idx = Math.round((target - dates[0]) / 86400000);
 
         if (idx < 0 || idx >= dates.length) {
-          const half = Math.floor(cfg.initialDays / 2);
-          const dateList = [];
-          for (let i = -half; i < cfg.initialDays - half; i++) dateList.push(addDays(target, i));
-          buildInitial(dateList);
-          idx = half;
+          idx = buildWindowCentered(target);
         }
 
         currentVisibleIdx = idx;
@@ -11036,35 +11113,147 @@
         updateGotoTodayVisibility();
       }
 
-      // "Go to current day": if today is still within the loaded
-      // window, just slide over to it. If it's scrolled out of range
-      // entirely, rebuild a fresh window centered on today first —
-      // the rebuilt grid starts at scrollLeft 0, so the subsequent
-      // smooth scroll still reads as a slide into place.
+      // "Go to current day": loads a wide 50-days-either-side window
+      // centered on today, drops the view back at whichever day was
+      // actually on screen (same absolute date, no visual jump), then
+      // slowly drifts across that window to today — so the trip there
+      // reads as an actual flight over the calendar instead of a
+      // teleport. Once the drift finishes and scrolling goes idle,
+      // the normal settleWindow() idle-timer (see scheduleSettleCheck
+      // above) trims the window straight back down to the usual
+      // cfg.windowDays (30), same as after any other scroll — nothing
+      // special needed here to "revert" it.
       function goToToday() {
+        if (!dates.length) return;
         const today = new Date();
         const todayMid = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-        let idx = Math.round((todayMid - dates[0]) / 86400000);
 
-        if (idx < 0 || idx >= dates.length) {
-          const half = Math.floor(cfg.initialDays / 2);
-          const dateList = [];
-          for (let i = -half; i < cfg.initialDays - half; i++) dateList.push(addDays(todayMid, i));
-          buildInitial(dateList);
-          idx = half;
-        }
+        // Whichever day is actually centered right now — the flight
+        // should start from there, not from wherever the rebuilt
+        // grid happens to default to.
+        const gutterW = 34;
+        const centerX = scrollEl.scrollLeft + (scrollEl.clientWidth - gutterW) / 2;
+        const centerIdxNow = Math.max(0, Math.min(dates.length - 1, Math.round((centerX - cfg.colWidth / 2) / cfg.colWidth)));
+        const centerDateNow = dates[centerIdxNow];
 
-        scrollToIndexCentered(idx);
+        // Build the wide 50-each-side window around today. Bump
+        // cfg.windowDays only for this one call — buildWindowCentered
+        // reads it synchronously, so restoring it right after leaves
+        // every other windowDays reference (settleWindow included)
+        // back at the normal 30.
+        const flightHalf = 50;
+        const savedWindowDays = cfg.windowDays;
+        cfg.windowDays = flightHalf * 2 + 1;
+        buildWindowCentered(todayMid);
+        cfg.windowDays = savedWindowDays;
+
+        // Land instantly (no animation) on the day that was showing
+        // before — clamped into the new window if the old position
+        // was more than 50 days out, since that's as far back as this
+        // window reaches.
+        let startIdx = Math.round((centerDateNow - dates[0]) / 86400000);
+        startIdx = Math.max(0, Math.min(dates.length - 1, startIdx));
+        scrollEl.scrollLeft = centeredScrollLeftFor(startIdx);
+        currentVisibleIdx = startIdx;
+        applyGutterPin();
+
+        const todayIdx = Math.round((todayMid - dates[0]) / 86400000);
+        const distCols = Math.abs(todayIdx - startIdx);
+        const durationMs = Math.max(700, Math.min(1800, distCols * 26));
+        animateScrollTo(centeredScrollLeftFor(todayIdx), durationMs);
+
         gotoTodayBtn.classList.remove('visible');
       }
 
       function onScroll() {
+        // Sync the gutter immediately too, not just on the next rAF
+        // tick of the loop in open()/close() — cheap, and means the
+        // very first paint after a scroll event is already correct.
+        applyGutterPin();
+
+        // Every scroll event (from any input — scrollbar drag, touch
+        // swipe, trackpad, keyboard) restarts this idle timer. Once it
+        // actually fires, scrolling has been silent for settleIdleMs,
+        // i.e. the user has "let go" — see settleWindow() below.
+        scheduleSettleCheck();
+
         if (scrollRafPending) return;
         scrollRafPending = true;
         requestAnimationFrame(() => {
           scrollRafPending = false;
           updateForScroll();
         });
+      }
+
+      let settleTimer = null;
+
+      // Restarts the "has scrolling stopped?" timer. Called on every
+      // scroll event, so it only ever actually fires settleWindow()
+      // once motion has been fully idle for settleIdleMs — that's true
+      // whether the motion was a mouse-dragged scrollbar, a touch
+      // swipe's momentum, a trackpad flick, or arrow keys, so this one
+      // path enforces the day limit no matter how the user scrolled.
+      // Never arms while a pointer is still down: hitting the edge of
+      // the loaded days mid-drag stops scroll events firing even
+      // though the gesture hasn't ended, and that must NOT count as a
+      // "let go" — see onScrollAreaPointerUp, which is what actually
+      // arms the timer once the gesture truly ends.
+      function scheduleSettleCheck() {
+        if (settleTimer) clearTimeout(settleTimer);
+        if (pointerDown) { settleTimer = null; return; }
+        settleTimer = setTimeout(settleWindow, cfg.settleIdleMs);
+      }
+
+      function onScrollAreaPointerDown() {
+        pointerDown = true;
+        // A fresh drag/touch just started — nothing should reset out
+        // from under it before this one is let go.
+        if (settleTimer) { clearTimeout(settleTimer); settleTimer = null; }
+      }
+
+      function onScrollAreaPointerUp() {
+        if (!pointerDown) return;
+        pointerDown = false;
+        // The gesture just ended — arm the idle timer now. If there's
+        // leftover momentum still scrolling, every further scroll
+        // event re-arms it via scheduleSettleCheck as usual, so it
+        // only actually fires once that momentum has also settled.
+        scheduleSettleCheck();
+      }
+
+      // The actual fix for "it lets me scroll way past the limit":
+      // rather than trying to intercept and cap every possible way of
+      // scrolling (mouse-drag, touch, trackpad all behave differently
+      // and a mouse-only clamp simply never saw touch input at all),
+      // this rebuilds the grid down to exactly cfg.windowDays days,
+      // centered on wherever the view actually settled, every time
+      // scrolling goes idle. Days outside that freshly-centered window
+      // are discarded outright — not just visually scrolled away from —
+      // so the grid can never hold more than cfg.windowDays days, and
+      // the native scrollbar thumb can never represent more range than
+      // that either (which is what was making it look "way smaller").
+      function settleWindow() {
+        settleTimer = null;
+        if (!dates.length) return;
+
+        const half = Math.floor(cfg.windowDays / 2);
+        // Which day is actually centered in the visible area right
+        // now — same math as updateGotoTodayVisibility, not just
+        // whichever day happens to sit at the scroll container's left
+        // edge (that's currentVisibleIdx, a coarser approximation).
+        const gutterW = 34;
+        const centerX = scrollEl.scrollLeft + (scrollEl.clientWidth - gutterW) / 2;
+        const centerIdx = Math.max(0, Math.min(dates.length - 1, Math.round((centerX - cfg.colWidth / 2) / cfg.colWidth)));
+
+        // Already a full, correctly-centered window? Nothing to trim.
+        if (dates.length === cfg.windowDays && centerIdx === half) return;
+
+        const centerDate = dates[centerIdx];
+        buildWindowCentered(centerDate);
+        scrollEl.scrollLeft = centeredScrollLeftFor(half);
+        currentVisibleIdx = half;
+        applyGutterPin();
+        updateGotoTodayVisibility();
       }
 
       function scrollToRelevantHour() {
@@ -11535,6 +11724,20 @@
         }, cfg.slideMs + 30);
       }
 
+      // Runs applyGutterPin() every single animation frame, the whole
+      // time the week view is open — started in open(), stopped in
+      // close(). This is deliberately simple: no throttling, no
+      // pointer-state checks, no "settled" detection, just an
+      // unconditional per-frame sync, so the gutter can never be more
+      // than one frame out of date no matter how the view is
+      // scrolled (touch, trackpad, scrollbar drag, arrow keys,
+      // programmatic scrollTo). The cost is one scrollLeft read and
+      // one transform write per frame, which is negligible.
+      function gutterPinLoop() {
+        applyGutterPin();
+        gutterPinRafId = requestAnimationFrame(gutterPinLoop);
+      }
+
       function open() {
         if (isOpen) return;
         isOpen = true;
@@ -11547,6 +11750,7 @@
           updateGotoTodayVisibility();
         }, cfg.appExitMs);
         document.addEventListener('keydown', onKeydown);
+        if (gutterPinRafId == null) gutterPinRafId = requestAnimationFrame(gutterPinLoop);
       }
 
       function close() {
@@ -11558,6 +11762,7 @@
           unlockBodyScroll();
         }, cfg.slideMs);
         document.removeEventListener('keydown', onKeydown);
+        if (gutterPinRafId != null) { cancelAnimationFrame(gutterPinRafId); gutterPinRafId = null; }
       }
 
       function onKeydown(e) {
@@ -11585,6 +11790,16 @@
         if (openBtn) openBtn.addEventListener('click', open);
         closeBtn.addEventListener('click', close);
         scrollEl.addEventListener('scroll', onScroll, { passive: true });
+        // Passive, state-only tracking — never preventDefault'd, so
+        // native scrolling (mouse-drag, touch swipe, trackpad) behaves
+        // exactly as the browser normally does. This just tells
+        // scheduleSettleCheck whether a gesture is still in progress,
+        // so it can tell "hit the edge while still holding" apart from
+        // an actual "let go".
+        scrollEl.addEventListener('pointerdown', onScrollAreaPointerDown, { passive: true });
+        document.addEventListener('pointerup', onScrollAreaPointerUp, { passive: true });
+        document.addEventListener('pointercancel', onScrollAreaPointerUp, { passive: true });
+        window.addEventListener('blur', onScrollAreaPointerUp); // safety net if the pointer is released outside the window
         if (gotoTodayBtn) gotoTodayBtn.addEventListener('click', goToToday);
         if (backToWeekBtn) backToWeekBtn.addEventListener('click', open);
         if (typeof DayViewState !== 'undefined') {
@@ -11606,7 +11821,7 @@
         cfg.hourHeight = px;
         if (!gutterBodyEl) return; // week view never opened yet — cfg change alone is enough
         gridEl.style.setProperty('--week-view-hour-h', cfg.hourHeight + 'px');
-        gutterBodyEl.style.height = (cfg.hourHeight * 24) + 'px';
+        if (gutterBodyEl) gutterBodyEl.style.height = (cfg.hourHeight * 24) + 'px';
         gutterBodyEl.querySelectorAll('.week-view-hour-label').forEach((label, h) => {
           label.style.top = (h * cfg.hourHeight) + 'px';
         });
@@ -11643,7 +11858,22 @@
         });
       }
 
-      return { init, open, close, isOpen: () => isOpen, goToDate, renderNewEventsForDate, setHourHeight, getHourHeight: () => cfg.hourHeight };
+      // Live day-column-width control (topbar slider, desktop only),
+      // the horizontal counterpart to setHourHeight above. Unlike the
+      // hour grid (absolutely-positioned lines/events that each need
+      // repositioning), the day columns are real CSS Grid tracks sized
+      // off the --week-view-col-w variable (see .week-view-grid), so
+      // updating that one variable resizes every column — header,
+      // body, and everything inside it — in place with no rebuild.
+      // cfg.colWidth is kept in sync too since scroll-position math
+      // (paging, snapping, drag-reorder) reads it directly.
+      function setColWidth(px) {
+        cfg.colWidth = px;
+        cfg.colWidthOverride = px;
+        if (gridEl) gridEl.style.setProperty('--week-view-col-w', px + 'px');
+      }
+
+      return { init, open, close, isOpen: () => isOpen, goToDate, renderNewEventsForDate, setHourHeight, getHourHeight: () => cfg.hourHeight, setColWidth, getColWidth: () => cfg.colWidth };
     })();
     WeekView.init();
 
@@ -11683,6 +11913,42 @@
       return { init };
     })();
     HourGapControl.init();
+
+    /* ============================================================
+       DAY WIDTH CONTROL — desktop-only topbar slider that drags
+       cfg.colWidth (the px width of each day column in WeekView)
+       live. Horizontal counterpart to HourGapControl above. Purely
+       a personal display-density preference, persisted in
+       localStorage — never touches EventStore or any event data.
+    ============================================================ */
+    const DayWidthControl = (() => {
+      const STORAGE_KEY = 'nb_dayColWidthPx';
+      const slider = document.getElementById('globalDayWidthSlider');
+
+      function apply(px) {
+        if (typeof WeekView !== 'undefined') WeekView.setColWidth(px);
+      }
+
+      function init() {
+        if (!slider) return;
+        const saved = parseInt(localStorage.getItem(STORAGE_KEY), 10);
+        if (!Number.isNaN(saved)) {
+          slider.value = saved;
+          apply(saved);
+        }
+        // 'input' fires continuously while dragging, so the grid
+        // tracks the handle live rather than only snapping once on
+        // release.
+        slider.addEventListener('input', () => {
+          const px = parseInt(slider.value, 10);
+          apply(px);
+          localStorage.setItem(STORAGE_KEY, String(px));
+        });
+      }
+
+      return { init };
+    })();
+    DayWidthControl.init();
 
     /* ============================================================
        TIMEZONE PICKER — a plain, purely informational "which
