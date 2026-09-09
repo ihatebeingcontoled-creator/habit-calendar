@@ -1099,6 +1099,34 @@
     .day-time-grid-event-box-notify-btn svg { display: block; transform-origin: 50% 20%; }
     .day-time-grid-event-box-notify-btn.ringing svg { animation: notify-bell-ring 0.4s ease; }
 
+    /* Copy button — sits right after the color picker, before trash
+       (type → time → lock → bell → color → copy → trash). One tap
+       drops the box straight into BoxClipboard, same as Ctrl/Cmd+C
+       or the "Copy" button buried in the repeat-across-days modal,
+       just reachable without a keyboard or an extra modal hop. Shows
+       a brief checkmark flash on click for feedback since there's no
+       "active" state to toggle like lock/notify have. */
+    .day-time-grid-event-box-copy-btn {
+      width: 20px; height: 20px;
+      flex-shrink: 0;
+      border: none;
+      border-radius: 6px;
+      background: rgba(255,255,255,0.16);
+      color: rgba(255,255,255,0.9);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .day-time-grid-event-box-copy-btn:hover { background: rgba(255,255,255,0.26); }
+    .day-time-grid-event-box-copy-btn.flash {
+      background: #fff;
+      color: #111;
+    }
+    .day-time-grid-event-box-copy-btn svg { display: block; }
+
     /* Small persistent bell badge on the box's own corner — part of
        the permanent box skeleton (built once, alongside the resize
        handles), so it stays visible on the compact face even while
@@ -1129,6 +1157,56 @@
     .day-time-grid.night .day-time-grid-event-box-notify-badge {
       box-shadow: 0 0 0 1.5px #1c1c1e;
     }
+
+    /* Right-click "Paste" popup — appears right next to the cursor
+       wherever you right-click on the day grid (see DayTimeGrid's
+       showPasteMenu). position:fixed because its left/top are set
+       from clientX/clientY (viewport coordinates), not page/scroll
+       coordinates. z-index above the event boxes (8) and their own
+       dropdowns (30) so it always sits on top of whatever was
+       right-clicked. Same card look as the color/more dropdowns
+       above (white card, light border, soft shadow) so it reads as
+       part of the same app rather than a stray browser tooltip. */
+    .day-time-grid-paste-menu {
+      position: fixed;
+      display: flex;
+      align-items: stretch;
+      gap: 4px;
+      background: #fff;
+      border: 1.5px solid #ececec;
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.22);
+      padding: 5px;
+      z-index: 3000;
+      opacity: 0;
+      transform: scale(0.94);
+      pointer-events: none;
+      transition: opacity 0.12s ease, transform 0.12s ease;
+    }
+    .day-time-grid-paste-menu.open { opacity: 1; transform: scale(1); pointer-events: auto; }
+    body.night-mode .day-time-grid-paste-menu {
+      background: #2c2c2e; border-color: #3a3a3c;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.55);
+    }
+    .day-time-grid-paste-menu-item {
+      border: none; background: #111; color: #fff;
+      font-family: inherit; font-size: 12.5px; font-weight: 700;
+      padding: 8px 14px; border-radius: 8px; cursor: pointer;
+      white-space: nowrap; transition: background 0.15s;
+    }
+    .day-time-grid-paste-menu-item:hover { background: #333; }
+    body.night-mode .day-time-grid-paste-menu-item { background: #f5f5f5; color: #111; }
+    body.night-mode .day-time-grid-paste-menu-item:hover { background: #ddd; }
+    .day-time-grid-paste-menu-close {
+      border: none; background: #f0f0f0; color: #666;
+      font-family: inherit; font-size: 14px; font-weight: 700; line-height: 1;
+      width: 32px; border-radius: 8px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s, color 0.15s;
+    }
+    .day-time-grid-paste-menu-close:hover { background: #e2e2e2; color: #111; }
+    body.night-mode .day-time-grid-paste-menu-close { background: #3a3a3c; color: #aaa; }
+    body.night-mode .day-time-grid-paste-menu-close:hover { background: #48484a; color: #fff; }
 
     /* Holding the notify bell (instead of a plain click/tap) opens
        this modal — copies the box's own time, color, title and
@@ -1196,6 +1274,10 @@
     .repeat-days-actions button:hover { background: #f4f4f4; }
     .repeat-days-actions button.primary { background: #3b82f6; color: #fff; border-color: #3b82f6; }
     .repeat-days-actions button.primary:hover { background: #2f6fda; }
+    .repeat-days-actions button.copy { background: #eefcf3; border-color: #b9ecc9; color: #15803d; }
+    .repeat-days-actions button.copy:hover { background: #dff8e8; }
+    body.night-mode .repeat-days-actions button.copy { background: #123122; border-color: #1e5636; color: #4ade80; }
+    body.night-mode .repeat-days-actions button.copy:hover { background: #163d2a; }
     body.night-mode .repeat-days-card { background: #1c1c1e; box-shadow: 0 14px 44px rgba(0,0,0,0.6); }
     body.night-mode .repeat-days-title { color: #f5f5f5; }
     body.night-mode .repeat-days-sub { color: #888; }
@@ -1418,17 +1500,20 @@
     .day-time-grid-event-box-more-menu .day-time-grid-event-box-lock-btn,
     .day-time-grid-event-box-more-menu .day-time-grid-event-box-notify-btn,
     .day-time-grid-event-box-more-menu .day-time-grid-event-box-color-btn,
+    .day-time-grid-event-box-more-menu .day-time-grid-event-box-copy-btn,
     .day-time-grid-event-box-more-menu .day-time-grid-event-box-delete-inline-btn {
       background: #f2f2f2;
       color: #333;
     }
     .day-time-grid-event-box-more-menu .day-time-grid-event-box-lock-btn:hover,
     .day-time-grid-event-box-more-menu .day-time-grid-event-box-notify-btn:hover,
-    .day-time-grid-event-box-more-menu .day-time-grid-event-box-color-btn:hover {
+    .day-time-grid-event-box-more-menu .day-time-grid-event-box-color-btn:hover,
+    .day-time-grid-event-box-more-menu .day-time-grid-event-box-copy-btn:hover {
       background: #e4e4e4;
     }
     .day-time-grid-event-box-more-menu .day-time-grid-event-box-lock-btn.active,
-    .day-time-grid-event-box-more-menu .day-time-grid-event-box-notify-btn.active {
+    .day-time-grid-event-box-more-menu .day-time-grid-event-box-notify-btn.active,
+    .day-time-grid-event-box-more-menu .day-time-grid-event-box-copy-btn.flash {
       background: #111;
       color: #fff;
     }
@@ -1448,12 +1533,14 @@
     .day-time-grid.night .day-time-grid-event-box-more-menu .day-time-grid-event-box-lock-btn,
     .day-time-grid.night .day-time-grid-event-box-more-menu .day-time-grid-event-box-notify-btn,
     .day-time-grid.night .day-time-grid-event-box-more-menu .day-time-grid-event-box-color-btn,
+    .day-time-grid.night .day-time-grid-event-box-more-menu .day-time-grid-event-box-copy-btn,
     .day-time-grid.night .day-time-grid-event-box-more-menu .day-time-grid-event-box-delete-inline-btn {
       background: #3a3a3c;
       color: #eee;
     }
     .day-time-grid.night .day-time-grid-event-box-more-menu .day-time-grid-event-box-lock-btn.active,
-    .day-time-grid.night .day-time-grid-event-box-more-menu .day-time-grid-event-box-notify-btn.active {
+    .day-time-grid.night .day-time-grid-event-box-more-menu .day-time-grid-event-box-notify-btn.active,
+    .day-time-grid.night .day-time-grid-event-box-more-menu .day-time-grid-event-box-copy-btn.flash {
       background: #f5f5f5;
       color: #111;
     }
@@ -7255,6 +7342,41 @@
       }
     });
 
+    /* ============================================================
+       BOX CLIPBOARD.
+       Holds one copied event box's *appearance* — title, color,
+       description, duration, manual width/position, notify/lock
+       state — set by the "Copy" button in the repeat-across-days
+       modal (hold a box's notify bell -> Copy) and read by the
+       day grid's right-click "Paste" menu (see DayTimeGrid below).
+       Deliberately excludes id/dateKey/startMinutes: paste always
+       creates a fresh, independent box wherever was clicked, and
+       always keeps the original's duration (the "amount of hours")
+       even though the start time moves.
+    ============================================================ */
+    const BoxClipboard = (() => {
+      let copied = null;
+
+      function set(record) {
+        if (!record) return;
+        copied = {
+          type: record.type || '',
+          color: record.color || '',
+          description: record.description || '',
+          durationMinutes: record.durationMinutes,
+          manualLeftUnits: record.manualLeftUnits != null ? record.manualLeftUnits : null,
+          manualWidthUnits: record.manualWidthUnits != null ? record.manualWidthUnits : null,
+          notify: !!record.notify,
+          locked: !!record.locked,
+        };
+      }
+
+      function get() { return copied; }
+      function has() { return !!copied; }
+
+      return { set, get, has };
+    })();
+
     const DayTimeGrid = (() => {
       const cfg = {
         hourHeight: 76,  // px per hour — roughly 2cm, per feedback (was 38 / ~1cm)
@@ -7286,7 +7408,6 @@
         // regardless — these two are a belt-and-suspenders JS backstop
         // so the hold-to-create/drag gesture never gets hijacked into
         // "Select / Copy / Share".
-        innerEl.addEventListener('contextmenu', (e) => e.preventDefault());
         innerEl.addEventListener('selectstart', (e) => e.preventDefault());
 
         const frag = document.createDocumentFragment();
@@ -7411,11 +7532,148 @@
         return Math.max(0, Math.min(24 * 60 - holdCfg.SNAP_MIN, snapped));
       }
 
+      // Paste position gets its own 15-minute snap, independent of
+      // holdCfg.SNAP_MIN (which is 60 — hourly — and is only meant
+      // for the hold-to-create gesture's indicator box). Reusing that
+      // constant here made right-click paste jump to the nearest
+      // hour instead of landing under the cursor.
+      const PASTE_SNAP_MIN = 15;
+      function pasteMinutesFromClientY(clientY) {
+        const rect = innerEl.getBoundingClientRect();
+        const localY = clientY - rect.top;
+        const rawMinutes = (localY / cfg.hourHeight) * 60;
+        const snapped = Math.round(rawMinutes / PASTE_SNAP_MIN) * PASTE_SNAP_MIN;
+        return Math.max(0, Math.min(24 * 60 - PASTE_SNAP_MIN, snapped));
+      }
+
       function positionHoldIndicator(minutes) {
         const top    = (minutes / 60) * cfg.hourHeight;
         const height = (holdCfg.SNAP_MIN / 60) * cfg.hourHeight;
         holdIndicatorEl.style.top    = top + 'px';
         holdIndicatorEl.style.height = height + 'px';
+      }
+
+      /* ----------------------------------------------------------
+         Right-click "Paste" (pairs with BoxClipboard above).
+         Right-clicking empty grid track — same restriction as the
+         hold-to-create gesture below, so it never hijacks a click
+         meant for an existing box — pops a tiny menu at the cursor
+         with a single "Paste" action. Picking it drops a brand-new,
+         fully independent box at the clicked hour: same title,
+         color, description, size/position and notify/lock state as
+         whatever was last copied, same duration as the original,
+         but a fresh start time (and id) of its own.
+      ---------------------------------------------------------- */
+      let pasteMenuEl = null;
+      let pasteMenuMinutes = 0;
+
+      function buildPasteMenu() {
+        pasteMenuEl = document.createElement('div');
+        pasteMenuEl.className = 'day-time-grid-paste-menu';
+
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.className = 'day-time-grid-paste-menu-item';
+        item.textContent = 'Paste';
+        item.addEventListener('click', (e) => {
+          e.stopPropagation();
+          hidePasteMenu();
+          pasteBoxAt(pasteMenuMinutes);
+        });
+
+        const closeBtn = document.createElement('button');
+        closeBtn.type = 'button';
+        closeBtn.className = 'day-time-grid-paste-menu-close';
+        closeBtn.setAttribute('aria-label', 'Close');
+        closeBtn.textContent = '\u2715';
+        closeBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          hidePasteMenu();
+        });
+
+        pasteMenuEl.appendChild(item);
+        pasteMenuEl.appendChild(closeBtn);
+        document.body.appendChild(pasteMenuEl);
+      }
+
+      function hidePasteMenu() {
+        if (pasteMenuEl) pasteMenuEl.classList.remove('open');
+        document.removeEventListener('pointerdown', onOutsidePasteMenu, true);
+        window.removeEventListener('scroll', hidePasteMenu, true);
+      }
+
+      function onOutsidePasteMenu(e) {
+        if (pasteMenuEl && !pasteMenuEl.contains(e.target)) hidePasteMenu();
+      }
+
+      function showPasteMenu(clientX, clientY, minutes) {
+        if (!pasteMenuEl) buildPasteMenu();
+        pasteMenuMinutes = minutes;
+        pasteMenuEl.style.left = clientX + 'px';
+        pasteMenuEl.style.top  = clientY + 'px';
+        pasteMenuEl.classList.add('open');
+
+        // Width/height are unknown until it's actually laid out, so
+        // the on-screen clamp (keeps it from running off a narrow
+        // phone screen near the right/bottom edge) happens next frame.
+        requestAnimationFrame(() => {
+          if (!pasteMenuEl) return;
+          const rect = pasteMenuEl.getBoundingClientRect();
+          const maxLeft = window.innerWidth - rect.width - 8;
+          const maxTop  = window.innerHeight - rect.height - 8;
+          if (rect.left > maxLeft) pasteMenuEl.style.left = Math.max(8, maxLeft) + 'px';
+          if (rect.top  > maxTop)  pasteMenuEl.style.top  = Math.max(8, maxTop) + 'px';
+        });
+
+        // Deferred so the very pointerdown that opened this (a right-
+        // click can fire one on some browsers) doesn't instantly
+        // count as "outside" and close it again.
+        setTimeout(() => {
+          document.addEventListener('pointerdown', onOutsidePasteMenu, true);
+          window.addEventListener('scroll', hidePasteMenu, true);
+        }, 0);
+      }
+
+      function handleGridContextMenu(e) {
+        // Right-clicking directly on an existing box is left alone —
+        // its own controls (or a future box-specific menu) should
+        // get that click, not the grid's paste popup. Everywhere
+        // else on the grid (empty track, hour lines, hour labels,
+        // the now-line, etc.) is fair game.
+        if (e.target.closest && e.target.closest('.day-time-grid-event-box')) return;
+        // Nothing copied yet — the browser's own menu is still
+        // swallowed (that always happens, see the listener above),
+        // there's just nothing of ours to show instead.
+        if (!BoxClipboard.has()) return;
+        const minutes = pasteMinutesFromClientY(e.clientY);
+        showPasteMenu(e.clientX, e.clientY, minutes);
+      }
+
+      // Drops a full copy of BoxClipboard's saved box onto the
+      // currently-open day at `startMinutes` — mirrors paintEventBox
+      // further down (used for persisted/AI-created boxes) rather
+      // than spawnEventBox just below, since a pasted box already has
+      // all its content and shouldn't pop the editor open the way a
+      // brand-new blank box does.
+      function pasteBoxAt(startMinutes) {
+        const copied = BoxClipboard.get();
+        if (!copied) return;
+
+        const dateKey = EventStore.selectedDateKey();
+        const durationMinutes = copied.durationMinutes || holdCfg.SNAP_MIN;
+        const record = EventStore.create(dateKey, startMinutes, durationMinutes);
+        record.type              = copied.type;
+        record.color             = copied.color;
+        record.description       = copied.description;
+        record.manualLeftUnits   = copied.manualLeftUnits;
+        record.manualWidthUnits  = copied.manualWidthUnits;
+        record.notify            = copied.notify;
+        record.locked            = copied.locked;
+
+        paintEventBox(record, { animate: true });
+        recomputeOverlapLayout();
+        if (record.notify) NotificationScheduler.schedule(record);
+        toast('Pasted.');
       }
 
       function beginHoldVisual(minutes) {
@@ -8369,6 +8627,17 @@
         document.body.appendChild(el);
         buildHours();
         initHoldGesture();
+
+        // Right-click anywhere on the grid: always swallow the
+        // browser's own context menu (capture phase, so this runs
+        // before anything else and can't be beaten by a child
+        // stopping propagation), then show our own tiny "Paste"
+        // popup instead — see handleGridContextMenu below for what
+        // it does and doesn't fire on.
+        el.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+          handleGridContextMenu(e);
+        }, true);
       }
 
       // Sits directly under the locked header card (day-number +
@@ -9020,6 +9289,31 @@
         });
         optionsGroup.appendChild(notifyBtn);
 
+        // Copy button — one tap, right in the toolbar, instead of
+        // reaching for Ctrl/Cmd+C or holding the notify bell open
+        // the repeat-across-days modal just to get to its "Copy".
+        // Same BoxClipboard.set(record) as those two paths use.
+        const copyInlineBtn = document.createElement('button');
+        copyInlineBtn.type = 'button';
+        copyInlineBtn.className = 'day-time-grid-event-box-copy-btn';
+        copyInlineBtn.setAttribute('aria-label', 'Copy this box');
+        copyInlineBtn.title = 'Copy — right-click the grid to paste it';
+        copyInlineBtn.innerHTML =
+          '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" ' +
+          'stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">' +
+          '<rect x="9" y="9" width="12" height="12" rx="2"></rect>' +
+          '<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
+        let copyFlashTimer = null;
+        copyInlineBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          BoxClipboard.set(record);
+          toast('Box copied — right-click the grid to paste it.');
+          copyInlineBtn.classList.add('flash');
+          clearTimeout(copyFlashTimer);
+          copyFlashTimer = setTimeout(() => copyInlineBtn.classList.remove('flash'), 260);
+        });
+        optionsGroup.appendChild(copyInlineBtn);
+
         optionsGroup.appendChild(colorWrap);
         optionsGroup.appendChild(deleteBtn);
         topRow.appendChild(optionsGroup);
@@ -9037,7 +9331,7 @@
         moreBtn.type = 'button';
         moreBtn.className = 'day-time-grid-event-box-more-btn';
         moreBtn.setAttribute('aria-label', 'More options');
-        moreBtn.title = 'Time, lock, notify, color, delete';
+        moreBtn.title = 'Time, lock, notify, color, copy, delete';
         moreBtn.innerHTML =
           '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">' +
           '<circle cx="5" cy="12" r="2.1"></circle>' +
@@ -9495,6 +9789,31 @@
         close();
       });
 
+      // Ctrl/Cmd+C copies the currently-open box's appearance into
+      // BoxClipboard — the same thing the "Copy" button in the
+      // repeat-across-days modal does (RepeatDaysModal.copyBox,
+      // below), just reachable straight from the keyboard while a
+      // box is open for editing. Skipped whenever focus is inside
+      // one of the editor's own text fields (title/description) so
+      // normal text-copy still works there — otherwise selecting
+      // text inside the box and pressing Ctrl+C would silently copy
+      // the whole box instead of just the selected text.
+      document.addEventListener('keydown', (e) => {
+        if (e.key !== 'c' && e.key !== 'C') return;
+        if (!(e.ctrlKey || e.metaKey)) return;
+        if (!currentRecord || !currentRecord._editor) return;
+        const active = document.activeElement;
+        const isTextField = active && (
+          active.tagName === 'INPUT' ||
+          active.tagName === 'TEXTAREA' ||
+          active.isContentEditable
+        );
+        if (isTextField) return; // let the browser's normal text copy happen
+        e.preventDefault();
+        BoxClipboard.set(currentRecord);
+        toast('Box copied — right-click the grid to paste it.');
+      });
+
       function isOpen() { return !!currentRecord; }
 
       // Drops the open-editor reference without saving/committing
@@ -9669,6 +9988,17 @@
         const actions = document.createElement('div');
         actions.className = 'repeat-days-actions';
 
+        // Copies this box's appearance (title, color, description,
+        // duration, size/position, notify/lock) into BoxClipboard —
+        // see the module right above DayTimeGrid. Doesn't touch the
+        // count/specific-days pickers above it at all; it's a fully
+        // separate action from "Save".
+        const copyBtn = document.createElement('button');
+        copyBtn.type = 'button';
+        copyBtn.className = 'copy';
+        copyBtn.textContent = 'Copy';
+        copyBtn.addEventListener('click', copyBox);
+
         const cancelBtn = document.createElement('button');
         cancelBtn.type = 'button';
         cancelBtn.textContent = 'Cancel';
@@ -9680,6 +10010,7 @@
         saveBtn.textContent = 'Save';
         saveBtn.addEventListener('click', save);
 
+        actions.appendChild(copyBtn);
         actions.appendChild(cancelBtn);
         actions.appendChild(saveBtn);
 
@@ -9793,13 +10124,29 @@
         calYear = y;
         calMonth = m - 1;
         renderCalendar();
-        setMode(MODES.COUNT);
+        // Holding the notify bell is how this modal gets opened at
+        // all, so it should land straight on the "Specific days"
+        // calendar instead of the "Next N days" stepper — that's
+        // almost always what a hold-to-open is reaching for.
+        setMode(MODES.SPECIFIC);
         overlayEl.classList.add('open');
       }
 
       function close() {
         if (overlayEl) overlayEl.classList.remove('open');
         currentRecord = null;
+      }
+
+      // Copies the held box's whole appearance — title, color,
+      // description, duration, size/position, notify/lock — into
+      // BoxClipboard, ready to paste onto any hour slot on the day
+      // grid via right-click. Only the start time/day is left out,
+      // since paste always picks that fresh from wherever's clicked.
+      function copyBox() {
+        if (!currentRecord) return;
+        BoxClipboard.set(currentRecord);
+        toast('Box copied — right-click the grid to paste it.');
+        close();
       }
 
       // Shared by both modes — pushes a fresh independent copy of
@@ -11583,6 +11930,134 @@
         return boxEl;
       }
 
+      /* ----------------------------------------------------------
+         Right-click "Paste" for the week grid — counterpart to
+         DayTimeGrid's own right-click paste (see BoxClipboard and
+         DayTimeGrid.handleGridContextMenu above). Reuses the exact
+         same BoxClipboard singleton (Ctrl+C on an open box, or the
+         repeat-modal's "Copy" button, both work identically here
+         since EventEditor is shared across views) and the same
+         .day-time-grid-paste-menu CSS so the popup looks and
+         behaves identically — the only real difference is that a
+         week column's date isn't "whatever's currently selected"
+         the way DayTimeGrid.pasteBoxAt assumes, so this figures out
+         which specific day column was right-clicked and pastes onto
+         that date instead.
+      ---------------------------------------------------------- */
+      let weekPasteMenuEl = null;
+      let weekPasteMenuMinutes = 0;
+      let weekPasteMenuDateKey = '';
+      let weekPasteMenuColEl = null;
+
+      function buildWeekPasteMenu() {
+        weekPasteMenuEl = document.createElement('div');
+        weekPasteMenuEl.className = 'day-time-grid-paste-menu';
+
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.className = 'day-time-grid-paste-menu-item';
+        item.textContent = 'Paste';
+        item.addEventListener('click', (e) => {
+          e.stopPropagation();
+          hideWeekPasteMenu();
+          pasteWeekBoxAt(weekPasteMenuDateKey, weekPasteMenuMinutes, weekPasteMenuColEl);
+        });
+
+        const closeBtn2 = document.createElement('button');
+        closeBtn2.type = 'button';
+        closeBtn2.className = 'day-time-grid-paste-menu-close';
+        closeBtn2.setAttribute('aria-label', 'Close');
+        closeBtn2.textContent = '\u2715';
+        closeBtn2.addEventListener('click', (e) => {
+          e.stopPropagation();
+          hideWeekPasteMenu();
+        });
+
+        weekPasteMenuEl.appendChild(item);
+        weekPasteMenuEl.appendChild(closeBtn2);
+        document.body.appendChild(weekPasteMenuEl);
+      }
+
+      function hideWeekPasteMenu() {
+        if (weekPasteMenuEl) weekPasteMenuEl.classList.remove('open');
+        document.removeEventListener('pointerdown', onOutsideWeekPasteMenu, true);
+        scrollEl.removeEventListener('scroll', hideWeekPasteMenu, true);
+      }
+
+      function onOutsideWeekPasteMenu(e) {
+        if (weekPasteMenuEl && !weekPasteMenuEl.contains(e.target)) hideWeekPasteMenu();
+      }
+
+      function showWeekPasteMenu(clientX, clientY, dateKey, minutes, colEl) {
+        if (!weekPasteMenuEl) buildWeekPasteMenu();
+        weekPasteMenuDateKey = dateKey;
+        weekPasteMenuMinutes = minutes;
+        weekPasteMenuColEl = colEl;
+        weekPasteMenuEl.style.left = clientX + 'px';
+        weekPasteMenuEl.style.top  = clientY + 'px';
+        weekPasteMenuEl.classList.add('open');
+
+        requestAnimationFrame(() => {
+          if (!weekPasteMenuEl) return;
+          const rect = weekPasteMenuEl.getBoundingClientRect();
+          const maxLeft = window.innerWidth - rect.width - 8;
+          const maxTop  = window.innerHeight - rect.height - 8;
+          if (rect.left > maxLeft) weekPasteMenuEl.style.left = Math.max(8, maxLeft) + 'px';
+          if (rect.top  > maxTop)  weekPasteMenuEl.style.top  = Math.max(8, maxTop) + 'px';
+        });
+
+        // Deferred for the same reason as DayTimeGrid's version — the
+        // right-click's own pointerdown shouldn't instantly count as
+        // "outside" and close this again. Also closes on scrolling
+        // the week grid horizontally/vertically, since the popup is
+        // positioned in viewport coordinates and would otherwise
+        // drift away from the cell it was opened next to.
+        setTimeout(() => {
+          document.addEventListener('pointerdown', onOutsideWeekPasteMenu, true);
+          scrollEl.addEventListener('scroll', hideWeekPasteMenu, true);
+        }, 0);
+      }
+
+      function handleWeekGridContextMenu(e) {
+        // Same rule as DayTimeGrid: leave an existing box's own
+        // right-click alone rather than popping the paste menu over
+        // it.
+        if (e.target.closest && e.target.closest('.day-time-grid-event-box')) return;
+        // Only fire inside an actual day column body — not the
+        // header row or the fixed hour gutter.
+        const colEl = e.target.closest && e.target.closest('.week-view-daycol');
+        if (!colEl) return;
+        if (!BoxClipboard.has()) return;
+        const idx = colEls.indexOf(colEl);
+        if (idx === -1 || !dates[idx]) return;
+        const dateKey = EventStore.dateKeyFor(dates[idx].getFullYear(), dates[idx].getMonth(), dates[idx].getDate());
+        const minutes = weekPasteMinutesFromClientY(colEl, e.clientY);
+        showWeekPasteMenu(e.clientX, e.clientY, dateKey, minutes, colEl);
+      }
+
+      // Drops a full copy of BoxClipboard's saved box onto the given
+      // week column at `startMinutes` — mirrors DayTimeGrid.pasteBoxAt,
+      // just targeting whichever date/column was actually
+      // right-clicked instead of "the currently locked-in day".
+      function pasteWeekBoxAt(dateKey, startMinutes, colEl) {
+        const copied = BoxClipboard.get();
+        if (!copied || !colEl) return;
+
+        const durationMinutes = copied.durationMinutes || weekHoldCfg.SNAP_MIN;
+        const record = EventStore.create(dateKey, startMinutes, durationMinutes);
+        record.type              = copied.type;
+        record.color             = copied.color;
+        record.description       = copied.description;
+        record.manualLeftUnits   = copied.manualLeftUnits;
+        record.manualWidthUnits  = copied.manualWidthUnits;
+        record.notify            = copied.notify;
+        record.locked            = copied.locked;
+
+        buildWeekEventBox(record, colEl);
+        if (record.notify) NotificationScheduler.schedule(record);
+        toast('Pasted.');
+      }
+
       // Counterpart to DayTimeGrid.renderNewEventsForDate, for the
       // week grid: paints freshly-created records straight into
       // whichever visible day column matches dateKey, so a "copy to
@@ -11603,6 +12078,19 @@
         const rawMinutes = (localY / cfg.hourHeight) * 60;
         const snapped = Math.round(rawMinutes / weekHoldCfg.SNAP_MIN) * weekHoldCfg.SNAP_MIN;
         return Math.max(0, Math.min(24 * 60 - weekHoldCfg.SNAP_MIN, snapped));
+      }
+
+      // Same fix as DayTimeGrid's pasteMinutesFromClientY: paste
+      // needs its own 15-minute snap instead of weekHoldCfg.SNAP_MIN
+      // (60/hourly), which is only meant for the hold-to-create
+      // indicator.
+      const WEEK_PASTE_SNAP_MIN = 15;
+      function weekPasteMinutesFromClientY(colEl, clientY) {
+        const rect = colEl.getBoundingClientRect();
+        const localY = clientY - rect.top;
+        const rawMinutes = (localY / cfg.hourHeight) * 60;
+        const snapped = Math.round(rawMinutes / WEEK_PASTE_SNAP_MIN) * WEEK_PASTE_SNAP_MIN;
+        return Math.max(0, Math.min(24 * 60 - WEEK_PASTE_SNAP_MIN, snapped));
       }
 
       function weekPositionHoldIndicator(minutes) {
@@ -11805,6 +12293,19 @@
         if (typeof DayViewState !== 'undefined') {
           DayViewState.onChange((next) => updateBackToWeekBtn(next));
         }
+
+        // Right-click anywhere on the week grid: swallow the browser's
+        // own context menu (capture phase, same reasoning as
+        // DayTimeGrid's own listener — see ensureBuilt there), then
+        // show our own "Paste" popup when it makes sense to (see
+        // handleWeekGridContextMenu above for what that requires).
+        // Attached once to gridEl itself rather than per-column,
+        // since gridEl is never replaced — only its children are, as
+        // days scroll in and out — so this survives every rebuild.
+        gridEl.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+          handleWeekGridContextMenu(e);
+        }, true);
       }
 
       // Live hour-row-spacing control (topbar slider, desktop only),
