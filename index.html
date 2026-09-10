@@ -3194,10 +3194,8 @@
     }
 
     /* ── Settings: shared across devices via D1 (habit_settings table).
-       localStorage is kept only as an instant-paint cache for the very
-       first render before the server round-trip completes — the server
-       copy always wins once it loads. ── */
-    const SETTINGS_KEY = 'habitcal_settings';
+       No local caching — always re-fetched from the server on load, so
+       there's never a stale local copy to fall out of sync. ── */
     const DEFAULT_SETTINGS = {
       dailyTargetsEnabled:     true,
       showStatsBar:            true,
@@ -3212,21 +3210,9 @@
       disableZoom:             false,
     };
 
-    function loadSettings() {
-      try {
-        const raw = localStorage.getItem(SETTINGS_KEY);
-        if (!raw) return { ...DEFAULT_SETTINGS };
-        return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
-      } catch {
-        return { ...DEFAULT_SETTINGS };
-      }
-    }
-    function cacheSettingsLocally() {
-      try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch { /* ignore */ }
-    }
-
-    // Pulls the shared settings from D1 on load. If it fails (offline etc.)
-    // we just keep whatever was in the local cache / defaults.
+    // Pulls the shared settings from D1 on every load. No local fallback —
+    // if the fetch fails (offline etc.) we just keep the built-in defaults
+    // for this session rather than showing a possibly-stale copy.
     async function loadSettingsFromServer() {
       try {
         const r = await fetch('/api/habits?resource=settings', { cache: 'no-store' });
@@ -3234,15 +3220,13 @@
           const server = await r.json();
           if (server && typeof server === 'object') {
             settings = { ...DEFAULT_SETTINGS, ...server };
-            cacheSettingsLocally();
           }
         }
-      } catch { /* offline → keep locally cached settings */ }
+      } catch { /* offline → keep defaults for this session */ }
     }
 
     // Pushes the full settings object to D1 so every device sees it.
     async function saveSettingsToServer() {
-      cacheSettingsLocally(); // instant local cache so this device doesn't flicker
       const r = await fetch('/api/habits?resource=settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -3251,7 +3235,7 @@
       if (!r.ok) throw new Error('Save failed: ' + r.status);
     }
 
-    let settings = loadSettings(); // instant local paint; overwritten by loadSettingsFromServer() on load
+    let settings = { ...DEFAULT_SETTINGS }; // defaults until loadSettingsFromServer() resolves
     let pendingSettings = null; // staged edits while the Settings modal is open — only committed on Save
 
     function applyStatsBarVisibility() {
@@ -3473,7 +3457,6 @@
     let formState = defaultEntry(null);
 
     const MAX_FILE_BYTES = 500 * 1024;
-    const CACHE_KEY = 'habitcal_cache';
 
     function pad(n) { return String(n).padStart(2, '0'); }
 
@@ -3574,27 +3557,15 @@
        "<name>'s birthday!") to every subscribed device — that part
        isn't in this file and needs to be added on the server. ── */
     let birthdaysData = [];
-    const BIRTHDAYS_CACHE_KEY = 'habitcal_birthdays_cache';
 
-    function loadBirthdaysCache() {
-      try {
-        const raw = localStorage.getItem(BIRTHDAYS_CACHE_KEY);
-        if (raw) birthdaysData = JSON.parse(raw);
-      } catch { /* ignore */ }
-    }
-    function cacheBirthdaysLocally() {
-      try { localStorage.setItem(BIRTHDAYS_CACHE_KEY, JSON.stringify(birthdaysData)); } catch { /* ignore */ }
-    }
-
+    // Always re-fetched from D1 — no local cache to fall out of sync.
     async function loadBirthdays() {
-      loadBirthdaysCache();
       try {
         const r = await fetch('/api/habits?resource=birthdays', { cache: 'no-store' });
         if (r.ok) {
           birthdaysData = await r.json();
-          cacheBirthdaysLocally();
         }
-      } catch { /* offline → keep cached list */ }
+      } catch { /* offline → list stays empty for this session */ }
     }
 
     // One-time (non-yearly) birthdays only match the exact year they
@@ -3795,19 +3766,15 @@
       toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
     }
 
+    // Always re-fetched from D1 on load — no local cache to go stale or
+    // fall out of sync with what's actually on the server.
     async function loadAllHabits() {
-      const cached = localStorage.getItem(CACHE_KEY);
-      if (cached) {
-        try { habitsData = JSON.parse(cached); } catch { habitsData = {}; }
-      }
       try {
         const r = await fetch('/api/habits', { cache: 'no-store' });
         if (r.ok) {
-          const txt = await r.text();
-          habitsData = JSON.parse(txt);
-          localStorage.setItem(CACHE_KEY, txt);
+          habitsData = JSON.parse(await r.text());
         }
-      } catch { /* offline → use cache */ }
+      } catch { /* offline → habitsData stays whatever it already was this session */ }
     }
 
     async function saveHabitData(dateStr, payload) {
@@ -3818,7 +3785,6 @@
       });
       if (!r.ok) throw new Error('Save failed: ' + r.status);
       habitsData[dateStr] = payload;
-      localStorage.setItem(CACHE_KEY, JSON.stringify(habitsData));
     }
 
     async function loadAllFiles() {
@@ -9739,8 +9705,8 @@
         currentRecord = null;
       }
 
-      // Removes the record from EventStore (and its localStorage-
-      // backed serialization), detaches the box from the grid, then
+      // Removes the record from EventStore (synced straight to the
+      // server, no local copy), detaches the box from the grid, then
       // asks DayTimeGrid to relayout whatever's left — deleting an
       // event can free up column space for whatever it used to
       // overlap with.
