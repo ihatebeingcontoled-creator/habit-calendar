@@ -7477,6 +7477,26 @@
         nowTimer = setInterval(updateNowLine, 30000);
       }
 
+      // Mirrors WeekView's scrollToRelevantHour(): only meaningful when
+      // the locked day is actually today (see isViewingToday) — there's
+      // no red bar to line up with on any other date, so this is a
+      // no-op then and the page just opens at its default scroll spot.
+      // Computes the grid's real top the same way render() does
+      // (computeRect() + LockedViewAnchor.get()) rather than reading
+      // el.getBoundingClientRect(), because show() still has the
+      // slide-up transform applied at the moment this needs to run —
+      // that transform would throw off a getBoundingClientRect() read.
+      function scrollToNow() {
+        if (!isViewingToday()) return;
+        const r = computeRect();
+        const gridTop = r.top + LockedViewAnchor.get();
+        const now = new Date();
+        // Same "2 hours of headroom above the current time" convention
+        // as the week view, so Day and Week open on a consistent spot.
+        const targetHour = Math.max(0, now.getHours() - 2);
+        window.scrollTo(0, gridTop + targetHour * cfg.hourHeight);
+      }
+
       function stopNowTimer() {
         if (nowTimer) { clearInterval(nowTimer); nowTimer = null; }
       }
@@ -8716,6 +8736,10 @@
         // Only ticking while the grid is actually on screen — no point
         // updating a bar nobody can see.
         startNowTimer();
+        // Land the page scrolled to right around the current time (the
+        // red bar), same idea as the week view's own opening scroll —
+        // only takes effect when the locked day is actually today.
+        scrollToNow();
       }
 
       function hide() {
