@@ -2575,6 +2575,26 @@
       transition: none !important;
       animation: none !important;
     }
+
+    /* ============================================================
+       VIEW-SWITCH TRANSITION KILL SWITCH (day view <-> month,
+       week view <-> month/day)
+       Narrowly scoped to ONLY the slide/fade transition each view
+       container itself uses to enter/exit — #lockedHeaderCard and
+       #dayTimeGrid (the two body-level pieces of the day view that
+       live outside .calendar-main, so the block above doesn't reach
+       them) and .week-view-overlay / .app.week-view-exiting (the
+       week view's slide-up overlay). Deliberately NOT a wildcard
+       (no " *") — this must not touch anything inside those
+       containers: hold-to-create indicators, event box drag/resize,
+       hover states, etc. all keep their own normal animations.
+       Delete this block to restore the view-switch slide/fade. */
+    #lockedHeaderCard,
+    #dayTimeGrid,
+    .week-view-overlay,
+    .app.week-view-exiting {
+      transition: none !important;
+    }
   </style>
 </head>
 <body>
@@ -7380,7 +7400,7 @@
     const DayTimeGrid = (() => {
       const cfg = {
         hourHeight: 76,  // px per hour — roughly 2cm, per feedback (was 38 / ~1cm)
-        fadeMs:     420, // must match the CSS transform transition duration below
+        fadeMs:     0, // was 420 — the view-switch slide is now instant (see the CSS kill switch), so this no longer needs to match a transition duration
       };
 
       let el = null;
@@ -11053,8 +11073,8 @@
         edgeThresholdCols: 3, // start loading more once you're within this many columns of an edge
         maxDays:    120,  // safety valve only, in case one continuous scroll never goes idle — the real cap is windowDays, applied on let-go
         settleIdleMs: 220, // how long scrolling must be silent (AND the pointer must already be up) before we treat it as "let go" and re-trim to windowDays
-        appExitMs:  320,  // must match .app.week-view-exiting transition
-        slideMs:    420,  // must match .week-view-overlay transition
+        appExitMs:  0,  // was 320 — the view-switch slide is now instant (see the CSS kill switch), so this no longer needs to match a transition duration
+        slideMs:    0,  // was 420 — same as above, no longer needs to match a transition duration
         gotoTodayThresholdDays: 2, // show the "go to current day" button once the centered day is this many days from today
       };
 
@@ -12737,6 +12757,109 @@
       return { init, goToDay, goToDateInMonthView };
     })();
     GlobalTopBar.init();
+
+    /* ============================================================
+       DAY VIEW — FULL PAGE REFRESH ON OPEN/CLOSE.
+       Replaces the previous EventStore.reloadDate()/clearDate()
+       approach, which re-fetched just this date's events in place —
+       that still raced when the day view was opened/closed quickly,
+       sometimes leaving the grid painted with nothing because a
+       stale fetch landed after the person had already moved on. A
+       full page reload has no such race: the whole page reinitializes
+       from scratch every time, so there's never any old in-memory
+       state left over to race against.
+       sessionStorage carries just enough (which date) across the
+       reload so opening the day view lands the person right back in
+       it afterward, instead of back on the month view.
+       Getting the "reload every time you open it" listener NOT to
+       also fire on the reload that's replaying a restore used to be
+       done with a one-shot `restoring` boolean that got consumed the
+       instant LOCKED was reached — fragile, because anything causing
+       even one extra state ping-pong during that restore could
+       consume it early and silently disarm real opens for the rest
+       of that page's life (which is exactly what was happening).
+       Fixed by not installing the open-reload listener AT ALL until
+       after the restore's own lock-in has already happened — so
+       there's no flag to race, nothing to consume early, and no way
+       for it to end up permanently disarmed.
+    ============================================================ */
+    const DayViewFullRefresh = (() => {
+      const REOPEN_KEY = 'habitcal_dayview_reopen';
+
+      function saveReopenTarget(dateKey) {
+        try { sessionStorage.setItem(REOPEN_KEY, dateKey); } catch { /* ignore */ }
+      }
+      function clearReopenTarget() {
+        try { sessionStorage.removeItem(REOPEN_KEY); } catch { /* ignore */ }
+      }
+
+      // Reloads (with the current date stashed for the restore below)
+      // every time the day view is entered. Only ever armed AFTER any
+      // pending restore has already landed — see init().
+      function armOpenReload() {
+        DayViewState.onChange((next, prev) => {
+          if (next === DayViewState.STATES.LOCKED && prev !== DayViewState.STATES.LOCKED) {
+            saveReopenTarget(EventStore.selectedDateKey());
+            location.reload();
+          }
+        });
+      }
+
+      // Reloads every time the day view is exited — safe to arm right
+      // away, since it only ever fires after a real LOCKED state, and
+      // a fresh page load always starts out of LOCKED.
+      function armCloseReload() {
+        DayViewState.onChange((next, prev) => {
+          if (prev === DayViewState.STATES.LOCKED && next !== DayViewState.STATES.LOCKED) {
+            clearReopenTarget();
+            // Flush any edit made just before closing so the reload can't lose it, then reload —
+            // a fresh load discards every bit of in-memory state, which is the "clear cache" part.
+            EventStore.flushNow().catch(() => {}).then(() => location.reload());
+          }
+        });
+      }
+
+      // Returns true if a restore was kicked off (caller should hold
+      // off arming armOpenReload until that restore's LOCKED lands).
+      function restoreIfPending() {
+        let raw;
+        try { raw = sessionStorage.getItem(REOPEN_KEY); } catch { raw = null; }
+        if (!raw) return false;
+        clearReopenTarget();
+        const parts = raw.split('-').map(Number);
+        if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n))) return false;
+        const [y, m, d] = parts;
+        if (typeof GlobalTopBar === 'undefined' || !GlobalTopBar.goToDay) return false;
+        GlobalTopBar.goToDay(y, m - 1, d);
+        return true;
+      }
+
+      function init() {
+        armCloseReload();
+        if (!restoreIfPending()) {
+          armOpenReload();
+          return;
+        }
+        // A restore is in flight — wait for ITS LOCKED to land, then
+        // arm the open-reload listener for every open after that.
+        let armed = false;
+        function armOnce() {
+          if (armed) return;
+          armed = true;
+          armOpenReload();
+        }
+        DayViewState.onChange((next) => {
+          if (next === DayViewState.STATES.LOCKED) armOnce();
+        });
+        // Fallback in case the restore silently never reaches LOCKED
+        // (goToDay failed, the date is gone, etc.) — don't leave real
+        // opens unable to reload for the rest of this page's life.
+        setTimeout(armOnce, 3000);
+      }
+
+      return { init };
+    })();
+    DayViewFullRefresh.init();
 
     /* ============================================================
        ZOOM BANNER — detects an accidental pinch/double-tap browser
