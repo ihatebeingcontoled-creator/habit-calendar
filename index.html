@@ -8794,7 +8794,7 @@
         if (renderedDateKey) forceRerenderDate(renderedDateKey);
       }
 
-      return { init, computeRect, onHoldCreate, onBoxCreated, recomputeOverlapLayout, setNotifyBadge, setLockedState, positionEventBox, renderEventsForDate, renderNewEventsForDate, refreshEditedRecords, removeRecordsFromDate, forceRerenderDate, setHourHeight, getHourHeight: () => cfg.hourHeight };
+      return { init, computeRect, onHoldCreate, onBoxCreated, recomputeOverlapLayout, setNotifyBadge, setLockedState, positionEventBox, renderEventsForDate, renderNewEventsForDate, refreshEditedRecords, removeRecordsFromDate, forceRerenderDate, setHourHeight, getHourHeight: () => cfg.hourHeight, refresh: show };
     })();
     DayTimeGrid.init();
 
@@ -12667,6 +12667,12 @@
         }
         if (typeof DayViewState !== 'undefined' && DayViewState.get() !== DayViewState.STATES.LOCKED) {
           DayViewScroll.triggerForward();
+        } else if (typeof DayTimeGrid !== 'undefined' && DayTimeGrid.refresh) {
+          // DayViewState was already LOCKED underneath Week view —
+          // opening Week view never changes it, so the LOCKED
+          // transition (and the fetch/repaint it drives) never re-fires
+          // on its own here. Force that same refresh directly instead.
+          DayTimeGrid.refresh();
         }
       }
 
