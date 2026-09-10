@@ -8676,8 +8676,15 @@
         el.style.display = 'block';
         void el.offsetHeight; // force the browser to commit the "from" state
         render();
+        // Always do a hard, from-scratch repaint every time Day view
+        // opens, instead of trusting that whatever's already mounted
+        // from a previous open is still good. The "stillMounted"
+        // fast-path in renderEventsForDate is what was going stale
+        // after enough open/close/open transitions — this forgets it
+        // was ever rendered and repaints straight from EventStore.
+        detachRenderedBoxes(renderedDateKey);
+        renderedDateKey = null;
         renderEventsForDate(EventStore.selectedDateKey());
-        if (typeof HourGapControl !== 'undefined') HourGapControl.nudge();
         requestAnimationFrame(() => {
           if (!el) return;
           el.style.opacity = '1';
@@ -12369,29 +12376,10 @@
     const HourGapControl = (() => {
       const STORAGE_KEY = 'nb_hourGapPx';
       const slider = document.getElementById('globalHourGapSlider');
-      let nudgeTimer = null;
 
       function apply(px) {
         if (typeof DayTimeGrid !== 'undefined') DayTimeGrid.setHourHeight(px);
         if (typeof WeekView !== 'undefined') WeekView.setHourHeight(px);
-      }
-
-      // Workaround for a render bug where event boxes sometimes don't
-      // actually paint when a day view first opens, even though
-      // EventStore has the records — dragging the hour-gap slider by
-      // even a tiny amount always makes them reappear (setHourHeight
-      // forces a full repaint via forceRerenderDate). This replays that
-      // same fix automatically for Day view only: bump the height by
-      // the smallest step, then snap it back a moment later, so it's
-      // invisible to look at but still forces the same repaint that
-      // the manual drag does. Deliberately does NOT touch WeekView —
-      // the same nudge there makes its boxes disappear instead.
-      function nudge() {
-        if (typeof DayTimeGrid === 'undefined' || !DayTimeGrid.getHourHeight) return;
-        const base = DayTimeGrid.getHourHeight();
-        clearTimeout(nudgeTimer);
-        DayTimeGrid.setHourHeight(base + 0.2);
-        nudgeTimer = setTimeout(() => DayTimeGrid.setHourHeight(base), 40);
       }
 
       function init() {
@@ -12411,7 +12399,7 @@
         });
       }
 
-      return { init, nudge };
+      return { init };
     })();
     HourGapControl.init();
 
