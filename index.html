@@ -7092,6 +7092,25 @@
         return loadPromise || loadFromServer();
       }
 
+      // Throws away every in-memory record (detaching any DOM box
+      // still attached to one first, so nothing orphaned is left
+      // sitting in the page) and re-fetches everything from the
+      // server from scratch — used by Day/Week view every time they
+      // open, so what's on screen is never trusting anything already
+      // sitting in memory from a previous render. Flushes any pending
+      // unsynced edit first so a change made just before switching
+      // views never gets silently discarded by the reload.
+      async function reloadFromServer() {
+        await flushNow();
+        byDate.forEach((list) => list.forEach((record) => {
+          if (record.el) { record.el.remove(); record.el = null; }
+        }));
+        byDate.clear();
+        serverCache = null;
+        loadPromise = null;
+        return loadFromServer();
+      }
+
       // Everything currently known, server dates merged with
       // whatever's live in memory (covers dates touched this session
       // that haven't necessarily round-tripped yet).
@@ -7270,7 +7289,7 @@
 
       return {
         dateKeyFor, selectedDateKey, getForDate, create, save, remove,
-        whenReady, getAllSnapshot, flushNow, undoLast,
+        whenReady, getAllSnapshot, flushNow, undoLast, reloadFromServer,
       };
     })();
 
@@ -8664,7 +8683,7 @@
 
       let hideTimer = null;
 
-      function show() {
+      async function show() {
         clearTimeout(hideTimer);
         ensureBuilt();
         // Start parked below its resting position (see the base
@@ -8678,12 +8697,12 @@
         render();
         // Always do a hard, from-scratch repaint every time Day view
         // opens, instead of trusting that whatever's already mounted
-        // from a previous open is still good. The "stillMounted"
-        // fast-path in renderEventsForDate is what was going stale
-        // after enough open/close/open transitions — this forgets it
-        // was ever rendered and repaints straight from EventStore.
+        // from a previous open — or a previous EventStore fetch — is
+        // still good. Re-fetches straight from the server every time
+        // rather than reusing anything already in memory.
         detachRenderedBoxes(renderedDateKey);
         renderedDateKey = null;
+        await EventStore.reloadFromServer();
         renderEventsForDate(EventStore.selectedDateKey());
         requestAnimationFrame(() => {
           if (!el) return;
@@ -12214,9 +12233,13 @@
         gutterPinRafId = requestAnimationFrame(gutterPinLoop);
       }
 
-      function open() {
+      async function open() {
         if (isOpen) return;
         isOpen = true;
+        // Same hard reload as Day view — never trust whatever's
+        // already in memory (or already mounted in a column from a
+        // previous open), always re-fetch fresh from the server first.
+        await EventStore.reloadFromServer();
         render();
         lockBodyScroll();
         appEl.classList.add('week-view-exiting');
@@ -12362,7 +12385,21 @@
         if (gridEl) gridEl.style.setProperty('--week-view-col-w', px + 'px');
       }
 
-      return { init, open, close, isOpen: () => isOpen, goToDate, renderNewEventsForDate, setHourHeight, getHourHeight: () => cfg.hourHeight, setColWidth, getColWidth: () => cfg.colWidth };
+      // Precise "which day is actually centered right now" — same math
+      // as updateGotoTodayVisibility above, computed live off scroll
+      // position rather than off currentVisibleIdx (which is only a
+      // coarser approximation kept for edge-loading, and being off by
+      // even one day here was enough to make Day view think it wasn't
+      // showing today and hide the current-time red bar).
+      function currentCenteredDate() {
+        if (!dates.length) return null;
+        const gutterW = 34;
+        const centerX = scrollEl.scrollLeft + (scrollEl.clientWidth - gutterW) / 2;
+        const centerIdx = Math.round((centerX - cfg.colWidth / 2) / cfg.colWidth);
+        return addDays(dates[0], centerIdx);
+      }
+
+      return { init, open, close, isOpen: () => isOpen, goToDate, renderNewEventsForDate, setHourHeight, getHourHeight: () => cfg.hourHeight, setColWidth, getColWidth: () => cfg.colWidth, getCurrentDate: currentCenteredDate };
     })();
     WeekView.init();
 
@@ -12616,7 +12653,18 @@
       function refreshActiveTab() { setActiveTab(currentView()); }
 
       function goToDayView() {
-        if (typeof WeekView !== 'undefined' && WeekView.isOpen()) WeekView.close();
+        // Going from Week view: sync SelectedDayState to whatever day
+        // is actually centered in the week grid first. Without this,
+        // Day view opens for whatever day was last selected via Month
+        // view (often not what you were just looking at in Week view),
+        // which is why it could look "empty" — it wasn't rendering the
+        // wrong thing, it was correctly showing a different, genuinely
+        // empty day.
+        if (typeof WeekView !== 'undefined' && WeekView.isOpen()) {
+          const d = WeekView.getCurrentDate && WeekView.getCurrentDate();
+          if (d) SelectedDayState.set(d.getFullYear(), d.getMonth(), d.getDate());
+          WeekView.close();
+        }
         if (typeof DayViewState !== 'undefined' && DayViewState.get() !== DayViewState.STATES.LOCKED) {
           DayViewScroll.triggerForward();
         }
