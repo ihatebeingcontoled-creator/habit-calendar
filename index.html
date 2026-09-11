@@ -9324,24 +9324,93 @@
         // reaching for Ctrl/Cmd+C or holding the notify bell open
         // the repeat-across-days modal just to get to its "Copy".
         // Same BoxClipboard.set(record) as those two paths use.
+        //
+        // Holding it instead does the reverse: whatever's currently in
+        // BoxClipboard gets pasted INTO this box, overwriting its
+        // type/color/description/duration/notify/locked in place —
+        // same fields BoxClipboard.set() captures, applied here rather
+        // than spawning a brand-new box the way the grid's right-click
+        // "Paste" (pasteBoxAt) does. This box's own id/dateKey/
+        // startMinutes are left alone, so it stays put in time; only
+        // its content and duration are replaced. Mirrors the notify
+        // bell's tap-vs-hold split just above, including suppressing
+        // the click that follows a fired hold.
         const copyInlineBtn = document.createElement('button');
         copyInlineBtn.type = 'button';
         copyInlineBtn.className = 'day-time-grid-event-box-copy-btn';
         copyInlineBtn.setAttribute('aria-label', 'Copy this box');
-        copyInlineBtn.title = 'Copy — right-click the grid to paste it';
+        copyInlineBtn.title = 'Tap to copy · hold to paste the copied box here';
         copyInlineBtn.innerHTML =
           '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" ' +
           'stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">' +
           '<rect x="9" y="9" width="12" height="12" rx="2"></rect>' +
           '<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
         let copyFlashTimer = null;
-        copyInlineBtn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          BoxClipboard.set(record);
-          toast('Box copied — right-click the grid to paste it.');
+        function flashCopyBtn() {
           copyInlineBtn.classList.add('flash');
           clearTimeout(copyFlashTimer);
           copyFlashTimer = setTimeout(() => copyInlineBtn.classList.remove('flash'), 260);
+        }
+
+        function pasteClipboardIntoBox() {
+          const copied = BoxClipboard.get();
+          if (!copied) { toast('Nothing copied yet.'); return; }
+          record.type             = copied.type;
+          record.color            = copied.color;
+          record.description      = copied.description;
+          record.durationMinutes  = copied.durationMinutes;
+          record.manualLeftUnits  = copied.manualLeftUnits;
+          record.manualWidthUnits = copied.manualWidthUnits;
+          record.notify           = copied.notify;
+          record.locked           = copied.locked;
+          EventStore.save(record);
+
+          // Same direct record.el-touching calls commitExactTime uses
+          // above for a duration change — these only touch record.el
+          // itself (not a cached "which grid" reference), so they're
+          // correct whether this box's editor was opened from the day
+          // grid or from Week view.
+          if (record.el) {
+            DayTimeGrid.positionEventBox(record.el, record.startMinutes, record.durationMinutes);
+            DayTimeGrid.setNotifyBadge(record, record.notify);
+            DayTimeGrid.setLockedState(record, record.locked);
+            DayTimeGrid.recomputeOverlapLayout();
+          }
+          renderBoxFace(record);
+          updateTimeLabel(record);
+
+          if (record.notify) NotificationScheduler.schedule(record);
+          else NotificationScheduler.unschedule(record);
+          syncNotifyUI(record);
+          if (lockBtn) lockBtn.classList.toggle('active', !!record.locked);
+          flashCopyBtn();
+          toast('Pasted into box.');
+        }
+
+        let copyHoldTimer = null;
+        let copyHoldFired = false;
+        function clearCopyHold() {
+          clearTimeout(copyHoldTimer);
+          copyHoldTimer = null;
+        }
+        copyInlineBtn.addEventListener('pointerdown', (e) => {
+          if (e.button !== undefined && e.button !== 0) return;
+          copyHoldFired = false;
+          clearCopyHold();
+          copyHoldTimer = setTimeout(() => {
+            copyHoldFired = true;
+            pasteClipboardIntoBox();
+          }, REPEAT_HOLD_MS);
+        });
+        copyInlineBtn.addEventListener('pointerup', clearCopyHold);
+        copyInlineBtn.addEventListener('pointerleave', clearCopyHold);
+        copyInlineBtn.addEventListener('pointercancel', clearCopyHold);
+        copyInlineBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (copyHoldFired) { copyHoldFired = false; return; } // hold already handled it
+          BoxClipboard.set(record);
+          toast('Box copied — right-click the grid to paste it, or hold another box\'s copy button.');
+          flashCopyBtn();
         });
         optionsGroup.appendChild(copyInlineBtn);
 
@@ -12223,24 +12292,22 @@
       }
 
       // Clicking a day here: select it the same way the mini calendar
-      // does, close the week view, and — once it's fully out of the
-      // way — replay the real scroll-up lock-in animation so the app
-      // collapses into that specific day's hourly view, instead of
-      // just silently swapping which date is selected underneath.
+      // does, then teleport straight into that day's hourly view —
+      // instant close (no slide-out), instant lock-in (no scroll/FLIP
+      // wait), so there's no gap between "clicked" and "day view is
+      // showing" the way there used to be during the close animation.
       function selectDayAndLockIn(d) {
         if (!isOpen || isSelectingDay) return;
         isSelectingDay = true;
         cameFromWeek = true;
         SelectedDayState.set(d.getFullYear(), d.getMonth(), d.getDate());
-        close();
-        setTimeout(() => {
-          if (typeof DayViewScroll !== 'undefined' &&
-              typeof DayViewState !== 'undefined' &&
-              DayViewState.get() === DayViewState.STATES.CALENDAR) {
-            DayViewScroll.triggerForward();
-          }
-          isSelectingDay = false;
-        }, cfg.slideMs + 30);
+        close(true);
+        if (typeof DayViewScroll !== 'undefined' &&
+            typeof DayViewState !== 'undefined' &&
+            DayViewState.get() === DayViewState.STATES.CALENDAR) {
+          DayViewScroll.triggerForward();
+        }
+        isSelectingDay = false;
       }
 
       // Runs applyGutterPin() every single animation frame, the whole
@@ -12266,24 +12333,53 @@
         await EventStore.reloadFromServer();
         render();
         lockBodyScroll();
+        // Teleport in — skip both the app-fade-out phase (used to be
+        // appExitMs, sequenced before the overlay even started moving)
+        // and the overlay's own slide-in transition. Same reasoning as
+        // close(instant): nothing needs to be seen mid-flight, so don't
+        // make the user wait through it just to watch it happen.
+        overlayEl.style.transition = 'none';
+        appEl.style.transition = 'none';
         appEl.classList.add('week-view-exiting');
-        setTimeout(() => {
-          overlayEl.classList.add('open');
-          scrollToRelevantHour();
-          updateGotoTodayVisibility();
-        }, cfg.appExitMs);
+        overlayEl.classList.add('open');
+        scrollToRelevantHour();
+        updateGotoTodayVisibility();
+        void overlayEl.offsetWidth; // force layout before restoring transitions
+        overlayEl.style.transition = '';
+        appEl.style.transition = '';
         document.addEventListener('keydown', onKeydown);
         if (gutterPinRafId == null) gutterPinRafId = requestAnimationFrame(gutterPinLoop);
       }
 
-      function close() {
+      // `instant`: skip the slide-down/fade-back-in transitions entirely
+      // and snap straight to closed. Used whenever this close is really
+      // just the first half of a Week -> Day teleport (top-bar Day tab,
+      // or picking a day from inside the week grid) — playing the normal
+      // 420ms/320ms exit animation there just delays the day view
+      // appearing for no visual benefit, since nothing needs to be seen
+      // mid-flight when the destination is going to snap in anyway.
+      function close(instant) {
         if (!isOpen) return;
         isOpen = false;
-        overlayEl.classList.remove('open');
-        setTimeout(() => {
+        if (instant) {
+          overlayEl.style.transition = 'none';
+          appEl.style.transition = 'none';
+          overlayEl.classList.remove('open');
           appEl.classList.remove('week-view-exiting');
           unlockBodyScroll();
-        }, cfg.slideMs);
+          // Force layout so the 'none' transition actually takes hold
+          // before handing control back to the normal CSS transitions
+          // (otherwise the next real open/close could inherit 'none').
+          void overlayEl.offsetWidth;
+          overlayEl.style.transition = '';
+          appEl.style.transition = '';
+        } else {
+          overlayEl.classList.remove('open');
+          setTimeout(() => {
+            appEl.classList.remove('week-view-exiting');
+            unlockBodyScroll();
+          }, cfg.slideMs);
+        }
         document.removeEventListener('keydown', onKeydown);
         if (gutterPinRafId != null) { cancelAnimationFrame(gutterPinRafId); gutterPinRafId = null; }
       }
@@ -12687,7 +12783,7 @@
         if (typeof WeekView !== 'undefined' && WeekView.isOpen()) {
           const d = WeekView.getCurrentDate && WeekView.getCurrentDate();
           if (d) SelectedDayState.set(d.getFullYear(), d.getMonth(), d.getDate());
-          WeekView.close();
+          WeekView.close(true); // instant — no slide-out before teleporting into Day
         }
         if (typeof DayViewState !== 'undefined' && DayViewState.get() !== DayViewState.STATES.LOCKED) {
           DayViewScroll.triggerForward();
@@ -12705,7 +12801,7 @@
       }
 
       function goToMonthView() {
-        if (typeof WeekView !== 'undefined' && WeekView.isOpen()) WeekView.close();
+        if (typeof WeekView !== 'undefined' && WeekView.isOpen()) WeekView.close(true);
         if (typeof DayViewState !== 'undefined' && DayViewState.get() === DayViewState.STATES.LOCKED) {
           DayViewScroll.triggerBackward();
         }
