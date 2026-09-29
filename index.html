@@ -2606,7 +2606,107 @@
     body.night-mode .money-panel input, body.night-mode .money-panel select { background: #232325; color: #f5f5f5; border-color: #3a3a3a; }
     body.night-mode .money-item { border-color: #333; }
     body.night-mode.money-mode .day-cell.money-pos, body.night-mode.money-mode .day-cell.money-neg, body.night-mode.money-mode .day-cell.money-zero, body.night-mode.money-mode .day-cell.money-future { background: #1c1c1c; }
-</style>
+
+    /* ── DAY TIMER (double-tap "Day") ── */
+    .tmr-overlay {
+      --tmr-bg: #e8f0fe; --tmr-ring-bg: #c9dcff; --tmr-ring-fg: #1a73e8; --tmr-text: #3c4043;
+      --tmr-muted: #5f6368; --tmr-chip: #ffffff; --tmr-line: #c9dcff; --tmr-ink: #1f2937;
+      position: fixed; inset: 0; z-index: 5000; background: rgba(0,0,0,.4);
+      display: flex; align-items: center; justify-content: center; padding: 16px;
+      transition: background-color .4s ease, padding .4s ease;
+      animation: tmrFadeIn .25s ease both;
+    }
+    body.night-mode .tmr-overlay {
+      --tmr-bg: #1c1c1e; --tmr-ring-bg: #2b3a55; --tmr-ring-fg: #6ea8ff; --tmr-text: #f5f5f5;
+      --tmr-muted: #a0a0a5; --tmr-chip: #2a2a2d; --tmr-line: #3a3a3c; --tmr-ink: #f5f5f5;
+    }
+    .tmr-overlay.closing { animation: tmrFadeOut .22s ease both; pointer-events: none; }
+    .tmr-overlay.closing .tmr-card { animation: tmrPopOut .22s ease both; }
+    .tmr-overlay.full { background: var(--tmr-bg); padding: 0; }
+    .tmr-card {
+      background: var(--tmr-bg); color: var(--tmr-ink); border-radius: 24px; width: 100%; max-width: 380px;
+      max-height: 92vh; overflow-y: auto; overflow-x: hidden; padding: 20px; font-family: inherit; position: relative;
+      box-shadow: 0 20px 60px rgba(0,0,0,.25);
+      animation: tmrPopIn .38s cubic-bezier(.2,.9,.25,1.05) both;
+    }
+    .tmr-overlay.full .tmr-card {
+      background: transparent; box-shadow: none; max-width: none; width: 100%; height: 100%; max-height: none;
+      border-radius: 0; padding: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; animation: none;
+    }
+    @keyframes tmrFadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes tmrFadeOut { from { opacity: 1; } to { opacity: 0; } }
+    @keyframes tmrPopIn { from { opacity: 0; transform: translateY(18px) scale(.94); } to { opacity: 1; transform: none; } }
+    @keyframes tmrPopOut { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(12px) scale(.96); } }
+
+    .tmr-fade { transition: opacity .2s ease; }
+    .tmr-fading .tmr-fade { opacity: 0; pointer-events: none; }
+    .tmr-overlay.full .tmr-fade { display: none; }
+
+    .tmr-title { font-size: 15px; font-weight: 700; text-align: center; margin-bottom: 10px; }
+    .tmr-title b { color: var(--tmr-ring-fg); font-variant-numeric: tabular-nums; }
+    .tmr-set { display: flex; gap: 8px; justify-content: center; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+    .tmr-set input[type=time] {
+      font: inherit; font-size: 18px; font-weight: 700; padding: 8px 10px; border-radius: 12px;
+      border: 1px solid var(--tmr-line); background: var(--tmr-chip); color: var(--tmr-ink); color-scheme: light;
+    }
+    body.night-mode .tmr-set input[type=time] { color-scheme: dark; }
+    .tmr-btn {
+      border: none; border-radius: 999px; padding: 9px 16px; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer;
+      background: #1a73e8; color: #fff; transition: transform .15s ease, filter .15s ease, background-color .2s ease;
+    }
+    .tmr-btn:hover { filter: brightness(1.06); }
+    .tmr-btn:active { transform: scale(.94); }
+    .tmr-btn.alt { background: var(--tmr-chip); color: var(--tmr-ring-fg); border: 1px solid var(--tmr-line); }
+    .tmr-btn.on { background: var(--tmr-ring-fg); color: #fff; }
+
+    .tmr-ring-wrap {
+      position: relative; width: 240px; height: 240px; margin: 6px auto 12px; flex: none;
+      container-type: size; will-change: transform;
+    }
+    .tmr-ring-wrap svg { width: 100%; height: 100%; transform: rotate(-90deg); display: block; overflow: visible; }
+    .tmr-ring-bg { fill: none; stroke: var(--tmr-ring-bg); stroke-width: 6; }
+    .tmr-ring-fg { fill: none; stroke: var(--tmr-ring-fg); stroke-width: 6; stroke-linecap: butt; }
+    .tmr-time {
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      font-size: 46px; font-size: 19cqw; font-weight: 400; color: var(--tmr-text);
+      font-variant-numeric: tabular-nums; letter-spacing: -.02em; line-height: 1; white-space: nowrap;
+    }
+    .tmr-time.hrs { font-size: 34px; font-size: 14.5cqw; }
+    .tmr-overlay.full .tmr-ring-wrap { width: 88vmin; height: 88vmin; margin: 0; }
+    .tmr-overlay.full .tmr-time { font-size: 24cqw; }
+    .tmr-overlay.full .tmr-time.hrs { font-size: 17.5cqw; }
+    .tmr-overlay.done .tmr-time { animation: tmrPulse 1s ease-in-out infinite; }
+    @keyframes tmrPulse { 50% { opacity: .35; } }
+
+    .tmr-sub { text-align: center; font-size: 13px; color: var(--tmr-muted); margin-bottom: 12px; min-height: 16px; }
+    .tmr-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+
+    .tmr-history { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows .35s ease, opacity .3s ease, margin-top .35s ease; margin-top: 0; }
+    .tmr-history.open { grid-template-rows: 1fr; opacity: 1; margin-top: 14px; }
+    .tmr-history-inner { overflow: hidden; min-height: 0; border-top: 1px solid var(--tmr-line); }
+    .tmr-history h4 { font-size: 13px; margin: 10px 0 6px; }
+    .tmr-h-item {
+      display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-radius: 12px; background: var(--tmr-chip);
+      margin-bottom: 6px; cursor: pointer; font-size: 16px; font-weight: 700;
+      transition: transform .15s ease, box-shadow .2s ease; animation: tmrItemIn .3s ease both;
+    }
+    .tmr-h-item:hover { box-shadow: 0 2px 8px rgba(0,0,0,.12); }
+    .tmr-h-item:active { transform: scale(.98); }
+    .tmr-h-item .s { flex: 1; font-size: 12px; font-weight: 400; color: var(--tmr-muted); text-align: right; }
+    .tmr-h-item .x { border: none; background: none; color: var(--tmr-muted); font-size: 18px; cursor: pointer; padding: 0 4px; }
+    @keyframes tmrItemIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    .tmr-empty { font-size: 12px; color: var(--tmr-muted); padding-bottom: 6px; }
+
+    .tmr-x {
+      position: absolute; top: 10px; right: 12px; border: none; background: none; font-size: 26px; color: var(--tmr-muted);
+      cursor: pointer; line-height: 1; z-index: 2; transition: transform .2s ease, color .2s ease;
+    }
+    .tmr-x:hover { transform: rotate(90deg); color: var(--tmr-ink); }
+    .tmr-overlay.full .tmr-x { position: fixed; top: 18px; right: 22px; font-size: 38px; }
+    @media (prefers-reduced-motion: reduce) {
+      .tmr-overlay, .tmr-card, .tmr-h-item, .tmr-history, .tmr-fade, .tmr-time { animation: none !important; transition: none !important; }
+    }
+  </style>
 </head>
 <body>
   <!-- Persistent top bar (Google Calendar-style) — always visible above
@@ -13256,6 +13356,244 @@
       }
       init();
       return { toggle };
+    })();
+  </script>
+  <script>
+    /* ============================================================
+       DAY TIMER — double-tap "Day" to open. Counts down to a chosen
+       time of day. History + the running timer live in localStorage
+       (browser cache), NOT in D1.
+    ============================================================ */
+    (() => {
+      const HKEY = 'habitTimerHistory', AKEY = 'habitTimerActive';
+      const dayTab = document.getElementById('globalTabDay');
+      if (!dayTab) return;
+      const REDUCED = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+      const EASE = 'cubic-bezier(.2,.8,.2,1)';
+      let ov = null, raf = 0, active = null, fullOn = false, busy = false, shown = '', wake = null, audio = null;
+
+      const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
+      const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+      const drop = (k) => { try { localStorage.removeItem(k); } catch (e) {} };
+      const p2 = (n) => String(n).padStart(2, '0');
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      const frames = (n) => new Promise((r) => { const f = () => (--n <= 0 ? r() : requestAnimationFrame(f)); requestAnimationFrame(f); });
+      const $ = (sel) => ov && ov.querySelector(sel);
+
+      function nextTarget(hhmm) {
+        const [h, m] = hhmm.split(':').map(Number);
+        const t = new Date(); t.setHours(h, m, 0, 0);
+        if (t.getTime() <= Date.now()) t.setDate(t.getDate() + 1);
+        return t.getTime();
+      }
+      function fmtLeft(ms) {
+        const s = Math.max(0, Math.ceil(ms / 1000));
+        const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+        return h > 0 ? h + ':' + p2(m) + ':' + p2(sec) : m + ':' + p2(sec);
+      }
+      function fmtShort(ms) {
+        const mins = Math.max(1, Math.round(ms / 60000));
+        const h = Math.floor(mins / 60), m = mins % 60;
+        return 'in ' + (h ? h + 'h ' : '') + (m || !h ? m + 'm' : '');
+      }
+
+      /* ── wake lock + finish sound ── */
+      async function lockScreen() { try { if (navigator.wakeLock && !wake) { wake = await navigator.wakeLock.request('screen'); wake.addEventListener('release', () => { wake = null; }); } } catch (e) {} }
+      function unlockScreen() { try { if (wake) wake.release(); } catch (e) {} wake = null; }
+      function beep() {
+        try {
+          audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+          [0, .35, .7].forEach((t) => {
+            const o = audio.createOscillator(), g = audio.createGain();
+            o.frequency.value = 880; o.connect(g); g.connect(audio.destination);
+            const at = audio.currentTime + t;
+            g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(0.25, at + .03); g.gain.exponentialRampToValueAtTime(0.0001, at + .28);
+            o.start(at); o.stop(at + .3);
+          });
+        } catch (e) {}
+      }
+
+      /* ── timer state ── */
+      function addHistory(hhmm) {
+        const list = load(HKEY, []).filter((x) => x.time !== hhmm);
+        list.unshift({ time: hhmm, used: Date.now() });
+        save(HKEY, list.slice(0, 20));
+      }
+      function start(hhmm) {
+        if (!hhmm) return;
+        active = { time: hhmm, start: Date.now(), end: nextTarget(hhmm), done: false };
+        save(AKEY, active);
+        addHistory(hhmm);
+        ov.classList.remove('done');
+        setTitle(hhmm);
+        renderHistory();
+        lockScreen();
+        render(true);
+      }
+      function stop() {
+        active = null; drop(AKEY); unlockScreen();
+        if (ov) ov.classList.remove('done');
+        render(true);
+      }
+
+      /* ── drawing ── */
+      const R = 110, C = 2 * Math.PI * R;
+      function render(force) {
+        if (!ov) return;
+        const fg = $('.tmr-ring-fg'), tm = $('.tmr-time'), sub = $('.tmr-sub');
+        fg.style.strokeDasharray = C;
+        if (!active) {
+          fg.style.strokeDashoffset = C;
+          if (force || shown !== '0:00') { tm.textContent = '0:00'; tm.classList.remove('hrs'); shown = '0:00'; }
+          sub.textContent = 'No timer running';
+          return;
+        }
+        const now = Date.now(), left = active.end - now, total = active.end - active.start;
+        if (left <= 0) {
+          if (!active.done) {
+            active.done = true; drop(AKEY); unlockScreen();
+            ov.classList.add('done');
+            if (navigator.vibrate) try { navigator.vibrate([300, 150, 300, 150, 300]); } catch (e) {}
+            beep();
+          }
+          fg.style.strokeDashoffset = 0;
+          tm.textContent = '0:00'; tm.classList.remove('hrs'); shown = '0:00';
+          sub.textContent = "Time's up!";
+          return;
+        }
+        fg.style.strokeDashoffset = C * (1 - Math.min(1, Math.max(0, (now - active.start) / total)));
+        const txt = fmtLeft(left);
+        if (txt !== shown || force) { tm.textContent = txt; tm.classList.toggle('hrs', txt.length > 5); shown = txt; }
+        const when = new Date(active.end);
+        sub.textContent = 'Until ' + p2(when.getHours()) + ':' + p2(when.getMinutes()) + (when.toDateString() === new Date().toDateString() ? '' : ' (tomorrow)');
+      }
+      function loop() { render(); raf = requestAnimationFrame(loop); }
+
+      function setTitle(hhmm) { const t = $('.tmr-title'); if (t) t.innerHTML = 'Set a timer till <b>' + (hhmm || '--:--') + '</b>'; }
+
+      function renderHistory() {
+        if (!ov) return;
+        const box = $('.tmr-hlist'); box.innerHTML = '';
+        const list = load(HKEY, []);
+        if (!list.length) { const e = document.createElement('div'); e.className = 'tmr-empty'; e.textContent = 'No previous timers yet.'; box.appendChild(e); return; }
+        list.forEach((it, i) => {
+          const row = document.createElement('div'); row.className = 'tmr-h-item'; row.style.animationDelay = (i * 30) + 'ms';
+          const t = document.createElement('span'); t.textContent = it.time;
+          const s = document.createElement('span'); s.className = 's'; s.textContent = fmtShort(nextTarget(it.time) - Date.now());
+          const x = document.createElement('button'); x.className = 'x'; x.type = 'button'; x.textContent = '×'; x.title = 'Remove';
+          x.onclick = (e) => { e.stopPropagation(); save(HKEY, load(HKEY, []).filter((y) => y.time !== it.time)); renderHistory(); };
+          row.onclick = () => { $('.tmr-input').value = it.time; start(it.time); toggleHistory(false); };
+          row.append(t, s, x); box.appendChild(row);
+        });
+      }
+      function toggleHistory(force) {
+        const h = $('.tmr-history'), open = typeof force === 'boolean' ? force : !h.classList.contains('open');
+        if (open) renderHistory();
+        h.classList.toggle('open', open);
+        $('.tmr-hist').classList.toggle('on', open);
+      }
+
+      /* ── fullscreen (smooth morph: fade UI -> ring flies to centre and grows) ── */
+      const ringRect = () => $('.tmr-ring-wrap').getBoundingClientRect();
+      function flip(el, from, to) {
+        if (REDUCED || !el.animate) return;
+        const dx = (from.left + from.width / 2) - (to.left + to.width / 2), dy = (from.top + from.height / 2) - (to.top + to.height / 2);
+        el.animate([{ transform: 'translate(' + dx + 'px,' + dy + 'px) scale(' + (from.width / to.width) + ')' }, { transform: 'none' }], { duration: 480, easing: EASE });
+      }
+      function nativeFs(on) {
+        try {
+          if (on) {
+            const r = ov.requestFullscreen || ov.webkitRequestFullscreen;
+            if (!r) return Promise.resolve();
+            const p = r.call(ov);
+            return p && p.then ? p.catch(() => {}) : wait(250);
+          }
+          const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+          if (fsEl) { const x = document.exitFullscreen || document.webkitExitFullscreen; const p = x.call(document); return p && p.then ? p.catch(() => {}) : wait(250); }
+        } catch (e) {}
+        return Promise.resolve();
+      }
+      async function enterFull() {
+        if (busy || fullOn || !ov) return; busy = true;
+        const fs = nativeFs(true);
+        ov.classList.add('tmr-fading');
+        await Promise.race([Promise.all([fs, wait(REDUCED ? 0 : 200)]), wait(900)]);
+        await frames(2);
+        const from = ringRect();
+        ov.classList.add('full'); fullOn = true;
+        const to = ringRect();
+        flip($('.tmr-ring-wrap'), from, to);
+        await wait(REDUCED ? 0 : 480);
+        busy = false;
+      }
+      async function leaveFull(skipNative) {
+        if (busy || !fullOn || !ov) return; busy = true;
+        const fs = skipNative ? Promise.resolve() : nativeFs(false);
+        await Promise.race([fs, wait(900)]);
+        await frames(2);
+        const from = ringRect();
+        ov.classList.remove('full'); fullOn = false;
+        const to = ringRect();
+        flip($('.tmr-ring-wrap'), from, to);
+        await wait(REDUCED ? 0 : 200);
+        if (ov) ov.classList.remove('tmr-fading');
+        await wait(REDUCED ? 0 : 250);
+        busy = false;
+      }
+
+      /* ── open / close ── */
+      function close() {
+        if (!ov || busy) return;
+        if (fullOn) { leaveFull(); return; }
+        busy = true;
+        cancelAnimationFrame(raf); raf = 0;
+        const el = ov; ov.classList.add('closing');
+        setTimeout(() => { el.remove(); if (ov === el) ov = null; busy = false; unlockScreen(); }, REDUCED ? 0 : 230);
+      }
+
+      function open() {
+        if (ov) return;
+        active = load(AKEY, null);
+        if (active && active.end <= Date.now()) { active = null; drop(AKEY); }
+        ov = document.createElement('div'); ov.className = 'tmr-overlay';
+        ov.innerHTML =
+          '<div class="tmr-card">' +
+            '<button class="tmr-x" type="button" title="Close" aria-label="Close">&times;</button>' +
+            '<div class="tmr-title tmr-fade"></div>' +
+            '<div class="tmr-set tmr-fade"><input class="tmr-input" type="time" step="60" aria-label="Timer end time"><button class="tmr-btn tmr-go" type="button">Start</button></div>' +
+            '<div class="tmr-ring-wrap"><svg viewBox="0 0 240 240"><circle class="tmr-ring-bg" cx="120" cy="120" r="110"></circle><circle class="tmr-ring-fg" cx="120" cy="120" r="110"></circle></svg><div class="tmr-time">0:00</div></div>' +
+            '<div class="tmr-sub tmr-fade"></div>' +
+            '<div class="tmr-actions tmr-fade"><button class="tmr-btn alt tmr-hist" type="button">History</button><button class="tmr-btn alt tmr-full" type="button">Fullscreen</button><button class="tmr-btn alt tmr-stop" type="button">Stop</button></div>' +
+            '<div class="tmr-history tmr-fade"><div class="tmr-history-inner"><h4>Previous timers</h4><div class="tmr-hlist"></div></div></div>' +
+          '</div>';
+        const inp = ov.querySelector('.tmr-input'), now = new Date();
+        inp.value = active ? active.time : p2(now.getHours()) + ':' + p2(now.getMinutes());
+        ov.addEventListener('click', (e) => { if (e.target === ov && !fullOn) close(); });
+        ov.querySelector('.tmr-x').onclick = () => (fullOn ? leaveFull() : close());
+        inp.addEventListener('input', () => setTitle(inp.value));
+        inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') start(inp.value); });
+        ov.querySelector('.tmr-go').onclick = () => start(inp.value);
+        ov.querySelector('.tmr-stop').onclick = stop;
+        ov.querySelector('.tmr-full').onclick = enterFull;
+        ov.querySelector('.tmr-hist').onclick = () => toggleHistory();
+        document.body.appendChild(ov);
+        setTitle(inp.value);
+        if (active) lockScreen();
+        render(true);
+        raf = requestAnimationFrame(loop);
+      }
+
+      // Esc in the browser's own fullscreen leaves timer fullscreen too
+      const onFsChange = () => { if (!document.fullscreenElement && !document.webkitFullscreenElement && fullOn && !busy) leaveFull(true); };
+      document.addEventListener('fullscreenchange', onFsChange);
+      document.addEventListener('webkitfullscreenchange', onFsChange);
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && ov && !busy) (fullOn ? leaveFull() : close()); });
+      document.addEventListener('visibilitychange', () => { if (!document.hidden && ov && active && !active.done) lockScreen(); });
+
+      // Double-tap Day (same pattern as Month -> Money). Single tap still opens the day view.
+      let last = 0;
+      dayTab.style.touchAction = 'manipulation';
+      dayTab.addEventListener('click', () => { const n = Date.now(); if (n - last < 400) { last = 0; open(); } else last = n; });
     })();
   </script>
 </body>
