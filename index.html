@@ -1,4 +1,4 @@
-\<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -2575,7 +2575,38 @@
       transition: none !important;
       animation: none !important;
     }
-  </style>
+  
+    /* ===== MONEY MODE ===== */
+    .money-panel { max-width: 1060px; margin: 0 auto 18px; padding: 14px 16px; border: 1.5px solid #e6e6e6; border-radius: 14px; background: #fff; font-family: inherit; }
+    .money-panel[hidden] { display: none; }
+    .money-title { font-size: 13px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: #555; margin-bottom: 10px; }
+    .money-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
+    .money-panel input, .money-panel select { height: 34px; border: 1.5px solid #e2e2e2; border-radius: 9px; padding: 0 10px; font: inherit; font-size: 13px; background: #fff; color: #111; }
+    .money-panel #moneyNote { flex: 1; min-width: 120px; }
+    .money-panel #moneyAmount { width: 96px; }
+    .money-btn { height: 34px; padding: 0 16px; border: none; border-radius: 9px; background: #111; color: #fff; font-weight: 700; font-size: 13px; cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; }
+    .money-btn.alt { background: #f0f0f0; color: #111; }
+    .money-status { font-size: 12px; color: #888; }
+    .money-summary { display: flex; gap: 18px; flex-wrap: wrap; font-size: 13px; font-weight: 700; margin-top: 4px; }
+    .money-summary .pos { color: #16a34a; } .money-summary .neg { color: #dc2626; }
+    body.money-mode .day-cell.money-pos  { border-color: #4ade80; box-shadow: 0 0 14px rgba(34,197,94,.35); background: #fafafa; }
+    body.money-mode .day-cell.money-neg  { border-color: #f87171; box-shadow: 0 0 14px rgba(239,68,68,.35); background: #fafafa; }
+    body.money-mode .day-cell.money-zero { border-color: #facc15; box-shadow: none; background: #fafafa; }
+    body.money-mode .day-cell.money-future { border-color: #ddd; box-shadow: none; background: #fafafa; }
+    .money-amt { position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%); text-align: center; font-size: 12.5px; font-weight: 800; }
+    .money-amt.pos { color: #16a34a; } .money-amt.neg { color: #dc2626; }
+    .money-overlay { position: fixed; inset: 0; z-index: 2100; background: rgba(0,0,0,.4); display: flex; align-items: center; justify-content: center; padding: 16px; }
+    .money-pop { background: #fff; color: #111; border-radius: 16px; width: 100%; max-width: 380px; max-height: 80vh; overflow: auto; padding: 18px; font-family: inherit; }
+    .money-pop h3 { font-size: 16px; margin-bottom: 4px; }
+    .money-pop .total { font-size: 22px; font-weight: 800; margin-bottom: 12px; }
+    .money-item { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid #eee; font-size: 13px; }
+    .money-item .n { flex: 1; } .money-item .s { font-size: 11px; color: #999; }
+    .money-item .x { border: none; background: none; color: #bbb; font-size: 18px; cursor: pointer; }
+    body.night-mode .money-panel, body.night-mode .money-pop { background: #1c1c1e; color: #f5f5f5; border-color: #3a3a3a; }
+    body.night-mode .money-panel input, body.night-mode .money-panel select { background: #232325; color: #f5f5f5; border-color: #3a3a3a; }
+    body.night-mode .money-item { border-color: #333; }
+    body.night-mode.money-mode .day-cell.money-pos, body.night-mode.money-mode .day-cell.money-neg, body.night-mode.money-mode .day-cell.money-zero, body.night-mode.money-mode .day-cell.money-future { background: #1c1c1c; }
+</style>
 </head>
 <body>
   <!-- Persistent top bar (Google Calendar-style) — always visible above
@@ -2632,6 +2663,24 @@
   </div>
 
   <div class="app">
+  <div class="money-panel" id="moneyPanel" hidden>
+    <div class="money-title">Add data</div>
+    <div class="money-row">
+      <select id="moneyType"><option value="expense">Expense −</option><option value="income">Income +</option><option value="cash">Cash in (manual) +</option></select>
+      <input id="moneyAmount" type="text" inputmode="decimal" placeholder="€ amount">
+      <input id="moneyDate" type="date">
+      <input id="moneyNote" type="text" placeholder="Note (optional)">
+      <button type="button" class="money-btn" id="moneyAddBtn">Add</button>
+    </div>
+    <div class="money-row">
+      <label class="money-btn alt">Import CSV<input type="file" id="moneyFile" accept=".csv,.txt,text/csv" hidden></label>
+      <label class="money-btn alt">Scan file<input type="file" id="moneyShot" hidden></label>
+      <span class="money-status" id="moneyStatus">CSV rows: date, amount, note</span>
+    </div>
+    <div class="money-title" id="moneyMonthTitle" style="margin-top:6px">This month</div>
+    <div class="money-summary" id="moneySummary"></div>
+  </div>
+
     <div class="app-header">
       <span class="app-title" id="appTitleEl">Habit Calendar</span>
     </div>
@@ -12942,6 +12991,272 @@
     })();
     ZoomBanner.init();
 
+  
+    /* ============================================================
+       MONEY MODE — double-tap "Month" to toggle. Data lives in D1
+       via /api/money (see functions/api/money.js).
+    ============================================================ */
+    const MoneyMode = (() => {
+      let on = false, entries = [], dayMap = {};
+      const $ = (id) => document.getElementById(id);
+      const monthTab = $('globalTabMonth');
+      const fmt = (n) => (n < 0 ? '-' : '+') + '€' + Number(Math.abs(n).toFixed(2)).toString();
+      const keyOf = (d) => viewYear + '-' + pad(viewMonth + 1) + '-' + pad(d);
+      const todayKey = () => { const t = new Date(); return t.getFullYear() + '-' + pad(t.getMonth() + 1) + '-' + pad(t.getDate()); };
+      const setStatus = (s) => { $('moneyStatus').textContent = s; };
+
+      function index() {
+        dayMap = {};
+        entries.forEach((e) => { (dayMap[e.date] = dayMap[e.date] || []).push(e); });
+      }
+      async function load() {
+        try {
+          const r = await fetch('/api/money', { cache: 'no-store' });
+          if (r.ok) entries = (await r.json()).entries || [];
+          else setStatus('Could not load (' + r.status + ')');
+        } catch (e) { setStatus('Could not load data'); }
+        index();
+        renderCalendar();
+      }
+
+      const origFill = fillDayCell;
+      fillDayCell = function (cell, d, today) {
+        origFill(cell, d, today);
+        if (!on) return;
+        cell.className = cell.className.replace(/\blvl-\d+\b|\bfully-complete\b/g, '').trim();
+        const num = cell.querySelector('.day-num');
+        cell.innerHTML = '';
+        if (num) cell.appendChild(num);
+        const k = keyOf(d), list = dayMap[k] || [];
+        const net = list.reduce((s, e) => s + e.amount, 0);
+        if (!list.length) { cell.classList.add(k > todayKey() ? 'money-future' : 'money-zero'); return; }
+        cell.classList.add(net > 0.004 ? 'money-pos' : net < -0.004 ? 'money-neg' : 'money-zero');
+        const a = document.createElement('div');
+        a.className = 'money-amt ' + (net < -0.004 ? 'neg' : 'pos');
+        a.textContent = fmt(net);
+        cell.appendChild(a);
+      };
+
+      const origRender = renderCalendar;
+      renderCalendar = function () { origRender.apply(this, arguments); if (on) renderSummary(); };
+
+      function renderSummary() {
+        const pre = viewYear + '-' + pad(viewMonth + 1);
+        let inc = 0, out = 0;
+        entries.forEach((e) => { if (e.date.startsWith(pre)) { if (e.amount >= 0) inc += e.amount; else out += e.amount; } });
+        const net = inc + out;
+        $('moneyMonthTitle').textContent = 'This month — ' + new Date(viewYear, viewMonth, 1).toLocaleString('en', { month: 'long', year: 'numeric' });
+        $('moneySummary').innerHTML = '<span class="pos">In ' + fmt(inc) + '</span><span class="neg">Out ' + fmt(out) + '</span><span class="' + (net < 0 ? 'neg' : 'pos') + '">Net ' + fmt(net) + '</span>';
+      }
+
+      function toggle() {
+        on = !on;
+        document.body.classList.toggle('money-mode', on);
+        monthTab.textContent = on ? 'Money' : 'Month';
+        $('moneyPanel').hidden = !on;
+        if (on) { if (!$('moneyDate').value) $('moneyDate').value = todayKey(); load(); }
+        else renderCalendar();
+      }
+
+      function parseAmt(s) {
+        if (s == null) return null;
+        const n = parseFloat(String(s).replace(/[€\s]/g, '').replace(',', '.'));
+        return Number.isFinite(n) ? n : null;
+      }
+      function normDate(s) {
+        s = (s || '').trim(); let m;
+        if ((m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/))) return m[1] + '-' + pad(+m[2]) + '-' + pad(+m[3]);
+        if ((m = s.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})/))) return m[3] + '-' + pad(+m[2]) + '-' + pad(+m[1]);
+        return null;
+      }
+      async function post(rows) {
+        const r = await fetch('/api/money', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(rows) });
+        if (!r.ok) throw new Error('save failed ' + r.status);
+      }
+
+      async function addOne() {
+        let amt = parseAmt($('moneyAmount').value);
+        const date = $('moneyDate').value || todayKey();
+        if (amt === null || amt === 0) { setStatus('Enter an amount'); return; }
+        const type = $('moneyType').value;
+        amt = Math.abs(amt) * (type === 'expense' ? -1 : 1);
+        const note = $('moneyNote').value.trim() || (type === 'cash' ? 'Cash' : '');
+        try {
+          await post({ date, amount: amt, note, source: type === 'cash' ? 'cash' : 'manual' });
+          $('moneyAmount').value = ''; $('moneyNote').value = '';
+          setStatus('Saved ' + fmt(amt) + ' on ' + date);
+          await load();
+        } catch (e) { setStatus('Save failed'); }
+      }
+
+      async function importFile(file) {
+        const text = await file.text(), rows = [];
+        text.split(/\r?\n/).forEach((line) => {
+          line = line.trim(); if (!line) return;
+          const p = line.split(line.includes(';') ? ';' : ',').map((s) => s.trim().replace(/^"|"$/g, ''));
+          const date = normDate(p[0]), amt = parseAmt(p[1]);
+          if (date && amt !== null) rows.push({ date, amount: amt, note: p.slice(2).join(' '), source: 'import' });
+        });
+        if (!rows.length) { setStatus('No valid rows found'); return; }
+        try { await post(rows); setStatus('Imported ' + rows.length + ' rows'); await load(); }
+        catch (e) { setStatus('Import failed'); }
+      }
+
+      function openPopup(d) {
+        const k = keyOf(d), list = dayMap[k] || [];
+        const net = list.reduce((s, e) => s + e.amount, 0);
+        const ov = document.createElement('div'); ov.className = 'money-overlay';
+        const pop = document.createElement('div'); pop.className = 'money-pop';
+        const h = document.createElement('h3'); h.textContent = k;
+        const tot = document.createElement('div'); tot.className = 'total'; tot.textContent = fmt(net);
+        tot.style.color = net < 0 ? '#dc2626' : '#16a34a';
+        pop.append(h, tot);
+        if (!list.length) { const e = document.createElement('div'); e.className = 's'; e.textContent = 'No entries yet.'; pop.appendChild(e); }
+        list.forEach((e) => {
+          const row = document.createElement('div'); row.className = 'money-item';
+          const n = document.createElement('div'); n.className = 'n'; n.textContent = e.note || '—';
+          const s = document.createElement('span'); s.className = 's'; s.textContent = e.source;
+          const a = document.createElement('b'); a.textContent = fmt(e.amount); a.style.color = e.amount < 0 ? '#dc2626' : '#16a34a';
+          const x = document.createElement('button'); x.className = 'x'; x.textContent = '×'; x.title = 'Delete';
+          x.onclick = async () => { await fetch('/api/money?id=' + e.id, { method: 'DELETE' }); ov.remove(); load(); };
+          row.append(n, s, a, x); pop.appendChild(row);
+        });
+        const bar = document.createElement('div'); bar.className = 'money-row'; bar.style.marginTop = '12px';
+        const add = document.createElement('button'); add.className = 'money-btn'; add.textContent = 'Add to this day';
+        add.onclick = () => { $('moneyDate').value = k; ov.remove(); window.scrollTo({ top: 0, behavior: 'smooth' }); $('moneyAmount').focus(); };
+        const close = document.createElement('button'); close.className = 'money-btn alt'; close.textContent = 'Close'; close.onclick = () => ov.remove();
+        bar.append(add, close); pop.appendChild(bar);
+        ov.appendChild(pop); ov.addEventListener('click', (e) => { if (e.target === ov) ov.remove(); });
+        document.body.appendChild(ov);
+      }
+
+      function shrink(file) {
+        return new Promise((res, rej) => {
+          const img = new Image(), url = URL.createObjectURL(file);
+          img.onload = () => {
+            const sc = Math.min(1, 1600 / Math.max(img.width, img.height));
+            const c = document.createElement('canvas');
+            c.width = Math.round(img.width * sc); c.height = Math.round(img.height * sc);
+            c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+            URL.revokeObjectURL(url); res(c.toDataURL('image/jpeg', 0.85));
+          };
+          img.onerror = () => rej(new Error('bad image')); img.src = url;
+        });
+      }
+
+      const TEXT_LIMIT = 40000;
+      const loadScript = (src) => new Promise((res, rej) => {
+        const sc = document.createElement('script'); sc.src = src; sc.onload = res;
+        sc.onerror = () => rej(new Error('could not load file reader')); document.head.appendChild(sc);
+      });
+      const PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
+
+      // Turns any file into { images: [dataUrl...], text, filename } for /api/money-scan
+      async function fileToPayload(file) {
+        const name = file.name || 'file', ext = (name.split('.').pop() || '').toLowerCase();
+        const p = { images: [], text: '', filename: name };
+
+        if ((file.type || '').startsWith('image/') || /^(png|jpe?g|webp|gif|bmp|heic|heif)$/.test(ext)) {
+          p.images = [await shrink(file)]; return p;
+        }
+
+        if (ext === 'pdf' || file.type === 'application/pdf') {
+          if (!window.pdfjsLib) await loadScript(PDFJS + 'pdf.min.js');
+          pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS + 'pdf.worker.min.js';
+          const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+          let txt = '';
+          for (let i = 1; i <= Math.min(pdf.numPages, 20) && txt.length < TEXT_LIMIT; i++) {
+            const c = await (await pdf.getPage(i)).getTextContent();
+            txt += c.items.map((t) => t.str + (t.hasEOL ? '\n' : ' ')).join('') + '\n';
+          }
+          if (txt.trim().length > 50) { p.text = txt; return p; }
+          // scanned PDF (no text layer) -> render first pages as images
+          for (let i = 1; i <= Math.min(pdf.numPages, 5); i++) {
+            const page = await pdf.getPage(i), v0 = page.getViewport({ scale: 1 });
+            const vp = page.getViewport({ scale: Math.min(2, 1600 / Math.max(v0.width, v0.height)) });
+            const c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height;
+            await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+            p.images.push(c.toDataURL('image/jpeg', 0.8));
+          }
+          return p;
+        }
+
+        if (/^(xlsx|xls|xlsm|ods)$/.test(ext)) {
+          if (!window.XLSX) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+          const wb = XLSX.read(await file.arrayBuffer());
+          p.text = wb.SheetNames.map((n) => '## ' + n + '\n' + XLSX.utils.sheet_to_csv(wb.Sheets[n])).join('\n\n');
+          return p;
+        }
+
+        if (ext === 'docx') {
+          if (!window.mammoth) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js');
+          p.text = (await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() })).value;
+          return p;
+        }
+
+        // everything else: csv, txt, json, html, xml, md ... anything that is plain text
+        const t = await file.text(), head = t.slice(0, 2000);
+        if (head.indexOf('\u0000') !== -1 || (head.match(/\uFFFD/g) || []).length > 20) throw new Error("can't read ." + ext + ' files');
+        p.text = t; return p;
+      }
+
+      async function scanShot(file) {
+        setStatus('Reading file…');
+        try {
+          const p = await fileToPayload(file);
+          p.text = p.text.slice(0, TEXT_LIMIT);
+          if (!p.images.length && !p.text.trim()) throw new Error('nothing readable in that file');
+          const r = await fetch('/api/money-scan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...p, today: todayKey() }) });
+          const data = await r.json();
+          if (!r.ok) throw new Error(data.error || r.status);
+          if (!data.entries.length) { setStatus('Nothing found in that file'); return; }
+          setStatus('Review the results');
+          reviewScan(data.entries);
+        } catch (e) { setStatus('Scan failed: ' + e.message); }
+      }
+
+      function reviewScan(list) {
+        const ov = document.createElement('div'); ov.className = 'money-overlay';
+        const pop = document.createElement('div'); pop.className = 'money-pop';
+        const h = document.createElement('h3'); h.textContent = 'Found ' + list.length + ' entries — check them';
+        pop.appendChild(h);
+        const boxes = list.map((e) => {
+          const row = document.createElement('label'); row.className = 'money-item';
+          const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = true;
+          const n = document.createElement('div'); n.className = 'n'; n.textContent = e.date + ' · ' + (e.note || '—');
+          const a = document.createElement('b'); a.textContent = fmt(e.amount); a.style.color = e.amount < 0 ? '#dc2626' : '#16a34a';
+          row.append(cb, n, a); pop.appendChild(row); return cb;
+        });
+        const bar = document.createElement('div'); bar.className = 'money-row'; bar.style.marginTop = '12px';
+        const ok = document.createElement('button'); ok.className = 'money-btn'; ok.textContent = 'Add selected';
+        ok.onclick = async () => {
+          const rows = list.filter((_, i) => boxes[i].checked).map((e) => ({ ...e, source: 'screenshot' }));
+          ov.remove(); if (!rows.length) return;
+          try { await post(rows); setStatus('Added ' + rows.length + ' from file'); await load(); } catch (err) { setStatus('Save failed'); }
+        };
+        const no = document.createElement('button'); no.className = 'money-btn alt'; no.textContent = 'Cancel'; no.onclick = () => { ov.remove(); setStatus(''); };
+        bar.append(ok, no); pop.appendChild(bar); ov.appendChild(pop); document.body.appendChild(ov);
+      }
+
+      function init() {
+        let last = 0;
+        monthTab.style.touchAction = 'manipulation';
+        monthTab.addEventListener('click', () => { const n = Date.now(); if (n - last < 400) { last = 0; toggle(); } else last = n; });
+        $('daysGrid').addEventListener('click', (e) => {
+          if (!on) return;
+          const cell = e.target.closest('.day-cell:not(.empty)');
+          if (!cell) return;
+          e.stopImmediatePropagation(); e.preventDefault();
+          openPopup(parseInt(cell.dataset.day, 10));
+        }, true);
+        $('moneyAddBtn').addEventListener('click', addOne);
+        $('moneyAmount').addEventListener('keydown', (e) => { if (e.key === 'Enter') addOne(); });
+        $('moneyShot').addEventListener('change', (e) => { const f = e.target.files[0]; if (f) scanShot(f); e.target.value = ''; });
+        $('moneyFile').addEventListener('change', (e) => { const f = e.target.files[0]; if (f) importFile(f); e.target.value = ''; });
+      }
+      init();
+      return { toggle };
+    })();
   </script>
 </body>
 </html>
