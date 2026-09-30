@@ -2706,6 +2706,23 @@
     @media (prefers-reduced-motion: reduce) {
       .tmr-overlay, .tmr-card, .tmr-h-item, .tmr-history, .tmr-fade, .tmr-time { animation: none !important; transition: none !important; }
     }
+  
+    /* ── Force send (custom notification) ── */
+    .fs-push-row { display: flex; gap: 8px; margin-top: 8px; }
+    .fs-push-panel { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows .3s ease, opacity .25s ease; }
+    .fs-push-panel.open { grid-template-rows: 1fr; opacity: 1; }
+    .fs-push-panel-inner { overflow: hidden; min-height: 0; }
+    .fs-push-label { display: block; margin: 10px 0 4px; font-size: 11px; font-weight: 700; color: #777; }
+    .fs-push-input {
+      display: block; width: 100%; box-sizing: border-box; padding: 9px 11px; font: inherit; font-size: 13px;
+      border: 1.5px solid #ececec; border-radius: 10px; background: #fff; color: #222; outline: none; transition: border-color .15s;
+    }
+    .fs-push-input:focus { border-color: #1a73e8; }
+    .fs-push-textarea { resize: vertical; min-height: 64px; }
+    body.night-mode .fs-push-label { color: #999; }
+    body.night-mode .fs-push-input { background: #1a1a1a; border-color: #333; color: #f0f0f0; }
+    body.night-mode .fs-push-input:focus { border-color: #6ea8ff; }
+    #forcePushToggleBtn.on { border-color: #1a73e8; color: #1a73e8; }
   </style>
 </head>
 <body>
@@ -3072,7 +3089,19 @@
 
       <button type="button" class="targets-btn" id="editTargetsBtn" style="margin-top:8px; padding:9px 14px; font-size:12px;">⚙ Edit Daily Targets</button>
 
-      <button type="button" class="targets-btn" id="testPushBtn" style="margin-top:8px; padding:9px 14px; font-size:12px;">🔔 Send Test Notification</button>
+      <div class="fs-push-row">
+        <button type="button" class="targets-btn" id="testPushBtn" style="margin-top:0; padding:9px 14px; font-size:12px; width:auto; flex:1;">🔔 Send Test Notification</button>
+        <button type="button" class="targets-btn" id="forcePushToggleBtn" style="margin-top:0; padding:9px 14px; font-size:12px; width:auto; flex:1;" aria-expanded="false">⚡ Force Send</button>
+      </div>
+      <div class="fs-push-panel" id="forcePushPanel">
+        <div class="fs-push-panel-inner">
+          <label class="fs-push-label" for="forcePushSubject">Subject</label>
+          <input type="text" id="forcePushSubject" class="fs-push-input" placeholder="Notification subject" maxlength="120" autocomplete="off">
+          <label class="fs-push-label" for="forcePushText">Text</label>
+          <textarea id="forcePushText" class="fs-push-input fs-push-textarea" placeholder="Notification text" rows="3" maxlength="500"></textarea>
+          <button type="button" class="targets-btn" id="forcePushSendBtn" style="margin-top:8px; padding:9px 14px; font-size:12px;">🚀 Send Now</button>
+        </div>
+      </div>
       <div id="testPushResult" style="margin-top:6px; font-size:11px; line-height:1.5; white-space:pre-wrap; word-break:break-word; color:#555;"></div>
 
       <button class="save-btn" id="settingsSaveBtn" style="margin-top:10px;">Save Settings</button>
@@ -4914,9 +4943,10 @@
     // raw HTTP status Apple/the push service returned for each subscription.
     // This is a debugging tool: it does NOT depend on the cron/push-check
     // schedule at all, it just calls the same send logic directly.
-    document.getElementById('testPushBtn').addEventListener('click', async () => {
+    // payload === null -> plain test push (unchanged behaviour).
+    // payload = {title, body} -> "force send": same pipeline, custom subject/text.
+    async function runPushSend(btn, payload) {
       const out = document.getElementById('testPushResult');
-      const btn = document.getElementById('testPushBtn');
       btn.disabled = true;
       out.textContent = 'Requesting notification permission...';
       try {
@@ -4930,7 +4960,13 @@
         const sub = await PushNotifications.ensureSubscribed();
         out.textContent += sub ? '\nSubscribed OK. Sending test push...' : '\n⚠ Could not create a subscription (unsupported browser or offline). Sending test push anyway...';
 
-        const res = await fetch('/api/test-push', { method: 'POST' });
+        const res = payload
+          ? await fetch('/api/test-push', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ title: payload.title, body: payload.body, subject: payload.title, text: payload.body, force: true })
+            })
+          : await fetch('/api/test-push', { method: 'POST' });
         const data = await res.json().catch(() => ({ error: 'Non-JSON response, HTTP ' + res.status }));
         out.textContent = JSON.stringify(data, null, 2);
       } catch (err) {
@@ -4938,7 +4974,38 @@
       } finally {
         btn.disabled = false;
       }
+    }
+
+    document.getElementById('testPushBtn').addEventListener('click', () => {
+      runPushSend(document.getElementById('testPushBtn'), null);
     });
+
+    // ── Force Send: edit subject + text, fire instantly ──
+    (() => {
+      const FKEY = 'habitForcePushDraft';
+      const panel = document.getElementById('forcePushPanel');
+      const toggle = document.getElementById('forcePushToggleBtn');
+      const subj = document.getElementById('forcePushSubject');
+      const text = document.getElementById('forcePushText');
+      const send = document.getElementById('forcePushSendBtn');
+      try { const d = JSON.parse(localStorage.getItem(FKEY) || 'null'); if (d) { subj.value = d.title || ''; text.value = d.body || ''; } } catch (e) {}
+      const saveDraft = () => { try { localStorage.setItem(FKEY, JSON.stringify({ title: subj.value, body: text.value })); } catch (e) {} };
+      subj.addEventListener('input', saveDraft);
+      text.addEventListener('input', saveDraft);
+      toggle.addEventListener('click', () => {
+        const open = !panel.classList.contains('open');
+        panel.classList.toggle('open', open);
+        toggle.classList.toggle('on', open);
+        toggle.setAttribute('aria-expanded', String(open));
+        if (open) setTimeout(() => subj.focus(), 320);
+      });
+      send.addEventListener('click', () => {
+        const title = subj.value.trim(), body = text.value.trim();
+        if (!title && !body) { subj.focus(); document.getElementById('testPushResult').textContent = 'Type a subject or some text first.'; return; }
+        saveDraft();
+        runPushSend(send, { title: title || 'Notification', body });
+      });
+    })();
 
     // All of these only touch the staged pendingSettings copy — nothing is
     // applied to the live calendar or persisted until "Save Settings".
