@@ -2722,6 +2722,8 @@
     body.night-mode .fs-push-label { color: #999; }
     body.night-mode .fs-push-input { background: #1a1a1a; border-color: #333; color: #f0f0f0; }
     body.night-mode .fs-push-input:focus { border-color: #6ea8ff; }
+    .fs-push-count { margin-top: 4px; font-size: 11px; text-align: right; color: #888; font-variant-numeric: tabular-nums; }
+    .fs-push-count.over { color: #d93025; font-weight: 700; }
     #forcePushToggleBtn.on { border-color: #1a73e8; color: #1a73e8; }
   </style>
 </head>
@@ -3096,9 +3098,10 @@
       <div class="fs-push-panel" id="forcePushPanel">
         <div class="fs-push-panel-inner">
           <label class="fs-push-label" for="forcePushSubject">Subject</label>
-          <input type="text" id="forcePushSubject" class="fs-push-input" placeholder="Notification subject" maxlength="120" autocomplete="off">
+          <input type="text" id="forcePushSubject" class="fs-push-input" placeholder="Notification subject" maxlength="500" autocomplete="off">
           <label class="fs-push-label" for="forcePushText">Text</label>
-          <textarea id="forcePushText" class="fs-push-input fs-push-textarea" placeholder="Notification text" rows="3" maxlength="500"></textarea>
+          <textarea id="forcePushText" class="fs-push-input fs-push-textarea" placeholder="Notification text" rows="4" maxlength="4000"></textarea>
+          <div class="fs-push-count" id="forcePushCount">0 / 3900 bytes</div>
           <button type="button" class="targets-btn" id="forcePushSendBtn" style="margin-top:8px; padding:9px 14px; font-size:12px;">🚀 Send Now</button>
         </div>
       </div>
@@ -4990,8 +4993,16 @@
       const send = document.getElementById('forcePushSendBtn');
       try { const d = JSON.parse(localStorage.getItem(FKEY) || 'null'); if (d) { subj.value = d.title || ''; text.value = d.body || ''; } } catch (e) {}
       const saveDraft = () => { try { localStorage.setItem(FKEY, JSON.stringify({ title: subj.value, body: text.value })); } catch (e) {} };
-      subj.addEventListener('input', saveDraft);
-      text.addEventListener('input', saveDraft);
+      const counter = document.getElementById('forcePushCount');
+      const MAXB = 3900;
+      const updateCount = () => {
+        const n = new TextEncoder().encode(JSON.stringify({ title: subj.value.trim() || 'Notification', body: text.value.trim() })).length;
+        counter.textContent = n + ' / ' + MAXB + ' bytes' + (n > MAXB ? ' — too long, the end will be cut' : '');
+        counter.classList.toggle('over', n > MAXB);
+      };
+      subj.addEventListener('input', () => { saveDraft(); updateCount(); });
+      text.addEventListener('input', () => { saveDraft(); updateCount(); });
+      updateCount();
       toggle.addEventListener('click', () => {
         const open = !panel.classList.contains('open');
         panel.classList.toggle('open', open);
