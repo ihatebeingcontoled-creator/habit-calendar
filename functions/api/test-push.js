@@ -201,8 +201,18 @@ export async function onRequestPost({ request, env }) {
   let custom = {};
   try { custom = await request.json(); } catch { custom = {}; }
   if (!custom || typeof custom !== 'object') custom = {};
-  const customTitle = String(custom.title ?? custom.subject ?? '').trim().slice(0, 120);
-  const customBody = String(custom.body ?? custom.text ?? '').trim().slice(0, 500);
+  // Push services allow ~4078 bytes of encrypted content in total, so the
+  // real limit is measured in BYTES for subject + text together (emoji and
+  // accented letters take 2-4 bytes each). Stay safely under it.
+  const MAX_PAYLOAD_BYTES = 3900;
+  const customTitle = String(custom.title ?? custom.subject ?? '').trim().slice(0, 500);
+  let customBody = String(custom.body ?? custom.text ?? '').trim().slice(0, 4000);
+  const byteLen = (o) => new TextEncoder().encode(JSON.stringify(o)).length;
+  let truncated = false;
+  while (customBody && byteLen({ title: customTitle || 'Notification', body: customBody }) > MAX_PAYLOAD_BYTES) {
+    customBody = Array.from(customBody).slice(0, Math.max(0, Math.floor(Array.from(customBody).length * 0.95) - 1)).join('');
+    truncated = true;
+  }
   const isForced = !!(customTitle || customBody);
 
   try {
@@ -254,6 +264,7 @@ export async function onRequestPost({ request, env }) {
       : { title: 'Test notification', body: 'If you see this, push delivery works.' };
     report.forced = isForced;
     if (isForced) report.sentPayload = payload;
+    if (truncated) report.warning = 'Message was too long for a push (about 3900 bytes max) and was shortened.';
 
     for (const sub of subs) {
       const entry = { id: sub.id, endpoint: sub.endpoint.slice(0, 60) + '...' };
