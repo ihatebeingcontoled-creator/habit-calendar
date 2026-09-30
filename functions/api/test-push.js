@@ -1,7 +1,7 @@
 /**
  * POST /api/test-push
  *
- * Debugging endpoint: sends a push notification to every row in
+ * Debugging / force-send endpoint: sends a push notification to every row in
  * push_subscriptions RIGHT NOW, bypassing all the event-timing logic
  * in push-check.js entirely. Returns a detailed per-subscription
  * report (HTTP status from the push service, or the exact error) so
@@ -12,6 +12,9 @@
  * NOTE pattern in the other API files — so this stays a standalone,
  * always-safe-to-hit debug tool that can't accidentally break the
  * real send path).
+ *
+ * Optional JSON body { title, body } (aliases: subject, text) sends that
+ * custom notification instead of the default test message.
  *
  * Requires the same env bindings as push-check.js:
  *   DB, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT
@@ -190,8 +193,17 @@ async function sendPush(sub, payloadObj, env) {
   });
 }
 
-export async function onRequestPost({ env }) {
+export async function onRequestPost({ request, env }) {
   const report = { ok: true, subscriptions: 0, results: [] };
+
+  // "Force Send" from Settings: optional custom subject/text. A plain
+  // test (no body, or empty fields) keeps the default message.
+  let custom = {};
+  try { custom = await request.json(); } catch { custom = {}; }
+  if (!custom || typeof custom !== 'object') custom = {};
+  const customTitle = String(custom.title ?? custom.subject ?? '').trim().slice(0, 120);
+  const customBody = String(custom.body ?? custom.text ?? '').trim().slice(0, 500);
+  const isForced = !!(customTitle || customBody);
 
   try {
     if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY || !env.VAPID_SUBJECT) {
@@ -237,7 +249,11 @@ export async function onRequestPost({ env }) {
       return json(report);
     }
 
-    const payload = { title: 'Test notification', body: 'If you see this, push delivery works.' };
+    const payload = isForced
+      ? { title: customTitle || 'Notification', body: customBody }
+      : { title: 'Test notification', body: 'If you see this, push delivery works.' };
+    report.forced = isForced;
+    if (isForced) report.sentPayload = payload;
 
     for (const sub of subs) {
       const entry = { id: sub.id, endpoint: sub.endpoint.slice(0, 60) + '...' };
