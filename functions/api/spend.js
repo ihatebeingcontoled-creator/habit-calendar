@@ -37,7 +37,9 @@ export async function onRequestPost({ request, env }) {
   const amount = parseAmount(body.amount);
   if (!(amount > 0)) return json({ error: "bad amount", got: body.amount }, 400);
 
-  const note = (String(body.merchant ?? "").trim() || "Apple Pay").slice(0, 200);
+  const merchant = String(body.merchant ?? "").trim();
+  const extra = String(body.note ?? "").trim(); // optional: what you bought, typed in the Shortcut
+  const note = ([merchant, extra].filter(Boolean).join(" — ") || "Apple Pay").slice(0, 200);
   const date = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Vilnius" }); // YYYY-MM-DD
 
   await db.prepare(
