@@ -52,10 +52,40 @@ export async function onRequestPost({ request, env }) {
        created_at TEXT DEFAULT CURRENT_TIMESTAMP)`
   ).run();
 
-  await db
+  const res = await db
     .prepare("INSERT INTO money_entries (date, amount, note, source) VALUES (?, ?, ?, ?)")
     .bind(date, -amount, note, "apple pay") // expenses are negative
     .run();
 
-  return json({ ok: true, date, amount: -amount, note });
+  return json({ ok: true, id: res.meta?.last_row_id, date, amount: -amount, note });
+}
+
+// PUT /api/spend  { "id": 12, "note": "milk and bread" }
+// Adds "what I bought" to an entry that was already saved by the POST above.
+export async function onRequestPut({ request, env }) {
+  const auth = request.headers.get("Authorization") || "";
+  if (!env.SPEND_TOKEN || auth !== `Bearer ${env.SPEND_TOKEN}`) {
+    return json({ error: "unauthorized" }, 401);
+  }
+  const db = env.DB;
+  if (!db) return json({ error: 'D1 binding "DB" not found' }, 500);
+
+  let body;
+  try { body = await request.json(); }
+  catch { return json({ error: "body must be JSON" }, 400); }
+
+  const id = Number(body.id);
+  const extra = String(body.note ?? "").trim().slice(0, 150);
+  if (!id || !extra) return json({ error: "id and note required" }, 400);
+
+  // only entries created by Apple Pay can be edited here
+  const res = await db
+    .prepare(
+      "UPDATE money_entries SET note = substr(note || ' — ' || ?, 1, 200) WHERE id = ? AND source = 'apple pay'"
+    )
+    .bind(extra, id)
+    .run();
+
+  if (!res.meta?.changes) return json({ error: "entry not found" }, 404);
+  return json({ ok: true, id });
 }
