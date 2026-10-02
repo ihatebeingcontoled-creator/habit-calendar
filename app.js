@@ -9754,6 +9754,7 @@ const PIP_MAX = 3;
           return true;
         }
 
+        const cards = []; // { card, more, inner } - used by the drag-up expand
         list.forEach((e, i) => {
           const p = entryParts(e), card = h('div', 'mp-card');
           card.style.setProperty('--i', i);
@@ -9808,7 +9809,7 @@ const PIP_MAX = 3;
             form.addEventListener('keydown', (k) => { if (k.key === 'Enter') sv.click(); });
           };
 
-          card.append(top, more); body.appendChild(card);
+          card.append(top, more); body.appendChild(card); cards.push({ card, more, inner });
         });
         showEmpty();
 
@@ -9834,11 +9835,61 @@ const PIP_MAX = 3;
         document.addEventListener('keydown', onKey);
         ov.addEventListener('click', (ev) => { if (ev.target === ov) close(); });
 
-        // swipe the header down to dismiss (phones)
-        let sy = null, dy = 0;
-        head.addEventListener('pointerdown', (ev) => { if (window.innerWidth >= 640) return; sy = ev.clientY; dy = 0; head.setPointerCapture(ev.pointerId); sheet.style.transition = 'none'; });
-        head.addEventListener('pointermove', (ev) => { if (sy == null) return; dy = Math.max(0, ev.clientY - sy); sheet.style.transform = 'translateY(' + dy + 'px)'; });
-        const end = () => { if (sy == null) return; sy = null; sheet.style.transition = ''; sheet.style.transform = ''; if (dy > 110) close(); };
+        // drag the grey handle (phones):
+        //   up   -> the sheet grows to ~82% of the screen (empty space stays white). If EVERY card fits open
+        //           without scrolling they all open; if not, they stay collapsed and open only when tapped.
+        //   down -> from the tall sheet back to normal; from the normal sheet it closes.
+        const autoOpen = new Set();
+        let full = false, settle = 0;
+        const liveCards = () => cards.filter((c) => c.card.isConnected && !c.card.classList.contains('out'));
+        const fullH = () => Math.round(ov.clientHeight * 0.82);
+        // sheet height needed if the cards matching isOpen(c) are open and the rest collapsed
+        function sheetNeeds(isOpen) {
+          const live = liveCards(), bcs = getComputedStyle(body);
+          let need = head.offsetHeight + bar.offsetHeight + (parseFloat(getComputedStyle(sheet).paddingBottom) || 0)
+            + (parseFloat(bcs.paddingTop) || 0) + (parseFloat(bcs.paddingBottom) || 0);
+          if (!live.length) return need + 90;
+          need += (parseFloat(getComputedStyle(live[0].card).marginTop) || 0) * (live.length + 1);
+          live.forEach((c) => { const base = c.card.offsetHeight - c.more.offsetHeight; need += isOpen(c) ? base + c.inner.scrollHeight : base; });
+          return need;
+        }
+        function settleHeight() { clearTimeout(settle); settle = setTimeout(() => { if (!full) sheet.style.height = ''; }, 580); }
+        function goFull() {
+          clearTimeout(settle); full = true;
+          const target = fullH(), cur = sheet.offsetHeight;
+          if (sheetNeeds(() => true) <= target) {
+            liveCards().forEach((c) => { if (!c.card.classList.contains('open')) { c.card.classList.add('open'); autoOpen.add(c.card); } });
+          }
+          sheet.style.height = Math.max(target, cur) + 'px';
+        }
+        function goPeek() {
+          full = false;
+          const natural = Math.min(Math.ceil(sheetNeeds((c) => c.card.classList.contains('open') && !autoOpen.has(c.card))), Math.round(ov.clientHeight * 0.88));
+          autoOpen.forEach((c) => c.classList.remove('open')); autoOpen.clear();
+          sheet.style.height = natural + 'px';
+          settleHeight();
+        }
+        let sy = null, rawD = 0, startH = 0;
+        head.addEventListener('pointerdown', (ev) => { if (window.innerWidth >= 640) return; sy = ev.clientY; rawD = 0; startH = sheet.offsetHeight; head.setPointerCapture(ev.pointerId); sheet.style.transition = 'none'; });
+        head.addEventListener('pointermove', (ev) => {
+          if (sy == null) return;
+          rawD = ev.clientY - sy;
+          if (full) return; // going back down is decided when you let go
+          if (rawD < 0) {
+            sheet.style.transform = '';
+            const t = fullH(); if (startH < t) sheet.style.height = Math.min(t, startH - rawD) + 'px';
+          } else {
+            sheet.style.height = startH + 'px';
+            sheet.style.transform = 'translateY(' + rawD + 'px)';
+          }
+        });
+        const end = () => {
+          if (sy == null) return; sy = null; sheet.style.transition = ''; sheet.style.transform = '';
+          if (full) { if (rawD > 60) goPeek(); return; }
+          if (rawD < -40) goFull();
+          else if (rawD > 110) close();
+          else { sheet.style.height = startH + 'px'; settleHeight(); }
+        };
         head.addEventListener('pointerup', end); head.addEventListener('pointercancel', end);
       }
 
