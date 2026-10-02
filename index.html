@@ -4951,10 +4951,15 @@
         const dir = dx < 0 ? 1 : -1;      // swipe left = next month, swipe right = previous
         anim(cur, -dir * w, 150, 'ease-in', { to: { opacity: 0.2 } }).onfinish = function () {
           this.cancel(); grid.style.transform = '';
-          document.getElementById(dir > 0 ? 'nextMonth' : 'prevMonth').click();   // renders the new month synchronously
-          anim(dir * w * 0.5, 0, 260, 'cubic-bezier(.2,.8,.2,1)', { from: { opacity: 0.2 }, to: { opacity: 1 } }).onfinish = function () {
-            this.cancel(); grid.style.transform = ''; grid.style.opacity = ''; busy = false;
-          };
+          const ready = window.__moneyReady ? window.__moneyReady(dir) : Promise.resolve();
+          ready.then(() => {
+            window.__noCount = true;      // paint the new month fully filled in: no count-up, no fade-in
+            document.getElementById(dir > 0 ? 'nextMonth' : 'prevMonth').click();   // renders the new month synchronously
+            window.__noCount = false;
+            anim(dir * w * 0.5, 0, 260, 'cubic-bezier(.2,.8,.2,1)', { from: { opacity: 0.2 }, to: { opacity: 1 } }).onfinish = function () {
+              this.cancel(); grid.style.transform = ''; grid.style.opacity = ''; busy = false;
+            };
+          });
         };
       };
       main.addEventListener('touchend', finish, { passive: true });
@@ -13437,7 +13442,7 @@
       function countTo(el, to, fmtFn, dur) {
         const from = el._v || 0; el._v = to;
         cancelAnimationFrame(el._raf);
-        if (REDUCED || from === to) { el.textContent = fmtFn(to); return; }
+        if (REDUCED || from === to || window.__noCount) { el._v = to; el.textContent = fmtFn(to); return; }
         const t0 = performance.now(); dur = dur || 700;
         const step = (t) => {
           const p = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - p, 4);
@@ -13473,12 +13478,23 @@
           prefetch();
         });
       }
+      // Used by the phone swipe: resolves as soon as the month next to the current one is loaded
+      // (instantly if prefetch already did it), so the new month appears with its numbers in place.
+      window.__moneyReady = function (delta) {
+        if (!on) return Promise.resolve();
+        const d = new Date(viewYear, viewMonth + delta, 1), mk = mkey(d.getFullYear(), d.getMonth());
+        return new Promise((res) => {
+          if (!months[mk] && !loading.has(mk)) fetchMonth(mk);
+          const t0 = Date.now();
+          (function wait() { if (months[mk] || Date.now() - t0 > 1500) res(); else setTimeout(wait, 40); })();
+        });
+      };
       function prefetch() {
         const go = () => [-1, 1, -2, 2].forEach((dlt) => {
           const d = new Date(viewYear, viewMonth + dlt, 1), mk = mkey(d.getFullYear(), d.getMonth());
           if (!months[mk] && !loading.has(mk)) fetchMonth(mk);
         });
-        if (window.requestIdleCallback) window.requestIdleCallback(go, { timeout: 1500 }); else setTimeout(go, 400);
+        setTimeout(go, 0);
       }
       async function load() { await fetchMonth(viewKey()); if (on) { paintAll(); renderSummary(); } }
       function invalidateMonth(mk) { delete maps[mk]; persist(); }
@@ -13489,7 +13505,7 @@
         cell.classList.remove('money-pos', 'money-neg', 'money-zero', 'money-small', 'money-future', 'money-loading');
         cell.style.removeProperty('--tint');
         cell.querySelectorAll('.money-amt, .money-skel').forEach((n) => n.remove());
-        if (!cell._ms) { cell._ms = true; cell.style.setProperty('--i', d); cell.classList.add('money-enter'); }
+        if (!cell._ms) { cell._ms = true; cell.style.setProperty('--i', d); if (!window.__noCount) cell.classList.add('money-enter'); }
         const k = dateKey(d);
         if (!data) {
           if (!failed) { cell.classList.add('money-loading'); const s = document.createElement('div'); s.className = 'money-skel'; cell.appendChild(s); }
