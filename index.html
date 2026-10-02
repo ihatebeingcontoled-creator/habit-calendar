@@ -3167,6 +3167,33 @@
           </label>
         </div>
 
+        <div class="settings-cell">
+          <button type="button" class="info-btn" data-info="Shows a + or − in front of each day&#39;s amount on the Money calendar. PC only (phones stay compact). Saved on this device.">i</button>
+          <span class="settings-cell-label">Money: +/− signs</span>
+          <label class="switch switch-sm">
+            <input type="checkbox" id="toggleMoneySign">
+            <span class="switch-track"></span>
+          </label>
+        </div>
+
+        <div class="settings-cell">
+          <button type="button" class="info-btn" data-info="Shows the € symbol in front of each day&#39;s amount on the Money calendar. PC only. Saved on this device.">i</button>
+          <span class="settings-cell-label">Money: € symbol</span>
+          <label class="switch switch-sm">
+            <input type="checkbox" id="toggleMoneyEuro">
+            <span class="switch-track"></span>
+          </label>
+        </div>
+
+        <div class="settings-cell">
+          <button type="button" class="info-btn" data-info="Shows the full amount with cents even for 100 and above (instead of whole euros only). PC only. Saved on this device.">i</button>
+          <span class="settings-cell-label">Money: full amounts</span>
+          <label class="switch switch-sm">
+            <input type="checkbox" id="toggleMoneyFull">
+            <span class="switch-track"></span>
+          </label>
+        </div>
+
         <div class="settings-cell settings-cell-charlimit">
           <button type="button" class="info-btn" id="phoneCharsInfoBtn" data-info="Truncates day titles on phone screens once they pass this many characters.">i</button>
           <span class="settings-cell-label" id="phoneCharsLabelEl">Phone chars:</span>
@@ -4153,9 +4180,12 @@
       // position. Hiding the grid for the duration and re-parking
       // every caller of renderCalendar(), not just navigateMonth,
       // fixes this at the source.
-      const isLocked = !canReuse
-        && typeof DayViewState !== 'undefined'
-        && DayViewState.get() === DayViewState.STATES.LOCKED;
+      // DayViewState is declared further down the script; on the very first
+      // (early) render it is still in its temporal dead zone, so guard with try/catch.
+      let isLocked = false;
+      if (!canReuse) {
+        try { isLocked = DayViewState.get() === DayViewState.STATES.LOCKED; } catch (e) { isLocked = false; }
+      }
       if (isLocked) grid.style.visibility = 'hidden';
 
       if (!canReuse) {
@@ -4872,6 +4902,65 @@
     document.getElementById('prevMonth').addEventListener('click', () => navigateMonth(-1));
     document.getElementById('nextMonth').addEventListener('click', () => navigateMonth(1));
 
+    /* ── Phone swipe: drag the month left/right with a finger to change month ──
+       The grid follows the finger, then slides out and the next/previous month
+       slides in. Uses the Web Animations API (the calendar's CSS transitions are
+       globally switched off, so CSS transitions would not run). It simply clicks the
+       existing ← / → buttons, so every other month-change behaviour stays identical. */
+    (function wireMonthSwipe() {
+      const main = document.querySelector('.calendar-main');
+      const grid = document.getElementById('daysGrid');
+      if (!main || !grid) return;
+      const isPhone = () => window.innerWidth <= 760;
+      let sx = 0, sy = 0, dx = 0, t0 = 0, mode = null, tracking = false, busy = false;
+
+      const anim = (from, to, ms, easing, extra) => grid.animate(
+        [Object.assign({ transform: 'translateX(' + from + 'px)' }, extra && extra.from),
+         Object.assign({ transform: 'translateX(' + to + 'px)' }, extra && extra.to)],
+        { duration: ms, easing, fill: 'forwards' });
+
+      main.addEventListener('touchstart', (e) => {
+        tracking = false; mode = null;
+        if (!isPhone() || busy || e.touches.length !== 1) return;
+        if (typeof DayViewState !== 'undefined' && DayViewState.get() !== DayViewState.STATES.CALENDAR) return;
+        sx = e.touches[0].clientX; sy = e.touches[0].clientY; dx = 0; t0 = performance.now(); tracking = true;
+      }, { passive: true });
+
+      main.addEventListener('touchmove', (e) => {
+        if (!tracking) return;
+        const t = e.touches[0], mx = t.clientX - sx, my = t.clientY - sy;
+        if (mode === null && (Math.abs(mx) > 8 || Math.abs(my) > 8)) mode = Math.abs(mx) > Math.abs(my) * 1.2 ? 'h' : 'v';
+        if (mode !== 'h') return;
+        e.preventDefault();               // horizontal drag = month swipe, not page scroll
+        dx = mx;
+        grid.style.transform = 'translateX(' + dx * 0.9 + 'px)';
+      }, { passive: false });
+
+      const finish = () => {
+        if (!tracking) return; tracking = false;
+        if (mode !== 'h') return;
+        const w = grid.getBoundingClientRect().width || window.innerWidth;
+        const v = Math.abs(dx) / Math.max(1, performance.now() - t0);   // px per ms
+        const commit = Math.abs(dx) > w * 0.22 || (Math.abs(dx) > 40 && v > 0.5);
+        const cur = dx * 0.9;
+        busy = true;
+        if (!commit) {                    // not far enough: spring back
+          anim(cur, 0, 220, 'cubic-bezier(.2,.8,.2,1)').onfinish = function () { grid.style.transform = ''; this.cancel(); busy = false; };
+          return;
+        }
+        const dir = dx < 0 ? 1 : -1;      // swipe left = next month, swipe right = previous
+        anim(cur, -dir * w, 150, 'ease-in', { to: { opacity: 0.2 } }).onfinish = function () {
+          this.cancel(); grid.style.transform = '';
+          document.getElementById(dir > 0 ? 'nextMonth' : 'prevMonth').click();   // renders the new month synchronously
+          anim(dir * w * 0.5, 0, 260, 'cubic-bezier(.2,.8,.2,1)', { from: { opacity: 0.2 }, to: { opacity: 1 } }).onfinish = function () {
+            this.cancel(); grid.style.transform = ''; grid.style.opacity = ''; busy = false;
+          };
+        };
+      };
+      main.addEventListener('touchend', finish, { passive: true });
+      main.addEventListener('touchcancel', finish, { passive: true });
+    })();
+
     document.getElementById('closeBtn').addEventListener('click', attemptCloseModal);
     document.getElementById('overlay').addEventListener('click', (e) => {
       if (e.target === document.getElementById('overlay')) attemptCloseModal();
@@ -5196,7 +5285,7 @@
       applyNightMode();
       applyZoomSetting();
       applyLanguage();
-      renderCalendar(); // base calendar shows instantly; numbers/colors fill in once the data arrives
+      try { renderCalendar(); } catch (e) {} // base calendar shows instantly; numbers/colors fill in once the data arrives
       await Promise.all([loadAllHabits(), loadAllFiles(), loadTargets(), loadSettingsFromServer(), loadBirthdays()]);
       applyStatsBarVisibility();
       applyNightMode();
@@ -13300,14 +13389,32 @@
         const s = Number.isInteger(r) ? r.toFixed(0) : a.toFixed(2);
         return (n < -0.004 ? '\u2212' : '+') + '\u20AC' + s;
       };
-      // calendar cells: no +/- or euro sign (color + glow already say it); 100+ shows whole euros only
+      // Money-calendar cell display options. Saved on THIS device (localStorage), and only
+      // applied on PC-width screens (> 760px); phones always use the compact format.
+      const MOPT_KEY = 'moneyCellOpts.v1';
+      let mopt = { sign: false, euro: false, full: false };
+      try { mopt = { ...mopt, ...(JSON.parse(localStorage.getItem(MOPT_KEY)) || {}) }; } catch (e) {}
+      const isPC = () => window.innerWidth > 760;
       const fmtCell = (n) => {
-        const a = Math.abs(n);
-        if (a >= 10000) return (a / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
-        if (a >= 100) return String(Math.trunc(a));
-        const r = Number(a.toFixed(2));
-        return Number.isInteger(r) ? r.toFixed(0) : a.toFixed(2);
+        const a = Math.abs(n), pc = isPC();
+        const full = pc && mopt.full;
+        let core;
+        if (!full && a >= 10000) core = (a / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+        else if (!full && a >= 100) core = String(Math.trunc(a));
+        else { const r = Number(a.toFixed(2)); core = Number.isInteger(r) ? r.toFixed(0) : a.toFixed(2); }
+        const sign = pc && mopt.sign ? (n < -0.004 ? '\u2212' : '+') : '';
+        const euro = pc && mopt.euro ? '\u20AC' : '';
+        return sign + euro + core;
       };
+      [['toggleMoneySign', 'sign'], ['toggleMoneyEuro', 'euro'], ['toggleMoneyFull', 'full']].forEach(([id, key]) => {
+        const el = document.getElementById(id); if (!el) return;
+        el.checked = !!mopt[key];
+        el.addEventListener('change', () => {
+          mopt[key] = el.checked;
+          try { localStorage.setItem(MOPT_KEY, JSON.stringify(mopt)); } catch (e) {}
+          if (typeof on !== 'undefined' && on) paintAll();
+        });
+      });
       const mkey = (y, m) => y + '-' + pad(m + 1);
       const viewKey = () => mkey(viewYear, viewMonth);
       const dateKey = (d) => viewKey() + '-' + pad(d);
@@ -13367,7 +13474,7 @@
         });
       }
       function prefetch() {
-        const go = () => [-1, 1].forEach((dlt) => {
+        const go = () => [-1, 1, -2, 2].forEach((dlt) => {
           const d = new Date(viewYear, viewMonth + dlt, 1), mk = mkey(d.getFullYear(), d.getMonth());
           if (!months[mk] && !loading.has(mk)) fetchMonth(mk);
         });
