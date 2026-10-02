@@ -13478,7 +13478,7 @@
           const d = new Date(viewYear, viewMonth + dlt, 1), mk = mkey(d.getFullYear(), d.getMonth());
           if (!months[mk] && !loading.has(mk)) fetchMonth(mk);
         });
-        (window.requestIdleCallback || setTimeout)(go, 400);
+        if (window.requestIdleCallback) window.requestIdleCallback(go, { timeout: 1500 }); else setTimeout(go, 400);
       }
       async function load() { await fetchMonth(viewKey()); if (on) { paintAll(); renderSummary(); } }
       function invalidateMonth(mk) { delete maps[mk]; persist(); }
