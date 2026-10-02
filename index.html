@@ -2577,35 +2577,110 @@
     }
   
     /* ===== MONEY MODE ===== */
-    .money-panel { max-width: 1060px; margin: 0 auto 18px; padding: 14px 16px; border: 1.5px solid #e6e6e6; border-radius: 14px; background: #fff; font-family: inherit; }
+    :root { --m-ease: cubic-bezier(.32, .72, 0, 1); }
+    .money-panel { max-width: 1060px; margin: 18px auto 0; padding: 16px; border: 1px solid #e8e8ea; border-radius: 20px; background: #fff; font-family: inherit; box-shadow: 0 8px 30px rgba(0,0,0,.05); animation: money-panel-in .5s var(--m-ease) both; }
     .money-panel[hidden] { display: none; }
-    .money-title { font-size: 13px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: #555; margin-bottom: 10px; }
+    @keyframes money-panel-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+    .money-title { font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #8a8a8e; margin-bottom: 10px; }
     .money-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
-    .money-panel input, .money-panel select { height: 34px; border: 1.5px solid #e2e2e2; border-radius: 9px; padding: 0 10px; font: inherit; font-size: 13px; background: #fff; color: #111; }
+    .money-panel input, .money-panel select { height: 38px; border: 1px solid #e2e2e6; border-radius: 12px; padding: 0 12px; font: inherit; font-size: 14px; background: #f7f7f9; color: #111; transition: border-color .25s var(--m-ease), box-shadow .25s var(--m-ease), background .25s; }
+    .money-panel input:focus, .money-panel select:focus { outline: none; border-color: #0a84ff; background: #fff; box-shadow: 0 0 0 4px rgba(10,132,255,.15); }
     .money-panel #moneyNote { flex: 1; min-width: 120px; }
-    .money-panel #moneyAmount { width: 96px; }
-    .money-btn { height: 34px; padding: 0 16px; border: none; border-radius: 9px; background: #111; color: #fff; font-weight: 700; font-size: 13px; cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; }
-    .money-btn.alt { background: #f0f0f0; color: #111; }
-    .money-status { font-size: 12px; color: #888; }
-    .money-summary { display: flex; gap: 18px; flex-wrap: wrap; font-size: 13px; font-weight: 700; margin-top: 4px; }
-    .money-summary .pos { color: #16a34a; } .money-summary .neg { color: #dc2626; }
-    body.money-mode .day-cell.money-pos  { border-color: #4ade80; box-shadow: 0 0 14px rgba(34,197,94,.35); background: #fafafa; }
-    body.money-mode .day-cell.money-neg  { border-color: #f87171; box-shadow: 0 0 14px rgba(239,68,68,.35); background: #fafafa; }
-    body.money-mode .day-cell.money-zero { border-color: #facc15; box-shadow: none; background: #fafafa; }
-    body.money-mode .day-cell.money-future { border-color: #ddd; box-shadow: none; background: #fafafa; }
-    .money-amt { position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%); text-align: center; font-size: 12.5px; font-weight: 800; }
+    .money-panel #moneyAmount { width: 104px; }
+    .money-btn { height: 38px; padding: 0 18px; border: none; border-radius: 12px; background: #111; color: #fff; font-weight: 700; font-size: 14px; cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; transition: transform .25s var(--m-ease), opacity .2s; -webkit-tap-highlight-color: transparent; }
+    .money-btn:active { transform: scale(.95); }
+    .money-btn.alt { background: #efeff2; color: #111; }
+    .money-status { font-size: 12px; color: #8a8a8e; cursor: pointer; }
+
+    /* month stats */
+    .money-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 4px; }
+    .mstat { border-radius: 16px; padding: 12px 14px; background: #f7f7f9; border: 1px solid #efeff2; transition: transform .3s var(--m-ease); }
+    .mstat .lbl { display: block; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: #8a8a8e; }
+    .mstat .val { display: block; margin-top: 2px; font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+    .mstat.pos .val { color: #16a34a; } .mstat.neg .val { color: #dc2626; } .mstat.mute .val { color: #aaa; }
+    @media (max-width: 520px) { .mstat .val { font-size: 16px; } .mstat { padding: 10px; } }
+
+    /* calendar cells */
+    body.money-mode .day-cell { transition: transform .4s var(--m-ease), box-shadow .5s var(--m-ease), border-color .4s ease, background-color .4s ease; -webkit-tap-highlight-color: transparent; }
+    body.money-mode .day-cell:not(.empty):active { transform: scale(.95); }
+    body.money-mode .day-cell.money-pos  { --rgb: 34,197,94;  border-color: rgba(34,197,94,.75);  background-color: #fafafa; background-image: linear-gradient(rgba(var(--rgb), var(--tint,.1)), rgba(var(--rgb), var(--tint,.1))); box-shadow: 0 6px 18px rgba(var(--rgb), .20); }
+    body.money-mode .day-cell.money-neg  { --rgb: 239,68,68;  border-color: rgba(248,113,113,.8); background-color: #fafafa; background-image: linear-gradient(rgba(var(--rgb), var(--tint,.1)), rgba(var(--rgb), var(--tint,.1))); box-shadow: 0 6px 18px rgba(var(--rgb), .20); }
+    body.money-mode .day-cell.money-zero { border-color: #eceaa8; box-shadow: none; background: #fafafa; background-image: none; }
+    body.money-mode .day-cell.money-future, body.money-mode .day-cell.money-loading { border-color: #e4e4e7; box-shadow: none; background: #fafafa; background-image: none; }
+    .money-enter { animation: money-cell-in .6s var(--m-ease) backwards; animation-delay: calc(var(--i, 0) * 14ms); }
+    @keyframes money-cell-in { from { opacity: 0; transform: translateY(10px) scale(.9); } to { opacity: 1; transform: none; } }
+    .money-amt { position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%); text-align: center; font-size: clamp(10px, 2.9vw, 12.5px); font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.01em; pointer-events: none; white-space: nowrap; }
     .money-amt.pos { color: #16a34a; } .money-amt.neg { color: #dc2626; }
+    .money-skel { position: absolute; left: 24%; right: 24%; top: 50%; height: 9px; margin-top: -4px; border-radius: 6px; background: linear-gradient(90deg, #ececf0 25%, #f7f7fa 50%, #ececf0 75%); background-size: 200% 100%; animation: money-shim 1.2s linear infinite; pointer-events: none; }
+    @keyframes money-shim { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+    /* day sheet */
+    .mp-overlay { position: fixed; inset: 0; z-index: 2100; display: flex; align-items: flex-end; justify-content: center; background: rgba(0,0,0,0); -webkit-backdrop-filter: blur(0); backdrop-filter: blur(0); transition: background .4s var(--m-ease), backdrop-filter .4s var(--m-ease), -webkit-backdrop-filter .4s var(--m-ease); }
+    .mp-overlay.open { background: rgba(0,0,0,.36); -webkit-backdrop-filter: blur(10px) saturate(140%); backdrop-filter: blur(10px) saturate(140%); }
+    .mp-sheet { width: 100%; max-width: 480px; max-height: 88vh; display: flex; flex-direction: column; background: rgba(255,255,255,.94); -webkit-backdrop-filter: blur(30px) saturate(180%); backdrop-filter: blur(30px) saturate(180%); color: #111; border-radius: 28px 28px 0 0; box-shadow: 0 -12px 60px rgba(0,0,0,.28); transform: translateY(100%); transition: transform .55s var(--m-ease); padding-bottom: env(safe-area-inset-bottom); font-family: inherit; overflow: hidden; }
+    .mp-overlay.open .mp-sheet { transform: none; }
+    @media (min-width: 640px) {
+      .mp-overlay { align-items: center; }
+      .mp-sheet { border-radius: 28px; transform: translateY(18px) scale(.94); opacity: 0; transition: transform .55s var(--m-ease), opacity .3s ease; box-shadow: 0 30px 90px rgba(0,0,0,.35); }
+      .mp-overlay.open .mp-sheet { transform: none; opacity: 1; }
+    }
+    .mp-head { padding: 10px 22px 12px; touch-action: none; cursor: grab; }
+    .mp-grab { width: 38px; height: 5px; border-radius: 3px; background: rgba(0,0,0,.18); margin: 0 auto 14px; }
+    .mp-date { font-size: 13px; font-weight: 700; color: #8a8a8e; letter-spacing: .02em; }
+    .mp-total { font-size: 40px; font-weight: 800; letter-spacing: -.03em; font-variant-numeric: tabular-nums; line-height: 1.1; margin-top: 2px; }
+    .mp-sub { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 8px; font-size: 13px; font-weight: 600; color: #8a8a8e; }
+    .mp-sub b { color: #111; font-weight: 700; }
+    .mp-body { overflow-y: auto; overscroll-behavior: contain; padding: 4px 16px 8px; -webkit-overflow-scrolling: touch; }
+    .mp-empty { padding: 26px 8px; text-align: center; color: #8a8a8e; font-size: 14px; }
+    .mp-card { background: #fff; border: 1px solid #ececf0; border-radius: 20px; padding: 14px 16px; margin: 10px 0; box-shadow: 0 2px 10px rgba(0,0,0,.04); opacity: 0; transform: translateY(14px); animation: mp-card-in .55s var(--m-ease) forwards; animation-delay: calc(120ms + var(--i, 0) * 60ms); transition: height .4s var(--m-ease), margin .4s var(--m-ease), padding .4s var(--m-ease), opacity .3s; overflow: hidden; }
+    @keyframes mp-card-in { to { opacity: 1; transform: none; } }
+    .mp-card.out { opacity: 0 !important; transform: scale(.96) !important; animation: none; height: 0 !important; padding-top: 0; padding-bottom: 0; margin: 0; border-width: 0; }
+    .mp-top { display: flex; align-items: flex-start; gap: 10px; }
+    .mp-store { flex: 1; min-width: 0; font-size: 16px; font-weight: 800; letter-spacing: -.01em; line-height: 1.25; word-break: break-word; }
+    .mp-amt { font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .mp-amt.neg { color: #dc2626; } .mp-amt.pos { color: #16a34a; }
+    .mp-x { border: none; background: #f1f1f4; color: #8a8a8e; width: 26px; height: 26px; border-radius: 13px; font-size: 16px; line-height: 1; cursor: pointer; flex: none; transition: transform .25s var(--m-ease), background .2s, color .2s; }
+    .mp-x:hover { background: #fee2e2; color: #dc2626; } .mp-x:active { transform: scale(.88); }
+    .mp-fields { display: grid; grid-template-columns: 88px 1fr; gap: 7px 10px; margin: 12px 0 0; padding-top: 12px; border-top: 1px solid #f0f0f3; font-size: 14px; }
+    .mp-fields dt { color: #8a8a8e; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding-top: 2px; }
+    .mp-fields dd { margin: 0; font-weight: 600; word-break: break-word; }
+    .mp-fields dd.none { color: #c4c4c8; font-weight: 500; }
+    .mp-badge { display: inline-block; font-size: 11.5px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: #f1f1f4; color: #555; }
+    .mp-badge.apple { background: #111; color: #fff; }
+    .mp-bar { display: flex; gap: 8px; padding: 10px 16px 16px; }
+    .mp-bar .money-btn { flex: 1; justify-content: center; }
+    .mp-toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translate(-50%, 30px); opacity: 0; z-index: 2300; background: rgba(28,28,30,.94); color: #fff; padding: 11px 16px; border-radius: 16px; display: flex; gap: 14px; align-items: center; font-size: 14px; font-weight: 600; box-shadow: 0 10px 40px rgba(0,0,0,.35); transition: transform .5s var(--m-ease), opacity .3s; -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); }
+    .mp-toast.show { transform: translate(-50%, 0); opacity: 1; }
+    .mp-toast button { border: none; background: none; color: #0a84ff; font: inherit; font-weight: 700; cursor: pointer; padding: 0; }
+
+    /* old simple popup (still used by the file-scan review) */
     .money-overlay { position: fixed; inset: 0; z-index: 2100; background: rgba(0,0,0,.4); display: flex; align-items: center; justify-content: center; padding: 16px; }
-    .money-pop { background: #fff; color: #111; border-radius: 16px; width: 100%; max-width: 380px; max-height: 80vh; overflow: auto; padding: 18px; font-family: inherit; }
+    .money-pop { background: #fff; color: #111; border-radius: 20px; width: 100%; max-width: 380px; max-height: 80vh; overflow: auto; padding: 18px; font-family: inherit; }
     .money-pop h3 { font-size: 16px; margin-bottom: 4px; }
-    .money-pop .total { font-size: 22px; font-weight: 800; margin-bottom: 12px; }
     .money-item { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid #eee; font-size: 13px; }
-    .money-item .n { flex: 1; } .money-item .s { font-size: 11px; color: #999; }
-    .money-item .x { border: none; background: none; color: #bbb; font-size: 18px; cursor: pointer; }
-    body.night-mode .money-panel, body.night-mode .money-pop { background: #1c1c1e; color: #f5f5f5; border-color: #3a3a3a; }
-    body.night-mode .money-panel input, body.night-mode .money-panel select { background: #232325; color: #f5f5f5; border-color: #3a3a3a; }
-    body.night-mode .money-item { border-color: #333; }
-    body.night-mode.money-mode .day-cell.money-pos, body.night-mode.money-mode .day-cell.money-neg, body.night-mode.money-mode .day-cell.money-zero, body.night-mode.money-mode .day-cell.money-future { background: #1c1c1c; }
+    .money-item .n { flex: 1; }
+
+    /* night mode */
+    body.night-mode .money-panel { background: #1c1c1e; color: #f5f5f5; border-color: #2c2c2e; box-shadow: none; }
+    body.night-mode .money-panel input, body.night-mode .money-panel select { background: #2c2c2e; color: #f5f5f5; border-color: #3a3a3c; }
+    body.night-mode .money-panel input:focus, body.night-mode .money-panel select:focus { background: #1c1c1e; }
+    body.night-mode .money-btn { background: #f5f5f5; color: #111; } body.night-mode .money-btn.alt { background: #2c2c2e; color: #f5f5f5; }
+    body.night-mode .mstat { background: #232325; border-color: #2c2c2e; }
+    body.night-mode.money-mode .day-cell.money-pos, body.night-mode.money-mode .day-cell.money-neg, body.night-mode.money-mode .day-cell.money-zero, body.night-mode.money-mode .day-cell.money-future, body.night-mode.money-mode .day-cell.money-loading { background-color: #1c1c1c; }
+    body.night-mode .money-skel { background: linear-gradient(90deg, #2a2a2d 25%, #353539 50%, #2a2a2d 75%); background-size: 200% 100%; }
+    body.night-mode .mp-sheet { background: rgba(28,28,30,.94); color: #f5f5f5; box-shadow: 0 -12px 60px rgba(0,0,0,.6); }
+    body.night-mode .mp-grab { background: rgba(255,255,255,.22); }
+    body.night-mode .mp-sub b { color: #f5f5f5; }
+    body.night-mode .mp-card { background: #232325; border-color: #2c2c2e; box-shadow: none; }
+    body.night-mode .mp-fields { border-color: #333336; }
+    body.night-mode .mp-x { background: #333336; } body.night-mode .mp-badge { background: #333336; color: #ccc; }
+    body.night-mode .mp-badge.apple { background: #f5f5f5; color: #111; }
+    body.night-mode .money-pop { background: #1c1c1e; color: #f5f5f5; } body.night-mode .money-item { border-color: #333; }
+    @media (prefers-reduced-motion: reduce) {
+      .money-enter, .mp-card, .money-panel, .money-skel { animation: none !important; }
+      .mp-card { opacity: 1; transform: none; }
+      .mp-sheet, .mp-overlay, .mp-toast { transition-duration: .01s !important; }
+    }
 
     /* ── DAY TIMER (double-tap "Day") ── */
     .tmr-overlay {
@@ -2782,24 +2857,6 @@
   </div>
 
   <div class="app">
-  <div class="money-panel" id="moneyPanel" hidden>
-    <div class="money-title">Add data</div>
-    <div class="money-row">
-      <select id="moneyType"><option value="expense">Expense −</option><option value="income">Income +</option><option value="cash">Cash in (manual) +</option></select>
-      <input id="moneyAmount" type="text" inputmode="decimal" placeholder="€ amount">
-      <input id="moneyDate" type="date">
-      <input id="moneyNote" type="text" placeholder="Note (optional)">
-      <button type="button" class="money-btn" id="moneyAddBtn">Add</button>
-    </div>
-    <div class="money-row">
-      <label class="money-btn alt">Import CSV<input type="file" id="moneyFile" accept=".csv,.txt,text/csv" hidden></label>
-      <label class="money-btn alt">Scan file<input type="file" id="moneyShot" hidden></label>
-      <span class="money-status" id="moneyStatus">CSV rows: date, amount, note</span>
-    </div>
-    <div class="money-title" id="moneyMonthTitle" style="margin-top:6px">This month</div>
-    <div class="money-summary" id="moneySummary"></div>
-  </div>
-
     <div class="app-header">
       <span class="app-title" id="appTitleEl">Habit Calendar</span>
     </div>
@@ -2878,6 +2935,24 @@
         <div class="days-grid" id="daysGrid"></div>
       </div>
     </div>
+
+  <div class="money-panel" id="moneyPanel" hidden>
+    <div class="money-title">Add data</div>
+    <div class="money-row">
+      <select id="moneyType"><option value="expense">Expense −</option><option value="income">Income +</option><option value="cash">Cash in (manual) +</option></select>
+      <input id="moneyAmount" type="text" inputmode="decimal" placeholder="€ amount">
+      <input id="moneyDate" type="date">
+      <input id="moneyNote" type="text" placeholder="Note (optional)">
+      <button type="button" class="money-btn" id="moneyAddBtn">Add</button>
+    </div>
+    <div class="money-row">
+      <label class="money-btn alt">Import CSV<input type="file" id="moneyFile" accept=".csv,.txt,text/csv" hidden></label>
+      <label class="money-btn alt">Scan file<input type="file" id="moneyShot" hidden></label>
+      <span class="money-status" id="moneyStatus">CSV rows: date, amount, note</span>
+    </div>
+    <div class="money-title" id="moneyMonthTitle" style="margin-top:10px">This month</div>
+    <div class="money-summary" id="moneySummary"></div>
+  </div>
 
     <button type="button" class="targets-btn" id="openSettingsBtn">⚙ Settings</button>
   </div>
@@ -13175,26 +13250,128 @@
        via /api/money (see functions/api/money.js).
     ============================================================ */
     const MoneyMode = (() => {
-      let on = false, entries = [], dayMap = {};
+      let on = false;
       const $ = (id) => document.getElementById(id);
       const monthTab = $('globalTabMonth');
-      const fmt = (n) => (n < 0 ? '-' : '+') + '€' + Number(Math.abs(n).toFixed(2)).toString();
-      const keyOf = (d) => viewYear + '-' + pad(viewMonth + 1) + '-' + pad(d);
+      const REDUCED = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+      const CACHE_KEY = 'moneyCache.v2';
+      const SRC = { 'apple pay': 'Apple Pay', manual: 'Manual', cash: 'Cash', import: 'Imported', screenshot: 'Scanned' };
+
+      // "2026-10" -> entries[]  (kept in memory + localStorage so the numbers show instantly)
+      let months = {}, maps = {}, fetchedAt = {}, failed = false;
+      const loading = new Set();
+      try { months = JSON.parse(localStorage.getItem(CACHE_KEY)) || {}; } catch (e) { months = {}; }
+      function persist() {
+        try {
+          const keys = Object.keys(months).sort();
+          while (keys.length > 18) delete months[keys.shift()];
+          localStorage.setItem(CACHE_KEY, JSON.stringify(months));
+        } catch (e) {}
+      }
+
+      const fmt = (n) => {
+        const a = Math.abs(n), r = Number(a.toFixed(2));
+        const s = Number.isInteger(r) ? r.toFixed(0) : a.toFixed(2);
+        return (n < -0.004 ? '\u2212' : '+') + '\u20AC' + s;
+      };
+      const fmtCell = (n) => {
+        const a = Math.abs(n);
+        if (a >= 10000) return (n < 0 ? '\u2212' : '+') + '\u20AC' + (a / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+        return fmt(n);
+      };
+      const mkey = (y, m) => y + '-' + pad(m + 1);
+      const viewKey = () => mkey(viewYear, viewMonth);
+      const dateKey = (d) => viewKey() + '-' + pad(d);
       const todayKey = () => { const t = new Date(); return t.getFullYear() + '-' + pad(t.getMonth() + 1) + '-' + pad(t.getDate()); };
       const setStatus = (s) => { $('moneyStatus').textContent = s; };
 
-      function index() {
-        dayMap = {};
-        entries.forEach((e) => { (dayMap[e.date] = dayMap[e.date] || []).push(e); });
+      // day -> entries for one month (cached until that month changes)
+      function dayOf(mk) {
+        if (!maps[mk]) {
+          const map = {}; let max = 0;
+          (months[mk] || []).forEach((e) => { (map[e.date] = map[e.date] || []).push(e); });
+          Object.keys(map).forEach((k) => { const n = Math.abs(map[k].reduce((s, e) => s + e.amount, 0)); if (n > max) max = n; });
+          maps[mk] = { map, max };
+        }
+        return maps[mk];
       }
-      async function load() {
+      const netOf = (list) => list.reduce((s, e) => s + e.amount, 0);
+
+      // smooth number count-up (cancels itself if called again)
+      function countTo(el, to, fmtFn, dur) {
+        const from = el._v || 0; el._v = to;
+        cancelAnimationFrame(el._raf);
+        if (REDUCED || from === to) { el.textContent = fmtFn(to); return; }
+        const t0 = performance.now(); dur = dur || 700;
+        const step = (t) => {
+          const p = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - p, 4);
+          el.textContent = fmtFn(from + (to - from) * e);
+          if (p < 1) el._raf = requestAnimationFrame(step); else el.textContent = fmtFn(to);
+        };
+        el._raf = requestAnimationFrame(step);
+      }
+
+      // ---- data (one month per request, cached, refreshed in the background) ----
+      async function fetchMonth(mk) {
+        if (loading.has(mk)) return false;
+        loading.add(mk);
         try {
-          const r = await fetch('/api/money', { cache: 'no-store' });
-          if (r.ok) entries = (await r.json()).entries || [];
-          else setStatus('Could not load (' + r.status + ')');
-        } catch (e) { setStatus('Could not load data'); }
-        index();
-        renderCalendar();
+          const r = await fetch('/api/money?month=' + mk, { cache: 'no-store' });
+          if (!r.ok) throw new Error('status ' + r.status);
+          const data = (await r.json()).entries || [];
+          const changed = JSON.stringify(data) !== JSON.stringify(months[mk]);
+          months[mk] = data; delete maps[mk]; fetchedAt[mk] = Date.now(); persist();
+          if (failed) { failed = false; setStatus(''); }
+          return changed;
+        } catch (e) {
+          failed = true; setStatus('Could not load \u2014 tap to retry');
+          return false;
+        } finally { loading.delete(mk); }
+      }
+      function ensure(mk, force) {
+        const had = !!months[mk];
+        if (!force && had && Date.now() - (fetchedAt[mk] || 0) < 8000) return;
+        fetchMonth(mk).then((changed) => {
+          if (!on || viewKey() !== mk) return;
+          if (changed || !had || failed) { paintAll(); renderSummary(); }
+          prefetch();
+        });
+      }
+      function prefetch() {
+        const go = () => [-1, 1].forEach((dlt) => {
+          const d = new Date(viewYear, viewMonth + dlt, 1), mk = mkey(d.getFullYear(), d.getMonth());
+          if (!months[mk] && !loading.has(mk)) fetchMonth(mk);
+        });
+        (window.requestIdleCallback || setTimeout)(go, 400);
+      }
+      async function load() { await fetchMonth(viewKey()); if (on) { paintAll(); renderSummary(); } }
+      function invalidateMonth(mk) { delete maps[mk]; persist(); }
+
+      // ---- painting: the grid always exists, numbers are layered on top ----
+      function decorate(cell, d) {
+        const mk = viewKey(), data = months[mk];
+        cell.classList.remove('money-pos', 'money-neg', 'money-zero', 'money-future', 'money-loading');
+        cell.style.removeProperty('--tint');
+        cell.querySelectorAll('.money-amt, .money-skel').forEach((n) => n.remove());
+        if (!cell._ms) { cell._ms = true; cell.style.setProperty('--i', d); cell.classList.add('money-enter'); }
+        const k = dateKey(d);
+        if (!data) {
+          if (!failed) { cell.classList.add('money-loading'); const s = document.createElement('div'); s.className = 'money-skel'; cell.appendChild(s); }
+          return;
+        }
+        const { map, max } = dayOf(mk), list = map[k] || [], net = netOf(list);
+        if (!list.length) { cell.classList.add(k > todayKey() ? 'money-future' : 'money-zero'); cell._mk = mk; cell._net = 0; return; }
+        cell.classList.add(net > 0.004 ? 'money-pos' : net < -0.004 ? 'money-neg' : 'money-zero');
+        cell.style.setProperty('--tint', (0.07 + 0.2 * Math.min(1, Math.abs(net) / (max || 1))).toFixed(3));
+        const a = document.createElement('div');
+        a.className = 'money-amt ' + (net < -0.004 ? 'neg' : 'pos');
+        a._v = cell._mk === mk && cell._net != null ? cell._net : 0;
+        cell.appendChild(a);
+        countTo(a, net, fmtCell, 650);
+        cell._mk = mk; cell._net = net;
+      }
+      function paintAll() {
+        document.querySelectorAll('#daysGrid .day-cell:not(.empty)').forEach((c) => decorate(c, parseInt(c.dataset.day, 10)));
       }
 
       const origFill = fillDayCell;
@@ -13205,26 +13382,36 @@
         const num = cell.querySelector('.day-num');
         cell.innerHTML = '';
         if (num) cell.appendChild(num);
-        const k = keyOf(d), list = dayMap[k] || [];
-        const net = list.reduce((s, e) => s + e.amount, 0);
-        if (!list.length) { cell.classList.add(k > todayKey() ? 'money-future' : 'money-zero'); return; }
-        cell.classList.add(net > 0.004 ? 'money-pos' : net < -0.004 ? 'money-neg' : 'money-zero');
-        const a = document.createElement('div');
-        a.className = 'money-amt ' + (net < -0.004 ? 'neg' : 'pos');
-        a.textContent = fmt(net);
-        cell.appendChild(a);
+        decorate(cell, d);
       };
 
       const origRender = renderCalendar;
-      renderCalendar = function () { origRender.apply(this, arguments); if (on) renderSummary(); };
+      renderCalendar = function () {
+        origRender.apply(this, arguments);
+        if (!on) return;
+        renderSummary();
+        ensure(viewKey());
+      };
 
+      function ensureStats() {
+        const box = $('moneySummary');
+        if (box.dataset.ready) return;
+        box.dataset.ready = '1';
+        box.innerHTML = '<div class="mstat pos"><span class="lbl">In</span><span class="val" data-k="in">\u2014</span></div>'
+          + '<div class="mstat neg"><span class="lbl">Out</span><span class="val" data-k="out">\u2014</span></div>'
+          + '<div class="mstat"><span class="lbl">Net</span><span class="val" data-k="net">\u2014</span></div>';
+      }
       function renderSummary() {
-        const pre = viewYear + '-' + pad(viewMonth + 1);
+        ensureStats();
+        const mk = viewKey(), data = months[mk];
+        $('moneyMonthTitle').textContent = new Date(viewYear, viewMonth, 1).toLocaleString('en', { month: 'long', year: 'numeric' });
+        const q = (k) => $('moneySummary').querySelector('[data-k="' + k + '"]');
+        if (!data) { ['in', 'out', 'net'].forEach((k) => { q(k).textContent = '\u2014'; q(k)._v = 0; }); return; }
         let inc = 0, out = 0;
-        entries.forEach((e) => { if (e.date.startsWith(pre)) { if (e.amount >= 0) inc += e.amount; else out += e.amount; } });
+        data.forEach((e) => { if (e.amount >= 0) inc += e.amount; else out += e.amount; });
         const net = inc + out;
-        $('moneyMonthTitle').textContent = 'This month — ' + new Date(viewYear, viewMonth, 1).toLocaleString('en', { month: 'long', year: 'numeric' });
-        $('moneySummary').innerHTML = '<span class="pos">In ' + fmt(inc) + '</span><span class="neg">Out ' + fmt(out) + '</span><span class="' + (net < 0 ? 'neg' : 'pos') + '">Net ' + fmt(net) + '</span>';
+        countTo(q('in'), inc, fmt, 800); countTo(q('out'), out, fmt, 800); countTo(q('net'), net, fmt, 800);
+        const nc = q('net').parentNode; nc.classList.toggle('neg', net < -0.004); nc.classList.toggle('pos', net > 0.004);
       }
 
       function toggle() {
@@ -13232,8 +13419,10 @@
         document.body.classList.toggle('money-mode', on);
         monthTab.textContent = on ? 'Money' : 'Month';
         $('moneyPanel').hidden = !on;
-        if (on) { if (!$('moneyDate').value) $('moneyDate').value = todayKey(); load(); }
-        else renderCalendar();
+        document.querySelectorAll('#daysGrid .day-cell').forEach((c) => { c._ms = false; c._net = null; c.classList.remove('money-enter'); });
+        if (on && !$('moneyDate').value) $('moneyDate').value = todayKey();
+        renderCalendar();           // grid appears immediately; numbers fill in when they arrive
+        if (on) ensure(viewKey(), true);
       }
 
       function parseAmt(s) {
@@ -13280,32 +13469,128 @@
         catch (e) { setStatus('Import failed'); }
       }
 
-      function openPopup(d) {
-        const k = keyOf(d), list = dayMap[k] || [];
-        const net = list.reduce((s, e) => s + e.amount, 0);
-        const ov = document.createElement('div'); ov.className = 'money-overlay';
-        const pop = document.createElement('div'); pop.className = 'money-pop';
-        const h = document.createElement('h3'); h.textContent = k;
-        const tot = document.createElement('div'); tot.className = 'total'; tot.textContent = fmt(net);
-        tot.style.color = net < 0 ? '#dc2626' : '#16a34a';
-        pop.append(h, tot);
-        if (!list.length) { const e = document.createElement('div'); e.className = 's'; e.textContent = 'No entries yet.'; pop.appendChild(e); }
-        list.forEach((e) => {
-          const row = document.createElement('div'); row.className = 'money-item';
-          const n = document.createElement('div'); n.className = 'n'; n.textContent = e.note || '—';
-          const s = document.createElement('span'); s.className = 's'; s.textContent = e.source;
-          const a = document.createElement('b'); a.textContent = fmt(e.amount); a.style.color = e.amount < 0 ? '#dc2626' : '#16a34a';
-          const x = document.createElement('button'); x.className = 'x'; x.textContent = '×'; x.title = 'Delete';
-          x.onclick = async () => { await fetch('/api/money?id=' + e.id, { method: 'DELETE' }); ov.remove(); load(); };
-          row.append(n, s, a, x); pop.appendChild(row);
+      // ---- day sheet ----
+      let sheetOpen = false, toastEl = null, toastT = 0;
+      const h = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+      const raf2 = (fn) => requestAnimationFrame(() => requestAnimationFrame(fn));
+
+      function toast(msg, label, onAction) {
+        if (toastEl) toastEl.remove(); clearTimeout(toastT);
+        const t = h('div', 'mp-toast'); t.appendChild(h('span', null, msg));
+        const hide = () => { t.classList.remove('show'); setTimeout(() => t.remove(), 500); };
+        if (label) { const b = h('button', null, label); b.onclick = () => { clearTimeout(toastT); hide(); onAction(); }; t.appendChild(b); }
+        document.body.appendChild(t); toastEl = t; raf2(() => t.classList.add('show'));
+        toastT = setTimeout(hide, 5000);
+      }
+
+      // Splits one entry into the structured fields shown in the sheet
+      function entryParts(e) {
+        const apple = e.source === 'apple pay';
+        let store = e.store || '', note = '';
+        if (apple && !store) { const b = String(e.note || '').split(' \u2014 '); store = b[0]; note = b.slice(1).join(' \u2014 '); } // older Apple Pay rows
+        else if (!apple && store) note = e.note && e.note !== store ? e.note : '';
+        const title = store || (!apple ? e.note : '') || SRC[e.source] || 'Entry';
+        let time = '';
+        if (apple && e.created_at) {
+          const t = new Date(String(e.created_at).replace(' ', 'T') + 'Z');
+          if (!isNaN(t)) time = t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+        return { apple, title, street: e.street || '', item: e.item || '', note, time };
+      }
+
+      function openPopup(day) {
+        if (sheetOpen) return;
+        sheetOpen = true;
+        const mk = viewKey(), k = dateKey(day);
+        const list = (dayOf(mk).map[k] || []).slice();
+        const when = new Date(viewYear, viewMonth, day);
+
+        const ov = h('div', 'mp-overlay'), sheet = h('div', 'mp-sheet');
+        const head = h('div', 'mp-head');
+        head.appendChild(h('div', 'mp-grab'));
+        head.appendChild(h('div', 'mp-date', when.toLocaleDateString('en', { weekday: 'long', day: 'numeric', month: 'long' })));
+        const tot = h('div', 'mp-total', fmt(0)); head.appendChild(tot);
+        const sub = h('div', 'mp-sub'); head.appendChild(sub);
+        const body = h('div', 'mp-body');
+
+        function refreshHead(animate) {
+          const net = netOf(list), spent = list.filter((e) => e.amount < 0).reduce((s, e) => s - e.amount, 0), got = list.filter((e) => e.amount > 0).reduce((s, e) => s + e.amount, 0);
+          tot.style.color = net < -0.004 ? '#dc2626' : net > 0.004 ? '#16a34a' : '';
+          if (animate) countTo(tot, net, fmt, 800); else { tot._v = net; tot.textContent = fmt(net); }
+          sub.innerHTML = '';
+          const bit = (label, val) => { const s = h('span'); s.append(label + ' '); s.appendChild(h('b', null, val)); sub.appendChild(s); };
+          bit(list.length === 1 ? 'Entry' : 'Entries', String(list.length));
+          if (spent) bit('Spent', '\u20AC' + Number(spent.toFixed(2)));
+          if (got) bit('Received', '\u20AC' + Number(got.toFixed(2)));
+        }
+        function showEmpty() { if (!list.length) body.appendChild(h('div', 'mp-empty', 'No entries on this day yet.')); }
+
+        async function remove(e, card) {
+          card.style.height = card.offsetHeight + 'px'; void card.offsetHeight; card.classList.add('out');
+          setTimeout(() => card.remove(), 450);
+          list.splice(list.indexOf(e), 1);
+          months[mk] = (months[mk] || []).filter((x) => x.id !== e.id); invalidateMonth(mk);
+          refreshHead(true); paintAll(); renderSummary(); setTimeout(showEmpty, 460);
+          try {
+            const r = await fetch('/api/money?id=' + e.id, { method: 'DELETE' });
+            if (!r.ok) throw new Error('delete failed');
+          } catch (err) { setStatus('Delete failed'); ensure(mk, true); return; }
+          toast('Entry deleted', 'Undo', async () => {
+            try {
+              await post({ date: e.date, amount: e.amount, note: e.note, source: e.source, store: e.store, street: e.street, item: e.item });
+              await fetchMonth(mk); paintAll(); renderSummary();
+              if (sheetOpen) { close(); setTimeout(() => openPopup(day), 520); }
+            } catch (err) { setStatus('Undo failed'); }
+          });
+        }
+
+        list.forEach((e, i) => {
+          const p = entryParts(e), card = h('div', 'mp-card');
+          card.style.setProperty('--i', i);
+          const top = h('div', 'mp-top');
+          const x = h('button', 'mp-x', '\u00D7'); x.title = 'Delete'; x.setAttribute('aria-label', 'Delete entry');
+          x.onclick = () => remove(e, card);
+          top.append(h('div', 'mp-store', p.title), h('div', 'mp-amt ' + (e.amount < 0 ? 'neg' : 'pos'), fmt(e.amount)), x);
+          const dl = h('dl', 'mp-fields');
+          const row = (label, val) => { dl.appendChild(h('dt', null, label)); dl.appendChild(h('dd', val ? null : 'none', val || '\u2014')); };
+          if (p.apple || p.street) row('Street', p.street);
+          if (p.apple || p.item) row('Purchase', p.item);
+          if (p.note) row('Note', p.note);
+          if (p.time) row('Time', p.time);
+          dl.appendChild(h('dt', null, 'Paid with'));
+          const dd = h('dd'); dd.appendChild(h('span', 'mp-badge' + (p.apple ? ' apple' : ''), SRC[e.source] || e.source || 'Manual')); dl.appendChild(dd);
+          card.append(top, dl); body.appendChild(card);
         });
-        const bar = document.createElement('div'); bar.className = 'money-row'; bar.style.marginTop = '12px';
-        const add = document.createElement('button'); add.className = 'money-btn'; add.textContent = 'Add to this day';
-        add.onclick = () => { $('moneyDate').value = k; ov.remove(); window.scrollTo({ top: 0, behavior: 'smooth' }); $('moneyAmount').focus(); };
-        const close = document.createElement('button'); close.className = 'money-btn alt'; close.textContent = 'Close'; close.onclick = () => ov.remove();
-        bar.append(add, close); pop.appendChild(bar);
-        ov.appendChild(pop); ov.addEventListener('click', (e) => { if (e.target === ov) ov.remove(); });
+        showEmpty();
+
+        const bar = h('div', 'mp-bar');
+        const add = h('button', 'money-btn', 'Add to this day');
+        add.onclick = () => { $('moneyDate').value = k; close(); window.scrollTo({ top: 0, behavior: 'smooth' }); setTimeout(() => $('moneyAmount').focus(), 350); };
+        const cl = h('button', 'money-btn alt', 'Close'); cl.onclick = () => close();
+        bar.append(add, cl);
+
+        sheet.append(head, body, bar); ov.appendChild(sheet);
+        refreshHead(false);
         document.body.appendChild(ov);
+        document.body.style.overflow = 'hidden';
+        raf2(() => { ov.classList.add('open'); setTimeout(() => refreshHead(true), 120); });
+
+        function close() {
+          if (!sheetOpen) return; sheetOpen = false;
+          ov.classList.remove('open'); document.removeEventListener('keydown', onKey);
+          document.body.style.overflow = '';
+          setTimeout(() => ov.remove(), 520);
+        }
+        const onKey = (ev) => { if (ev.key === 'Escape') close(); };
+        document.addEventListener('keydown', onKey);
+        ov.addEventListener('click', (ev) => { if (ev.target === ov) close(); });
+
+        // swipe the header down to dismiss (phones)
+        let sy = null, dy = 0;
+        head.addEventListener('pointerdown', (ev) => { if (window.innerWidth >= 640) return; sy = ev.clientY; dy = 0; head.setPointerCapture(ev.pointerId); sheet.style.transition = 'none'; });
+        head.addEventListener('pointermove', (ev) => { if (sy == null) return; dy = Math.max(0, ev.clientY - sy); sheet.style.transform = 'translateY(' + dy + 'px)'; });
+        const end = () => { if (sy == null) return; sy = null; sheet.style.transition = ''; sheet.style.transform = ''; if (dy > 110) close(); };
+        head.addEventListener('pointerup', end); head.addEventListener('pointercancel', end);
       }
 
       function shrink(file) {
@@ -13428,6 +13713,7 @@
           openPopup(parseInt(cell.dataset.day, 10));
         }, true);
         $('moneyAddBtn').addEventListener('click', addOne);
+        $('moneyStatus').addEventListener('click', () => { if (failed) { setStatus('Retrying…'); ensure(viewKey(), true); } });
         $('moneyAmount').addEventListener('keydown', (e) => { if (e.key === 'Enter') addOne(); });
         $('moneyShot').addEventListener('change', (e) => { const f = e.target.files[0]; if (f) scanShot(f); e.target.value = ''; });
         $('moneyFile').addEventListener('change', (e) => { const f = e.target.files[0]; if (f) importFile(f); e.target.value = ''; });
