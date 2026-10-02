@@ -26,8 +26,8 @@ self.addEventListener('notificationclick', (event) => {
    Serves the page instantly from cache and refreshes it in the background.
    Whenever you change index.html or app.js: rebuild app.min.js (npx esbuild app.js --minify --outfile=app.min.js),
    then bump SHELL_VERSION here AND the ?v= number on the app.min.js line in index.html (and in SHELL below). */
-const SHELL_VERSION = 'shell-v4';
-const SHELL = ['/', '/index.html', '/app.min.js?v=3', '/favicon.png', '/manifest.json'];
+const SHELL_VERSION = 'shell-v5';
+const SHELL = ['/', '/index.html', '/app.min.js?v=4', '/favicon.png', '/manifest.json'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
