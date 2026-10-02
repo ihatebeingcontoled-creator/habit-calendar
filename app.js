@@ -1,4 +1,5 @@
 /* run non-essential startup work after first paint */
+window.__perf = { start: performance.now() };
 const onIdle = (fn, ms) => ('requestIdleCallback' in window) ? requestIdleCallback(fn, { timeout: ms }) : setTimeout(fn, Math.min(ms, 1500));
 const PIP_MAX = 3;
     const DEFAULT_TARGET = 1; // reproduces the old ">0 counts as done" behavior
@@ -2079,10 +2080,19 @@ const PIP_MAX = 3;
       const snap = () => JSON.stringify([habitsData, allFiles, targetsData, birthdaysData, settings]);
       const before = snap();
       paintAll();
+      window.__perf.painted = performance.now();
       // 2) Refresh from the server in the background.
       await Promise.all([loadAllHabits(), loadAllFiles(), loadTargets(), loadSettingsFromServer(), loadBirthdays()]);
       // 3) Repaint only if something actually changed (or there was no cache).
       if (!hadCache || snap() !== before) paintAll();
+      window.__perf.fresh = performance.now();
+      if (/[?&]perf=1/.test(location.search)) {
+        const d = document.createElement('div');
+        d.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:99999;background:#fff;color:#111;border:1px solid #ccc;border-radius:8px;padding:8px 10px;font:12px/1.4 monospace;white-space:pre';
+        const r = (n) => Math.round(n);
+        d.textContent = 'script started: ' + r(__perf.start) + ' ms\nfirst paint:    ' + r(__perf.painted) + ' ms\nserver synced:  ' + r(__perf.fresh) + ' ms\ncache hit: ' + hadCache;
+        document.body.appendChild(d);
+      }
     })();
 
     const DayViewState = (() => {
