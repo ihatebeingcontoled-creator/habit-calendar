@@ -3300,31 +3300,9 @@
   <button type="button" class="sync-undo-btn" id="syncUndoBtn">Undo</button>
 
   <script>
-    /* ══════════════════════════════════════════════════════════
-       FIELD CONFIG
-       Two field kinds:
-        - "counter": uncapped, no minimum below 0, swipe right = +step,
-          swipe left = -step (clamped at 0, shake if already at 0)
-        - "pip": capped 0-PIP_MAX, swipe right = +1 pip, swipe left = -1 pip
-       Each field lives in its own section (nonNeg / fitness / skills)
-       and is rendered + wired generically from this config.
-
-       TARGETS
-       Whether a field "passes" for a given day is no longer just
-       "value > 0" — it's "value >= that day's target for this field".
-       Targets are a history per field: { value, effectiveFrom } rows
-       loaded from /api/habits?resource=targets. The target in effect for
-       a given date is the most recent row with effectiveFrom <= that
-       date, so changing a target only affects days on/after the date
-       you pick (older days keep using whatever was in effect for them,
-       or the built-in default of 1 if you've never set one).
-    ══════════════════════════════════════════════════════════ */
     const PIP_MAX = 3;
     const DEFAULT_TARGET = 1; // reproduces the old ">0 counts as done" behavior
 
-    /* ── i18n: static UI text only. User-entered content (titles, notes,
-       file names) is never translated. `settings.language` is 'en' | 'lt'
-       and syncs to D1 exactly like every other setting. ── */
     const I18N = {
       en: {
         appTitle: 'Habit Calendar',
@@ -3534,9 +3512,6 @@
       return (dict.fields && dict.fields[field.key]) || field.label;
     }
 
-    /* ── Settings: shared across devices via D1 (habit_settings table).
-       No local caching — always re-fetched from the server on load, so
-       there's never a stale local copy to fall out of sync. ── */
     const DEFAULT_SETTINGS = {
       dailyTargetsEnabled:     true,
       showStatsBar:            true,
@@ -3561,6 +3536,7 @@
           const server = await r.json();
           if (server && typeof server === 'object') {
             settings = { ...DEFAULT_SETTINGS, ...server };
+            BootCache.set('settings', server);
           }
         }
       } catch { /* offline → keep defaults for this session */ }
@@ -3739,7 +3715,6 @@
       return ok;
     }
 
-    /* ── Reusable "unsaved changes" confirm dialog ── */
     let confirmSaveAction = null;
     let confirmDiscardAction = null;
 
@@ -3780,6 +3755,17 @@
     let now       = new Date();
     let viewYear  = now.getFullYear();
     let viewMonth = now.getMonth();
+    const BootCache = {
+      KEY: 'habitcal_boot_v1',
+      _d: null,
+      _read() { if (!this._d) { try { this._d = JSON.parse(localStorage.getItem(this.KEY)) || {}; } catch (e) { this._d = {}; } } return this._d; },
+      get(k) { return this._read()[k]; },
+      set(k, v) {
+        this._read()[k] = v;
+        clearTimeout(this._t);
+        this._t = setTimeout(() => { try { localStorage.setItem(this.KEY, JSON.stringify(this._d)); } catch (e) {} }, 400);
+      },
+    };
     let habitsData = {};
     let allFiles   = {};
     let activeDate = null;
@@ -3817,7 +3803,6 @@
       return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
     }
 
-    /* ── Targets: lookup + persistence ── */
 
     function rebuildTargetsByField() {
       targetsByField = {};
@@ -3849,6 +3834,7 @@
         const r = await fetch('/api/habits?resource=targets', { cache: 'no-store' });
         if (r.ok) {
           targetsData = await r.json();
+          BootCache.set('targets', targetsData);
           rebuildTargetsByField();
         }
       } catch { /* offline → defaults apply */ }
@@ -3870,33 +3856,6 @@
       await loadTargets();
     }
 
-    /* ============================================================
-       BIRTHDAYS — same D1-via-/api/habits convention as targets/
-       settings above (a `resource` query param routes to its own
-       table server-side). Each entry is {id, name, month, day, year,
-       repeatYearly}. Picked via BirthdayPickerModal (a full 1:1
-       calendar popup, same family as the top bar's "Select Day"
-       picker) rather than a native <input type=date>, with a
-       "Repeats every year" switch in that popup:
-         - repeatYearly=true  (default) → year is just whatever year
-           was showing when it was picked; ignored for matching —
-           it recurs on month/day every year, same as before.
-         - repeatYearly=false → year IS the match key too, so it only
-           ever shows/fires on that one specific date.
-       Whether a birthday is *shown* on the grid is controlled
-       separately via settings.showBirthdays (persisted through the
-       existing settings save path), so toggling display never
-       touches the saved birthdays themselves.
-
-       NOTE: actually reminding the person (a real push notification,
-       the same way event notify-bells do) has to happen server-side —
-       this file only has the client half of that (the push
-       subscription is already registered via /api/push-subscribe,
-       see PushManager setup below). The backend's push job needs a
-       matching case: for /api/habits?resource=birthdays entries whose
-       month/day match today, send a push (title e.g. "🎂", body
-       "<name>'s birthday!") to every subscribed device — that part
-       isn't in this file and needs to be added on the server. ── */
     let birthdaysData = [];
 
     // Always re-fetched from D1 — no local cache to fall out of sync.
@@ -3905,6 +3864,7 @@
         const r = await fetch('/api/habits?resource=birthdays', { cache: 'no-store' });
         if (r.ok) {
           birthdaysData = await r.json();
+          BootCache.set('birthdays', birthdaysData);
         }
       } catch { /* offline → list stays empty for this session */ }
     }
@@ -4114,6 +4074,7 @@
         const r = await fetch('/api/habits', { cache: 'no-store' });
         if (r.ok) {
           habitsData = JSON.parse(await r.text());
+          BootCache.set('habits', habitsData);
         }
       } catch { /* offline → habitsData stays whatever it already was this session */ }
     }
@@ -4131,7 +4092,7 @@
     async function loadAllFiles() {
       try {
         const r = await fetch('/api/files', { cache: 'no-store' });
-        if (r.ok) allFiles = await r.json();
+        if (r.ok) { allFiles = await r.json(); BootCache.set('files', allFiles); }
       } catch { /* ignore */ }
     }
 
@@ -4549,13 +4510,6 @@
       setTimeout(() => card.classList.remove('shake'), 340);
     }
 
-    /*
-      Odometer-style tick animation: steps the displayed number from
-      `from` to `to` one unit at a time (both directions), independent of
-      how big the actual step size is (10, 5, etc.) — fires on release of
-      a tap or swipe, never on initial load/openModal (those snap instantly
-      via refreshCardVisual).
-    */
     const TICK_TOTAL_MS = 260; // total duration regardless of distance, so a +10 and +5 feel equally snappy
 
     function animateCounterTick(card, from, to) {
@@ -4646,18 +4600,6 @@
       }
     }
 
-    /*
-      Gesture model:
-      - A press that never moves past TAP_TOLERANCE px counts as a tap on
-        release → adds one step (same as a single swipe-right).
-      - A press that moves past TAP_TOLERANCE becomes a drag: the card
-        follows the finger 1:1 (no resistance, no commit threshold).
-        Whatever side of center the card is on at release is what commits —
-        even 1px past center counts. No fake "swipe far enough" requirement.
-      - On release, the card always animates back to center with a quick
-        ease-out spring, regardless of whether a value changed.
-      - A drag in progress never fires the tap-to-add action.
-    */
     const TAP_TOLERANCE = 6; // px of movement still considered "just a tap"
 
     function wireGesture(card, field) {
@@ -4936,7 +4878,6 @@
     document.getElementById('prevMonth').addEventListener('click', () => navigateMonth(-1));
     document.getElementById('nextMonth').addEventListener('click', () => navigateMonth(1));
 
-    /* ── 5am - 2026: win % and how many losses the 75% goal still allows ── */
     (function wireWake5() {
       const YEAR = 2026, GOAL = 0.75;
       const btn = document.getElementById('wake5Btn'), panel = document.getElementById('wake5Panel'), body = document.getElementById('wake5Body');
@@ -5037,11 +4978,6 @@
       });
     })();
 
-    /* ── Phone swipe: drag the month left/right with a finger to change month ──
-       The grid follows the finger, then slides out and the next/previous month
-       slides in. Uses the Web Animations API (the calendar's CSS transitions are
-       globally switched off, so CSS transitions would not run). It simply clicks the
-       existing ← / → buttons, so every other month-change behaviour stays identical. */
     (function wireMonthSwipe() {
       const main = document.querySelector('.calendar-main');
       const grid = document.getElementById('daysGrid');
@@ -5106,7 +5042,6 @@
       if (e.target === document.getElementById('overlay')) attemptCloseModal();
     });
 
-    /* ── Daily Targets panel ── */
 
     function renderTargetsFieldList() {
       const wrap = document.getElementById('targetsFieldList');
@@ -5421,60 +5356,35 @@
     wireBirthdaysPanel();
 
     (async () => {
-      applyStatsBarVisibility();
-      applyNightMode();
-      applyZoomSetting();
-      applyLanguage();
-      try { renderCalendar(); } catch (e) {} // base calendar shows instantly; numbers/colors fill in once the data arrives
+      // 1) Hydrate from the last-known data so the very first paint is complete.
+      try {
+        const c = BootCache;
+        if (c.get('habits')) habitsData = c.get('habits');
+        if (c.get('files')) allFiles = c.get('files');
+        if (c.get('targets')) { targetsData = c.get('targets'); rebuildTargetsByField(); }
+        if (c.get('birthdays')) birthdaysData = c.get('birthdays');
+        if (c.get('settings')) settings = { ...DEFAULT_SETTINGS, ...c.get('settings') };
+      } catch (e) {}
+      const paintAll = () => {
+        applyStatsBarVisibility();
+        applyNightMode();
+        applyZoomSetting();
+        applyLanguage();
+        const birthdaysToggleEl = document.getElementById('birthdaysShowToggle');
+        if (birthdaysToggleEl) birthdaysToggleEl.checked = settings.showBirthdays;
+        renderBirthdaysList();
+        try { renderCalendar(); } catch (e) {}
+      };
+      const hadCache = !!BootCache.get('habits');
+      const snap = () => JSON.stringify([habitsData, allFiles, targetsData, birthdaysData, settings]);
+      const before = snap();
+      paintAll();
+      // 2) Refresh from the server in the background.
       await Promise.all([loadAllHabits(), loadAllFiles(), loadTargets(), loadSettingsFromServer(), loadBirthdays()]);
-      applyStatsBarVisibility();
-      applyNightMode();
-      applyZoomSetting();
-      applyLanguage();
-      const birthdaysToggleEl = document.getElementById('birthdaysShowToggle');
-      if (birthdaysToggleEl) birthdaysToggleEl.checked = settings.showBirthdays;
-      renderBirthdaysList();
-      renderCalendar();
+      // 3) Repaint only if something actually changed (or there was no cache).
+      if (!hadCache || snap() !== before) paintAll();
     })();
 
-    /* ============================================================
-       SECTION 2 — State machine skeleton
-       (Day-view feature, build step 2/20. Builds on section 1's
-       scroll accumulator. Still no visual changes to the calendar —
-       that starts in section 4 (FLIP animation). This section's job
-       is ONLY to define the single source of truth for what "mode"
-       the page is in, and to make the scroll accumulator drive real
-       transitions between those modes.)
-
-       Three states, matching the spec exactly:
-         CALENDAR      — normal page, current behavior, unchanged.
-         TRANSITIONING — the 1-2s "locking in" or "unlocking" animation
-                          is playing. This is a timer, NOT scroll-driven —
-                          once it starts, it always runs to completion.
-         LOCKED         — the mini-calendar / day-view state. Scrolling
-                          here does nothing to the calendar itself yet;
-                          section 3 will freeze real page scroll and
-                          section 13 will use it to grow the hour lines.
-
-       Anything else in the app (any later section) should read/write
-       through DayViewState instead of keeping its own copy of "what
-       mode are we in" — that's the "single source of truth" requirement.
-    ============================================================ */
-    /* ============================================================
-       SAFETY NOTE — read this before touching anything below.
-       NOTHING IN THE NEW DAY-TIME-GRID FEATURE (Google-Calendar-style
-       hour view, added starting at "SECTION 13 — Day time grid" near
-       the bottom of this file) REWRITES ANY OF THE WORKING FUNCTIONS
-       IN HERE FOR WHAT HAPPENS WHEN YOU CLICK ON A DAY. This whole
-       state machine (DayViewState / DayViewScroll and everything
-       downstream of it that reacts to DayViewState.onChange) is left
-       completely as-is. The new feature only ever READS
-       DayViewState.get()/.onChange() from the outside and renders
-       its own separate container into the empty space that opens up
-       once a day is LOCKED — it never calls DayViewState.set(),
-       never touches the day-cells, and never edits any function in
-       this block.
-    ============================================================ */
     const DayViewState = (() => {
       const STATES = {
         CALENDAR:      'calendar',
@@ -5735,31 +5645,6 @@
     })();
     DayViewScroll.init();
 
-    /* ============================================================
-       SECTION 3 — Lock behavior (corrected)
-       (Day-view feature, build step 3/20. Builds on sections 1-2.
-       Still zero visual changes to the calendar itself — that
-       starts in section 4.)
-
-       Correction: "lock" refers to the CALENDAR, not the page.
-       Real page/wheel scrolling must always work completely normally
-       — sections 1-2 already guarantee tiny/jittery scrolls can't
-       cause weird half-finished transforms, because state only ever
-       changes at a hard threshold (accumulator) or on a fixed timer
-       (the transition itself), never by directly mapping scroll
-       position to a live transform. So there's no scroll-scrubbing to
-       "escape" from in the first place.
-
-       What this section actually adds: while TRANSITIONING or LOCKED,
-       the calendar's day-cells stop being clickable/interactive, so a
-       stray click during the shrink animation (or while it's sitting
-       as a mini-calendar) can't accidentally fire openModal() on the
-       wrong-sized element mid-flight. This only toggles pointer-events
-       + a marker class on .calendar-main — your existing click
-       handler (cell.addEventListener('click', () => openModal(...)))
-       is completely untouched; this just stops it from receiving the
-       click event while locked/transitioning.
-    ============================================================ */
     const CalendarInteractionLock = (() => {
       let calendarMainEl = null;
 
@@ -5780,29 +5665,6 @@
     })();
     CalendarInteractionLock.init();
 
-    /* ============================================================
-       SECTION 3 (addendum) — Collapse the vacated header space
-       (Requested fix: once month-nav flies out and the stats-bar
-       fades away, they leave behind their normal reserved flow
-       space — a blank gap — since both of those effects only ever
-       apply a CSS transform/opacity, which never affects layout.
-       This closes that gap by pulling #weekdaysRow (and everything
-       that follows it, i.e. #daysGrid, via normal block flow) up
-       to where the stats-bar used to start.
-
-       Order matters a lot here: this must run BEFORE section 4's
-       geometry capture (and before month-nav's own capture), so the
-       "First" rects everything else reads are already the collapsed,
-       final positions — not a mid-flight moving target. Registering
-       this listener first (it's defined above section 4) guarantees
-       that, since DayViewState calls listeners synchronously in the
-       order they subscribed. Nothing here uses transform, so there's
-       nothing for later transform-based FLIP math to compensate for.
-
-       month-nav and stats-bar themselves are untouched by this — it
-       only ever moves weekdaysRow's margin, so their own capture
-       rects (used for their own fly-away animations) stay accurate.
-    ============================================================ */
     const HeaderCollapse = (() => {
       let appHeaderEl = null;
       let appLayoutEl = null;
@@ -5846,25 +5708,6 @@
     })();
     HeaderCollapse.init();
 
-    /* ============================================================
-       SECTION 4 — Capture calendar geometry (FLIP: "First")
-       (Day-view feature, build step 4/20. Builds on sections 1-3.
-       Still zero visual changes — this only READS layout and stores
-       it. Section 5 defines the mini-calendar target layout ("Last"),
-       section 6 applies the actual transform+animate.)
-
-       FLIP = First, Last, Invert, Play. This section is "First":
-       at the exact moment the forward transition begins (state ->
-       TRANSITIONING with direction 'forward'), we snapshot every
-       real day-cell's current on-screen bounding box, before
-       anything about the layout changes. That snapshot is what
-       section 6 will animate FROM.
-
-       We capture this at the *start* of the transition (not later)
-       because the calendar is still in its completely normal,
-       unmodified layout at that instant — exactly the position we
-       need to FLIP from.
-    ============================================================ */
     const CalendarGeometry = (() => {
       let lastCapture = []; // [{ el, dateStr, dayNum, rect }]
 
@@ -5902,26 +5745,6 @@
     })();
     CalendarGeometry.init();
 
-    /* ============================================================
-       SECTION 5 — Define mini-calendar target layout (FLIP: "Last")
-       (Day-view feature, build step 5/20. Builds on section 4.
-       Still no real animation — section 6 does the actual
-       transform+animate using this section's math + section 4's
-       captured rects.)
-
-       This is the "Last" step of FLIP: given the CURRENT month being
-       viewed, compute where each day number's square SHOULD end up —
-       a compact grid pinned to the top-right corner. Rows are fixed
-       at 6 (the max any month can need) so the target container never
-       changes size between months, which keeps the locked layout
-       stable regardless of which month you're on.
-
-       A temporary dashed "ghost" preview is included so you can see
-       this math working before the real persistent mini-calendar
-       widget exists (that's section 9, which will replace this ghost
-       outright). The ghost draws itself whenever the state isn't
-       CALENDAR, and clears itself otherwise.
-    ============================================================ */
     // Shared by every module below that needs to tell phones apart from
     // desktop/tablet (same 640px breakpoint the rest of the app already
     // uses for its mobile styles/thresholds) — one source of truth so
@@ -6079,28 +5902,6 @@
     })();
     MiniCalendarLayout.init();
 
-    /* ============================================================
-       SECTION 6 — FLIP transform + animate
-       (Day-view feature, build step 6/20. Builds on sections 4-5.
-       THIS is where the real day-cells actually start moving.)
-
-       Since the day-cells never structurally change position in the
-       DOM/layout (we're not reparenting them into a new grid), we
-       don't need the classic "invert the jump" FLIP trick — there is
-       no jump to hide. Instead we animate directly: from the cell's
-       current identity transform (its normal First position) to a
-       computed translate+scale that lands it exactly on the Last
-       (mini-calendar) target, anchored from the top-left corner so
-       the math stays simple (transform-origin: 0 0).
-
-       All cells get their transition started in the same frame, so
-       they all move/shrink simultaneously — matching "this all
-       happens simultaneously in one smooth animation" from the spec.
-       Duration is read from DayViewScroll.cfg.TRANSITION_MS (section
-       2/section 2's timer) so the animation and the state-machine
-       timer that finalizes it always stay in sync — one source of
-       truth for timing, not two numbers that can drift apart.
-    ============================================================ */
     const FlipAnimator = (() => {
       const cfg = {
         easing: 'cubic-bezier(0.4, 0, 0.2, 1)', // smooth, decelerating — Google-Calendar-ish shrink feel
@@ -6343,33 +6144,6 @@
     })();
     FlipAnimator.init();
 
-    /* ============================================================
-       SECTION 7 — Text fade choreography
-       (Day-view feature, build step 7/20. Builds on section 6.)
-
-       The squares already shrink via transform (section 6), but tiny
-       shrunk text is unreadable clutter — the spec asks for the text
-       to disappear IN SYNC with the movement, not after it. So this
-       fades each cell's inner content (day number, title, badges,
-       wake-up dot — whatever's actually in there, read generically via
-       el.children rather than hardcoding specific classes) to opacity 0
-       using the exact same duration and easing as the transform, kicked
-       off in the same frame as section 6's flyTo(). Same timeline,
-       different property — that's the "keyframed alongside transform"
-       requirement.
-
-       Reverse fade-in is paired here with section 8's reverse movement:
-       fades back to opacity 1 over the same duration, starting the
-       moment the backward transition begins.
-
-       Updated per feedback: .day-num is now deliberately EXCLUDED from
-       this fade. Section 9 no longer builds a separate popup widget —
-       the flown originals themselves double as the mini-calendar at
-       rest, so their numbers need to stay visible the whole time,
-       not fade out and never come back. Everything else per-day that
-       doesn't belong at mini-calendar scale (title text, attachment
-       badge, wake-up dot) still fades out exactly as before.
-    ============================================================ */
     const TextFadeChoreography = (() => {
       function fadeChildren(el, opacity, durationMs, easing) {
         Array.from(el.children).forEach((child) => {
@@ -6423,18 +6197,6 @@
     })();
     TextFadeChoreography.init();
 
-    /* ============================================================
-       SECTION 8 (addendum) — Stat cards + color guide join the exit
-       (Requested alongside section 8's reverse animation.)
-
-       The stats-bar cards (streak / perfect days / pushup days /
-       reading days) and the legend-panel ("Color Guide") aren't part
-       of the mini-calendar itself, so they don't need a FLIP-to-target
-       — they should simply fly upward and fade out of view while the
-       day-cells are converging into the corner, then fly back down and
-       fade in on the way back. Same shared duration/easing as
-       everything else, so it all reads as one motion.
-    ============================================================ */
     const AuxPanelExit = (() => {
       const cfg = {
         exitDistancePx: 70, // how far up these panels travel while exiting
@@ -6499,37 +6261,6 @@
     })();
     AuxPanelExit.init();
 
-    /* ============================================================
-       SECTION 8 (addendum 2) / SECTION 11 — Locked month nav
-       (Reworked: the previous approach tried to FLIP-transform the
-       REAL .month-nav element from its normal flow position all the
-       way to a spot below the day showcase — same technique as the
-       day-cells. In practice that's much more fragile for this one
-       element than for the day-cells: the day-cells all move as a
-       single rigid grid captured in one synchronous snapshot, while
-       the nav's start rect depends on HeaderCollapse having already
-       run, font/box model quirks of a flex row with two buttons +
-       text, etc. — lots of surface area for the computed translate/
-       scale to come out wrong (or effectively identity), which is
-       exactly the "nav just sits there full-size" bug reported.
-
-       New approach: don't transform the original element at all.
-       .month-nav now simply fades away with the other aux panels
-       (see AuxPanelExit — it's been added to that list). In its
-       place, this module builds one small, real, persistent nav
-       widget positioned with plain layout math (top/right, like
-       DayShowcase and LockedHeaderCard already do) directly below
-       the day showcase. No FLIP, no captured "first" rect to get
-       wrong — its position is recomputed fresh from DayShowcase's
-       own rect every time it's shown, so it can't drift or land at
-       an identity transform by accident.
-
-       Clicking its arrows just clicks the real, hidden #prevMonth /
-       #nextMonth buttons — so the existing renderCalendar() logic
-       (and the snapCurrentCellsToMini() below, which keeps the
-       mini-calendar's cells snapped in place across a month switch
-       while locked) stays exactly as it was, untouched.
-    ============================================================ */
     const LockedMonthNav = (() => {
       const cfg = { height: 26, gapBelowShowcase: 14, fadeMs: 0 };
       let el = null, dateLabelEl = null;
@@ -6711,15 +6442,6 @@
     // target rect via this name.
     const MonthNavRelocate = { computeTarget: LockedMonthNav.computeRect };
 
-    /* ============================================================
-       "SELECT DAY" CALENDAR POPUP.
-       Opened by the day-view's "Select Day" pill (LockedMonthNav's
-       openDatePicker(), above) — a small in-app month calendar
-       instead of the OS/browser's native date picker, reusing the
-       same look as the repeat-days "specific days" calendar. Tapping
-       any day jumps straight there and closes the popup; there's no
-       separate Save step since only one day can ever be picked here.
-    ============================================================ */
     const DayPickerModal = (() => {
       let overlayEl = null;
       let calMonthLabel = null, calGridEl = null;
@@ -6874,22 +6596,6 @@
       return { open, close };
     })();
 
-    /* ============================================================
-       "ADD BIRTHDAY" CALENDAR POPUP.
-       Same look/structure as DayPickerModal just above (reuses the
-       .repeat-days-overlay/-card/-title/-cal-nav/-cal-grid family —
-       "1:1 like the day selector at the top"), with two differences:
-         1) picking a day doesn't jump anywhere or close the popup —
-            it just marks that cell selected, since there's a
-            Save step (the yearly toggle needs to be set first).
-         2) a "Repeats every year" switch sits under the grid. On by
-            default, since that's what a birthday normally is; turning
-            it off means this is a one-time date (the currently-viewed
-            calMonth/calYear is saved alongside month/day so it only
-            ever matches that specific year).
-       onSave(month, day, year, repeatYearly) is supplied by whoever
-       calls open(); the birthdays panel below is the only caller.
-    ============================================================ */
     const BirthdayPickerModal = (() => {
       let overlayEl = null;
       let calMonthLabel = null, calGridEl = null, yearlyToggle = null;
@@ -7102,58 +6808,7 @@
       return { open, close };
     })();
 
-    /* ============================================================
-       SECTION 9 — Mini-calendar = the flown originals themselves
-       (Day-view feature, build step 9/20. Builds on sections 4-8.)
 
-       Reworked per feedback: a second, separately-rendered "popup"
-       mini-calendar widget was fragile (that's what the section-9
-       alignment bug in the previous pass came from — two independent
-       renderers of the same numbers, at the same rects, that had to
-       be kept in perfect sync by hand). It's also just redundant —
-       sections 4-6 already FLIP the real day-cells (with their real
-       .day-num numbers) exactly onto the mini-calendar target spot
-       and hold them there (FlipAnimator.settleAtTarget). Those flown
-       originals now ARE the persistent mini-calendar; nothing further
-       needs to render on top of them.
-
-       So this section is now just: don't fade the flown cells away.
-       Section 7's TextFadeChoreography still fades out the OTHER
-       per-day clutter that doesn't belong at mini-calendar scale
-       (titles, attachment badges, the wake-up dot) — see the edit
-       there — but leaves .day-num alone, so the numbers stay visible
-       through the whole transition and stay visible at rest, which is
-       what makes this double as the mini-calendar.
-
-       IMPORTANT — per this file's own top-of-file note ("nothing here
-       will be rewriting my working functions inside when you click on
-       a day"): these are the SAME elements/click-handlers as the main
-       calendar (openModal() etc. untouched) — Selection sync (making
-       a click here update the day-showcase instead of opening the
-       modal while locked) is section 12, not this one.
-    ============================================================ */
-
-    /* ============================================================
-       SECTION 10 — Huge day number showcase
-       (Day-view feature, build step 10/20. Builds on sections 4-9.)
-
-       The big number that sits to the LEFT of the mini-calendar once
-       LOCKED, sized to match the mini-calendar's own total height
-       (weekday row + day grid together — see MiniCalendarLayout.cfg
-       for those numbers, reused here so the two stay in sync if that
-       cfg ever changes).
-
-       "Driven by selected day state" (per the spec) needs a place for
-       that state to actually live — SelectedDayState below is that
-       single source of truth (same onChange-listener pattern as
-       DayViewState/DayViewScroll elsewhere in this file). It defaults
-       to today's date so the showcase has something correct to show
-       immediately. Nothing writes to it yet outside that default —
-       section 11 (month selector) only changes which month the
-       mini-calendar shows, not the selection; section 12 (Selection
-       sync) is what wires a mini-calendar day click into
-       SelectedDayState.set(...).
-    ============================================================ */
     const SelectedDayState = (() => {
       const now = new Date();
       let year  = now.getFullYear();
@@ -7314,16 +6969,6 @@
     // prediction, so removing the visible showcase doesn't change their
     // math at all.
 
-    /* ============================================================
-       SECTION 12 — Locked header card
-       (Polish pass: groups the day-showcase number, month nav, and
-       mini-calendar into one visually cohesive panel while LOCKED,
-       instead of three independently-floating pieces on bare white
-       space. Purely presentational — reuses the exact rects already
-       computed by MiniCalendarLayout / DayShowcase / MonthNavRelocate
-       as its single source of truth, so it can never drift out of
-       sync with where those pieces actually land.
-    ============================================================ */
     const LockedHeaderCard = (() => {
       const cfg = { padding: 20, fadeMs: 0 };
       let el = null;
@@ -7430,66 +7075,6 @@
     // callable on its own (it doesn't read `el`) since DayTimeGrid
     // (section below) still positions itself off this card's bottom edge.
 
-    /* ============================================================
-       SECTION 13 — Day time grid (part 1/20: scaffold)
-       New Google-Calendar-style day view. This is stage 2 of a
-       20-stage build:
-         1.  (done) container scaffold, wired to DayViewState,
-             positioned in the empty space under the locked header
-             card, shown/hidden exactly in sync with LOCKED.
-         2.  (done) hour lines, 00:00–24:00, small labels,
-             military time, native scroll (no custom scroll-hijack)
-         3.  (done) current-time red bar
-         4.  (skipped — grid confirmed working, moved straight to gestures)
-         5.  (done) hold-to-create gesture detection on hour lines
-             (fires DayTimeGrid.onHoldCreate(minutes); no visible box
-             yet — see the confirm-flash on the indicator for now)
-         6.  (done) event box element + placeholder styling
-             (fixed a bug along the way: .day-time-grid-inner needed
-             pointer-events:auto — the outer wrapper's pointer-events:
-             none for fade-safety was blocking ALL clicks/holds on the
-             grid, including step 5's gesture)
-         7.  (done) event editor popup shell (type / ⋯ / description / save)
-             — see the EventEditor module below DayTimeGrid.init(); opens
-             automatically on every new box via DayTimeGrid.onBoxCreated
-         8.  (done) prefixed label/type options (Event, Important, etc.)
-             — real dropdown now, 6 options, tap outside to close
-             without closing the whole popup
-         9.  (done) custom label text field — extra row in the same
-             dropdown below the prefixed options; commits on Enter
-             or on blur
-         10. (done) color-picker button (the ⋯) opening a swatch menu
-             — 10-color palette, click-outside-to-close, selection
-             tracked but not yet applied to the box (that's step 11)
-         11. (done) applying the picked color to the box — live update,
-             visible through the dimmed backdrop as you pick a swatch
-         12. (done) wiring the description field to the box — live on
-             every keystroke, onto currentRecord.description; type/color
-             also write onto the record now (currentRecord.type/.color)
-             so step 13's collapse has everything it needs already
-         13. (done) save button -> collapse to a compact box — the
-             box's own label now reflects the chosen type (or custom
-             text) and a brief scale/shadow "settle" pulse plays on
-             the box itself as the popup closes, so the save reads as
-             the box collapsing back into its compact resting state
-         14. event data model (label/color/desc/start/end/day)
-         15. rendering persisted events when a day is opened
-         16. drag-to-move an existing box
-         17. drag-to-resize (expand/contract) an existing box
-         18. click an existing box to reopen it for editing
-         19. delete an event + basic overlap handling
-         20. polish pass (night-mode, touch tuning, edge cases)
-
-       As with everything else added for this feature, this module
-       only reads DayViewState — it never calls .set() and never
-       touches the existing day-cell click handler or FLIP animation.
-    ============================================================ */
-    /* ============================================================
-       Mini-calendar D1 sync indicator (top-right pill).
-       Purely a status light — EventStore below is the only thing
-       that drives it. It never appears for anything outside the
-       mini-calendar's own debounced batch sync.
-    ============================================================ */
     const SyncIndicator = (() => {
       let el = null, textEl = null, undoBtn = null;
       let hideTimer = null;
@@ -7551,34 +7136,6 @@
       return { syncing, synced, error, bindUndo };
     })();
 
-    /* ============================================================
-       SECTION — Event data model (step 14, D1-backed)
-       The real record store, keyed per calendar day. Replaces the
-       step-6 `placeholderBoxes` array (which only existed so boxes
-       had *something* to be positioned from) with records that
-       actually carry id/type/color/description and persist.
-
-       Sync model: NOTHING is written to the device. On load,
-       `loadFromServer()` fetches every mini-calendar event from the
-       `/api/events` D1 endpoint into an in-memory `serverCache` —
-       that's the only copy that exists once the tab is closed.
-
-       Every edit (create/save/remove) just marks that date "dirty"
-       and (re)starts a 4-second idle timer. As long as edits keep
-       coming in — in this date or any other, all within the same
-       mini-calendar session — the timer keeps getting pushed back.
-       The moment 4 full seconds pass with no further edit anywhere,
-       every dirty date accumulated since the last successful sync
-       is sent to D1 in one batched request, and the indicator walks
-       Syncing… → Synced.
-
-       Records are still held *by reference* — DayTimeGrid/EventEditor
-       mutate `record.type` / `.color` / `.description` directly as
-       the person edits (the live-write pattern), and those mutations
-       are already visible to EventStore since it's the same object.
-       `.save(record)` just marks the record's date dirty; it's not
-       a diff and nothing else about the call sites had to change.
-    ============================================================ */
     const EventStore = (() => {
       const SYNC_IDLE_MS = 1000; // wait 1s of no further edits anywhere before syncing,
                                   // so a change doesn't fire a request the instant it
@@ -7639,7 +7196,7 @@
         })();
         return loadPromise;
       }
-      loadFromServer();
+      setTimeout(loadFromServer, 1500); // idempotent: whenReady() triggers it sooner if needed
 
       // Resolves once the initial server load has finished (or
       // failed) — used only by the notification-restore step below,
@@ -7883,18 +7440,6 @@
       }
     });
 
-    /* ============================================================
-       BOX CLIPBOARD.
-       Holds one copied event box's *appearance* — title, color,
-       description, duration, manual width/position, notify/lock
-       state — set by the "Copy" button in the repeat-across-days
-       modal (hold a box's notify bell -> Copy) and read by the
-       day grid's right-click "Paste" menu (see DayTimeGrid below).
-       Deliberately excludes id/dateKey/startMinutes: paste always
-       creates a fresh, independent box wherever was clicked, and
-       always keeps the original's duration (the "amount of hours")
-       even though the start time moves.
-    ============================================================ */
     const BoxClipboard = (() => {
       let copied = null;
 
@@ -8057,21 +7602,6 @@
         if (nowTimer) { clearInterval(nowTimer); nowTimer = null; }
       }
 
-      /* ----------------------------------------------------------
-         Hold-to-create gesture (step 5).
-         A plain tap/click or a touch-drag-to-scroll must NOT create
-         anything — only a genuine press-and-hold on the grid does.
-         So: start a timer on pointerdown, cancel it if the pointer
-         moves more than a few px (that's a scroll/drag, not a hold)
-         or lifts early, and only fire once the timer completes while
-         the pointer is still down and still roughly in place.
-
-         This step only detects the gesture and shows the fill-in
-         progress cue + confirmation flash — it doesn't create an
-         actual event box (that's step 6). Step 6 hooks in via
-         onHoldCreate(fn) below rather than this code reaching
-         forward into box-creation logic that doesn't exist yet.
-      ---------------------------------------------------------- */
       const holdCfg = {
         HOLD_MS:        420,  // press duration required to commit
         MOVE_CANCEL_PX: 10,   // pointer drift past this cancels the hold
@@ -8114,17 +7644,6 @@
         holdIndicatorEl.style.height = height + 'px';
       }
 
-      /* ----------------------------------------------------------
-         Right-click "Paste" (pairs with BoxClipboard above).
-         Right-clicking empty grid track — same restriction as the
-         hold-to-create gesture below, so it never hijacks a click
-         meant for an existing box — pops a tiny menu at the cursor
-         with a single "Paste" action. Picking it drops a brand-new,
-         fully independent box at the clicked hour: same title,
-         color, description, size/position and notify/lock state as
-         whatever was last copied, same duration as the original,
-         but a fresh start time (and id) of its own.
-      ---------------------------------------------------------- */
       let pasteMenuEl = null;
       let pasteMenuMinutes = 0;
 
@@ -8330,12 +7849,6 @@
         innerEl.addEventListener('pointerdown', onHoldPointerDown);
       }
 
-      /* ----------------------------------------------------------
-         Event box element (step 6, now backed by the step-14 data
-         model). The visual box is created here; the record behind
-         it — id/type/color/description/day — lives in EventStore,
-         keyed to whichever date is currently locked open.
-      ---------------------------------------------------------- */
       const boxCreateListeners = [];
       function onBoxCreated(fn) { boxCreateListeners.push(fn); }
 
@@ -8454,15 +7967,6 @@
         return record;
       }
 
-      /* ----------------------------------------------------------
-         Render persisted events (step 15).
-         Boxes created live via spawnEventBox already have their .el
-         attached to the DOM — this is only for the OTHER case: a day
-         gets locked open (or the locked day changes) and whatever
-         events already exist in EventStore for that date need real
-         boxes painted onto the grid, same as Google Calendar showing
-         your existing events the moment you open a day.
-      ---------------------------------------------------------- */
       let renderedDateKey = null;
 
       function detachRenderedBoxes(dateKey) {
@@ -8587,21 +8091,6 @@
         recomputeOverlapLayout();
       }
 
-      /* ----------------------------------------------------------
-         Overlap handling (step 19).
-         Classic interval-graph-coloring layout: sort by start time,
-         greedily slot each event into the first column whose
-         previous occupant has already ended, otherwise open a new
-         column. Every event in the same connected cluster of
-         overlaps shares that cluster's column count, so they render
-         as equal-width side-by-side slices — same visual language
-         Google Calendar uses for a double-booked block.
-
-         Runs on the currently-rendered date only, and only touches
-         horizontal placement (left/width) — vertical placement
-         (top/height) stays exactly what positionEventBox already
-         set from startMinutes/durationMinutes.
-      ---------------------------------------------------------- */
       const overlapCfg = {
         trackLeft:     34, // must match .day-time-grid-event-box's CSS left
         trackRightGap: 6,  // must match .day-time-grid-event-box's CSS right
@@ -8690,18 +8179,6 @@
           .forEach((record) => applyManualBoxPosition(record));
       }
 
-      /* ----------------------------------------------------------
-         Quarter-hour expand guide.
-         While actively dragging/resizing, holding the cursor still
-         on the same 15-min slot for expandCfg.holdMs (0.6s) — not
-         just moving through it — expands that whole hour: every
-         hour line/label after it slides down to open up real room,
-         and three tick marks + labels zoom in at :15/:30/:45 inside
-         the newly-opened space. Moving again (even slightly, to a
-         different slot) immediately collapses it and restarts the
-         hold timer on the new spot; releasing the pointer always
-         collapses it straight away.
-      ---------------------------------------------------------- */
       const expandCfg = {
         fadeMs:  220, // slide/zoom transition duration
         holdMs:  600, // must hold still on the same slot this long before it expands
@@ -8790,40 +8267,6 @@
         return;
       }
 
-      /* ----------------------------------------------------------
-         Drag-to-move (step 16).
-         Press-and-drag anywhere on an existing box slides it to a
-         new time. Deliberately finer-grained than the 60-min hold-
-         to-create snap (SNAP_MIN above) — once a box exists, nudging
-         it should feel closer to Google Calendar's ~15-min drag snap
-         rather than jumping a full hour at a time.
-
-         A plain tap (no meaningful pointer movement) does nothing
-         here — that's reserved for step 18 (click box to reopen).
-         Movement past MOVE_THRESHOLD_PX is what promotes a press
-         into an actual drag.
-      ---------------------------------------------------------- */
-      /* ----------------------------------------------------------
-         Drag-to-move (step 16, now free-directional).
-         Press-and-drag anywhere on an existing box slides it: the
-         vertical component of the drag changes its time (same as
-         before), and the horizontal component slides it sideways
-         within its track — width stays put, only its left offset
-         changes, snapped to the same cm grid the resize handles use.
-         A pure vertical drag only changes time; a pure horizontal
-         drag only changes position; a diagonal drag does both at
-         once, same feel as most calendar apps.
-
-         A plain tap (barely any movement in any direction) does
-         nothing here — that's reserved for step 18 (click box to
-         reopen). Only pointer travel past MOVE_THRESHOLD_PX (measured
-         as straight-line distance, not just one axis) promotes a
-         press into an actual drag; anything short of that is read as
-         a tap and opens the editor instead. Horizontal moves are
-         skipped while overlapping another event and sharing a column
-         — same rule as the width-resize handles, since the automatic
-         side-by-side layout owns horizontal placement there.
-      ---------------------------------------------------------- */
       const dragCfg = {
         SNAP_MIN:                15,
         MOVE_THRESHOLD_PX:       10, // mouse / pen — small and precise
@@ -8994,20 +8437,6 @@
         });
       }
 
-      /* ----------------------------------------------------------
-         Drag-to-resize (step 17).
-         Same pointer-capture shape as attachBoxDrag, but scoped to
-         the top/bottom handle strips rather than the whole box, and
-         each edge behaves differently:
-           - bottom handle: start time is fixed, duration changes.
-           - top handle: the box's bottom edge is fixed, so moving
-             the top both shifts startMinutes AND changes duration
-             (grow up = earlier start + longer; shrink down = later
-             start + shorter) — the standard calendar-resize feel.
-         Handles call e.stopPropagation() on pointerdown so a press
-         there is claimed before attachBoxDrag's own listener (on the
-         box itself) can treat it as a move.
-      ---------------------------------------------------------- */
       const resizeCfg = {
         SNAP_MIN:     15,
         MIN_DURATION: 15,
@@ -9097,20 +8526,6 @@
         handles.bottomHandle.addEventListener('pointerdown', (e) => startResize(e, 'bottom'));
       }
 
-      /* ----------------------------------------------------------
-         Drag-to-resize width (left/right edges).
-         Same shape as attachBoxResize, but horizontal: dragging the
-         right handle keeps the left edge fixed and changes width;
-         dragging the left handle keeps the right edge fixed and
-         moves the left edge (width follows). Both edges snap to the
-         same px-per-"cm" unit the vertical grid already uses
-         (cfg.hourHeight — that's the unit this app treats as 1cm
-         throughout, not a literal physical centimeter), so the box
-         always lands on a clean grid line on both sides.
-         Ignored while this record is overlapping another event and
-         sharing a column — the automatic equal-slice layout takes
-         over there, and a saved manual width would just fight it.
-      ---------------------------------------------------------- */
       function attachBoxWidthResize(record, handles) {
         const boxEl = record.el;
         let pointerId    = null;
@@ -9378,19 +8793,6 @@
     })();
     DayTimeGrid.init();
 
-    /* ============================================================
-       SECTION — Notification scheduler (bell toggle).
-       Best-effort local reminders via the browser Notification API.
-       IMPORTANT limitation, stated plainly: there's no push server
-       or service worker wired up here, so a scheduled reminder only
-       fires if this tab/browser is still open in memory when the
-       event's start time arrives — closing the tab or the browser
-       cancels it, same as any plain setTimeout would. It is NOT a
-       true background web-push notification that survives the
-       browser being closed. Good enough for "remind me later today
-       while I've got this open," not for "wake my phone up
-       tomorrow."
-    ============================================================ */
     const PUSH_VAPID_PUBLIC_KEY = 'BMqpwoCoNaGwdsEnw65lrraMy2rtf3pDTwUz5P3E31KsxJdsvAr8fKX5CTHyb1x_FJwVIsfjBZShd0gQ8eONdBk';
 
     const PushNotifications = (() => {
@@ -9520,16 +8922,6 @@
       return { requestPermission, schedule, unschedule, permissionGranted, supported };
     })();
 
-    /* ============================================================
-       SECTION — Inline task editor (revision).
-       No shared floating popup anymore. Each event box builds its
-       own small editor sub-tree the first time it's opened (cached
-       on record._editor so reopening doesn't rebuild), and that
-       editor lives inside the box's own element — toggled via the
-       box's 'editing' class. Only one record can be "open" at a
-       time (module-level currentRecord); opening a second one
-       commits and closes whichever was open first.
-    ============================================================ */
     const EventEditor = (() => {
       let currentRecord = null;
 
@@ -10482,19 +9874,6 @@
       return { open, close, renderBoxFace, updateTimeLabel, updateFaceTime, isOpen, forgetCurrent };
     })();
 
-    /* ============================================================
-       REPEAT-ACROSS-DAYS MODAL.
-       Opened by holding a box's notify bell (see EventEditor's
-       notifyBtn hold handler above). Two modes, switched with the
-       tabs at the top:
-         COUNT    — original behavior: pick how many of the next
-                    days to copy the held box onto (stepper).
-         SPECIFIC — pick exact dates off a small calendar (any month,
-                    not just "the next N days").
-       Either way, each copy is its own independent event record —
-       same start time, duration, color, title and description as
-       the original — and editing one later doesn't affect the others.
-    ============================================================ */
     const RepeatDaysModal = (() => {
       const cfg = { MIN_DAYS: 1, MAX_DAYS: 90, DEFAULT_DAYS: 7 };
       const MODES = { COUNT: 'count', SPECIFIC: 'specific' };
@@ -10916,19 +10295,6 @@
     // style it.
     DayTimeGrid.onBoxCreated((record) => EventEditor.open(record));
 
-    /* ============================================================
-       SETTINGS-BUTTON FADE (bugfix addendum to the day-time-grid work)
-       #openSettingsBtn is a normal in-flow element sitting right
-       below the calendar grid in the DOM (a sibling of .app-layout,
-       not inside .calendar-main) — CalendarInteractionLock never
-       touched it, and previously that was fine because nothing sat
-       on top of it. Now that DayTimeGrid is a ~900px-tall absolute
-       box starting under the locked header card, it visually
-       overlaps that button while LOCKED/TRANSITIONING (the "randomly
-       here" bug). This ONLY fades its opacity + disables pointer
-       events while day view isn't plain CALENDAR — it does not touch
-       #openSettingsBtn's click handler or any other existing code.
-    ============================================================ */
     const SettingsButtonFade = (() => {
       let btnEl = null;
       function apply(state) {
@@ -10947,17 +10313,6 @@
     })();
     SettingsButtonFade.init();
 
-    /* ============================================================
-       NOTIFICATION RESTORE ON LOAD.
-       setTimeout-based reminders (NotificationScheduler) only live
-       in memory, so a page reload would otherwise silently drop any
-       reminder that hadn't fired yet. This walks every stored event
-       across every date, not just the one currently on screen, and
-       re-schedules the ones that still have notify=true and a start
-       time still in the future. Only actually arms a timer if
-       permission is already granted — it never prompts on its own,
-       since that has to happen from a real click (the bell toggle).
-    ============================================================ */
     (function restoreScheduledNotifications() {
       if (!NotificationScheduler.supported() || !NotificationScheduler.permissionGranted()) return;
       try {
@@ -10970,17 +10325,6 @@
       } catch { /* ignore malformed/missing storage */ }
     })();
 
-    /* ============================================================
-       YESTERDAY AUTO-LOCK ON LOAD.
-       Every time the app opens, yesterday gets one check: if every
-       box on it is already locked, it's left exactly as is —
-       nothing to do, no toast. But if even one box was left
-       unlocked, the whole day gets swept closed behind the person,
-       box by box, with a couple of toasts marking the before/after
-       so it's not a silent change. Waits for EventStore.whenReady()
-       so it's reading the real saved state for yesterday rather
-       than an empty in-memory cache.
-    ============================================================ */
     (async function autoLockYesterday() {
       await EventStore.whenReady();
 
@@ -11015,39 +10359,6 @@
       });
     })();
 
-    /* ============================================================
-       SECTION — Talk-AI (speech → calendar events + checklist)
-       A floating assistant-style mic widget. Press it, say anything
-       spanning any number of days and mixing plans, tallies, and
-       edits to things already on the calendar ("yesterday before bed
-       I had dinner... today I did 50 pushups... plan something at 15
-       tomorrow... I just finished my gym session, mark it green and
-       lock it"), and it shows a confirmation card listing exactly
-       what it heard before it touches anything. Nothing is saved
-       until "Add it" is tapped.
-
-       Flow:
-         1. Web Speech API captures a transcript from the mic (kept
-            open until the person explicitly stops it — see
-            beginRecognitionSession's auto-restart).
-         2. Transcript + current ISO time + a windowed snapshot of
-            existing events (id/title/color/locked/notify/time, so the
-            model can reference something real) posted to /api/talk-ai.
-         3. That function (Groq-backed) returns a validated array of
-            items, each one of {kind:"event", ...} (new box),
-            {kind:"event_edit", id, ...changed fields} (mutates a real
-            box — the id is guaranteed to be one that was actually
-            sent, never invented), or {kind:"habit", field, op,
-            value, ...}.
-         4. Client splits them, builds a plain-language summary, and
-            shows the confirm card — nothing written yet.
-         5. On confirm: new events and edits both go through the SAME
-            batched /api/events write EventStore already uses (edits
-            just mutate a live record first); habit items are merged
-            (as deltas) against the in-memory habitsData and sent
-            through the existing saveHabitData() per date. Every write
-            also live-refreshes whatever's on screen.
-    ============================================================ */
     const TalkAI = (() => {
       const btn = document.getElementById('talkAiBtn');
       const statusEl = document.getElementById('talkAiStatus');
@@ -11088,17 +10399,6 @@
         return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
       }
 
-      /* ── Live transcript popup — visible for the whole listening
-         session. interimResults + continuous keep the recognizer
-         running (and the transcript growing) across natural pauses in
-         speech. Some browsers still auto-end a "continuous" session
-         after a stretch of silence (or on a transient no-speech/
-         network error) even though the person never asked to stop —
-         when that happens we just start a fresh recognition instance
-         behind the scenes and keep appending to the same
-         finalTranscript, so from the person's side it never actually
-         stops until they tap the widget, Done, or Cancel. Nothing is
-         sent to /api/talk-ai until one of those three happens. ── */
 
       function openLiveTranscript() {
         if (!liveEl) return;
@@ -11247,12 +10547,6 @@
         }
       }
 
-      /* ── Existing-event context, sent up so the model can match
-         "I just finished X" / "lock that" / "turn on the alert for X"
-         against a real event id instead of only ever creating new
-         boxes. Windowed to ±EXISTING_EVENTS_WINDOW_DAYS around now so
-         the payload stays small and relevant rather than sending the
-         person's entire event history every time they tap the mic. ── */
 
       const EXISTING_EVENTS_WINDOW_DAYS = 14;
 
@@ -11288,7 +10582,6 @@
         });
       }
 
-      /* ── Confirmation card — "the widget wants to…" ── */
 
       const COLOR_NAMES = {
         '#3b82f6': 'blue', '#e6362a': 'red', '#f59e0b': 'orange', '#10b981': 'green',
@@ -11398,7 +10691,6 @@
         }
       }
 
-      /* ── Saving: events → /api/events (unchanged endpoint) ── */
 
       // Groups by dateKey (the shape /api/events already expects),
       // POSTs once, and also live-injects into EventStore for
@@ -11483,12 +10775,6 @@
         }
       }
 
-      /* ── Saving: edits to an existing event → same /api/events
-         endpoint, but mutating a record already tracked by EventStore
-         instead of creating a new one. dateKey on each edit is the
-         server-verified one (see talk-ai.js's idToDateKey), so the
-         right day's list is mutated even if the transcript never
-         named a date at all ("lock that"). ── */
 
       async function saveEventEdits(edits) {
         await EventStore.whenReady();
@@ -11545,12 +10831,6 @@
         }
       }
 
-      /* ── Saving: deletes of an existing event → same /api/events
-         endpoint, splicing the record out of EventStore's own live
-         array (rather than a separate local list) so the date is
-         correctly cached the instant this resolves — same reasoning
-         as saveEvents/saveEventEdits above. dateKey on each delete is
-         the server-verified one (see talk-ai.js's idToDateKey). ── */
 
       async function saveEventDeletes(deletes) {
         await EventStore.whenReady();
@@ -11595,8 +10875,6 @@
         }
       }
 
-      /* ── Saving: habit ops → merged into habitsData, then the
-         existing /api/habits upsert (saveHabitData, unchanged) ── */
 
       async function saveHabitOps(habitOps) {
         const byDate = {};
@@ -11627,9 +10905,6 @@
         if (typeof renderCalendar === 'function') renderCalendar();
       }
 
-      /* ── Text-input fallback — for browsers with no
-         SpeechRecognition (notably iOS Safari). Same downstream path
-         as voice: handleTranscript() → confirm card → save. ── */
 
       function openTextFallback() {
         closeConfirm();
@@ -11674,16 +10949,6 @@
     })();
     TalkAI.init();
 
-    /* ============================================================
-       WEEK VIEW (new, fully additive feature — see the CSS block
-       above for the full rationale). Reads EventStore and writes
-       SelectedDayState the exact same way clicking a day cell in the
-       mini calendar already does (see fillDayCell's click handler),
-       and — only when a day is clicked here — calls the one new
-       DayViewScroll.triggerForward() export added above to kick off
-       the real lock-in animation. It never touches DayTimeGrid or
-       any of DayViewScroll/DayViewState's actual transition logic.
-    ============================================================ */
     const WeekView = (() => {
       const cfg = {
         hourHeight: 60,   // px per hour in the scrollable grid
@@ -12267,22 +11532,6 @@
         applyGutterPin();
       }
 
-      /* ----------------------------------------------------------
-         Hold-to-schedule (desktop only), like Google Calendar's week
-         view: press and hold anywhere on a day column's hour grid to
-         drop a new timed event right there, on THAT day, without
-         first having to lock into it — same gesture as the single-day
-         grid (DayTimeGrid's own hold-to-create above), just aimed at
-         whichever column is under the pointer instead of only the
-         one currently-locked day. Phones don't get this (see the
-         isPhoneVP() guard at the call site) since a press-and-hold is
-         easy to trigger by accident while scrolling/swiping there.
-         Completing the hold creates the record immediately, then
-         hands off to the existing lock-in flow so the new event opens
-         straight into its full editor (which only exists in the
-         single-day grid) instead of trying to cram that editor into
-         a ~100px-wide week column.
-      ---------------------------------------------------------- */
       const weekHoldCfg = {
         HOLD_MS:        420,
         MOVE_CANCEL_PX: 10,
@@ -12586,20 +11835,6 @@
         return boxEl;
       }
 
-      /* ----------------------------------------------------------
-         Right-click "Paste" for the week grid — counterpart to
-         DayTimeGrid's own right-click paste (see BoxClipboard and
-         DayTimeGrid.handleGridContextMenu above). Reuses the exact
-         same BoxClipboard singleton (Ctrl+C on an open box, or the
-         repeat-modal's "Copy" button, both work identically here
-         since EventEditor is shared across views) and the same
-         .day-time-grid-paste-menu CSS so the popup looks and
-         behaves identically — the only real difference is that a
-         week column's date isn't "whatever's currently selected"
-         the way DayTimeGrid.pasteBoxAt assumes, so this figures out
-         which specific day column was right-clicked and pastes onto
-         that date instead.
-      ---------------------------------------------------------- */
       let weekPasteMenuEl = null;
       let weekPasteMenuMinutes = 0;
       let weekPasteMenuDateKey = '';
@@ -13079,13 +12314,6 @@
     })();
     WeekView.init();
 
-    /* ============================================================
-       HOUR GAP CONTROL — desktop-only topbar slider that drags
-       cfg.hourHeight (the px-per-hour spacing between the hour
-       counters/lines) live in both DayTimeGrid and WeekView. Purely
-       a personal display-density preference, persisted in
-       localStorage — never touches EventStore or any event data.
-    ============================================================ */
     const HourGapControl = (() => {
       const STORAGE_KEY = 'nb_hourGapPx';
       const slider = document.getElementById('globalHourGapSlider');
@@ -13116,13 +12344,6 @@
     })();
     HourGapControl.init();
 
-    /* ============================================================
-       DAY WIDTH CONTROL — desktop-only topbar slider that drags
-       cfg.colWidth (the px width of each day column in WeekView)
-       live. Horizontal counterpart to HourGapControl above. Purely
-       a personal display-density preference, persisted in
-       localStorage — never touches EventStore or any event data.
-    ============================================================ */
     const DayWidthControl = (() => {
       const STORAGE_KEY = 'nb_dayColWidthPx';
       const slider = document.getElementById('globalDayWidthSlider');
@@ -13152,15 +12373,6 @@
     })();
     DayWidthControl.init();
 
-    /* ============================================================
-       TIMEZONE PICKER — a plain, purely informational "which
-       timezone am I looking at" label + popup, opened from the
-       desktop-only button in the global top bar. It doesn't shift
-       any event times or grid positions (same as the old
-       auto-detected corner label in the week view that it replaces)
-       — selecting an entry just changes what the top-bar button
-       displays, persisted in localStorage so it survives a reload.
-    ============================================================ */
     const TimezoneModal = (() => {
       const STORAGE_KEY = 'habitcal_tz_offset_min';
       // Every half-hour offset from UTC-12:00 to UTC+14:00 — covers
@@ -13280,24 +12492,6 @@
     })();
     TimezoneModal.updateButtonLabel();
 
-    /* ============================================================
-       GLOBAL TOP BAR — Day / Week / Month tabs + Select Day.
-       The persistent bar itself (#globalTopBar) is plain HTML/CSS
-       fixed to the top of the page (see its own CSS block near the
-       top of <style>) — nothing needs to build or position it here.
-       This module only wires up its three buttons, on top of the
-       existing DayViewState/DayViewScroll/WeekView machinery instead
-       of duplicating any of it:
-         Day   -> DayViewScroll.triggerForward()  (same as a real
-                  scroll/swipe lock-in gesture would do)
-         Week  -> WeekView.open()                 (same as the old
-                  month-nav "Week" button / backToWeekBtn)
-         Month -> DayViewScroll.triggerBackward() + WeekView.close()
-       "Select Day" opens the same DayPickerModal the old per-day-view
-       button used, but its date cells now route through this
-       module's goToDay() so picking a date works correctly from
-       ANY view, not just from inside an already-open day view.
-    ============================================================ */
     const GlobalTopBar = (() => {
       const dayTab       = document.getElementById('globalTabDay');
       const weekTab      = document.getElementById('globalTabWeek');
@@ -13442,16 +12636,6 @@
     })();
     GlobalTopBar.init();
 
-    /* ============================================================
-       ZOOM BANNER — detects an accidental pinch/double-tap browser
-       zoom (e.g. a mistimed double-tap that lands as a zoom gesture
-       instead of two single taps) and offers a one-tap way back to
-       normal scale, instead of leaving the person to pinch back out
-       manually. Uses the Visual Viewport API (window.visualViewport),
-       which reports the actual on-screen zoom scale independent of
-       layout — not supported in every browser, so this whole feature
-       just doesn't activate where it's missing (no error, no banner).
-    ============================================================ */
     const ZoomBanner = (() => {
       const bannerEl = document.getElementById('zoomBanner');
       const btnEl    = document.getElementById('zoomBannerBtn');
@@ -13499,10 +12683,6 @@
     ZoomBanner.init();
 
   
-    /* ============================================================
-       MONEY MODE — double-tap "Month" to toggle. Data lives in D1
-       via /api/money (see functions/api/money.js).
-    ============================================================ */
     const MoneyMode = (() => {
       let on = false;
       const $ = (id) => document.getElementById(id);
@@ -14081,11 +13261,6 @@
     })();
   </script>
   <script>
-    /* ============================================================
-       DAY TIMER — double-tap "Day" to open. Counts down to a chosen
-       time of day. History + the running timer live in localStorage
-       (browser cache), NOT in D1.
-    ============================================================ */
     (() => {
       const HKEY = 'habitTimerHistory', AKEY = 'habitTimerActive';
       const dayTab = document.getElementById('globalTabDay');
@@ -14119,7 +13294,6 @@
         return 'in ' + (h ? h + 'h ' : '') + (m || !h ? m + 'm' : '');
       }
 
-      /* ── wake lock + finish sound ── */
       async function lockScreen() { try { if (navigator.wakeLock && !wake) { wake = await navigator.wakeLock.request('screen'); wake.addEventListener('release', () => { wake = null; }); } } catch (e) {} }
       function unlockScreen() { try { if (wake) wake.release(); } catch (e) {} wake = null; }
       function beep() {
@@ -14135,7 +13309,6 @@
         } catch (e) {}
       }
 
-      /* ── timer state ── */
       function addHistory(hhmm) {
         const list = load(HKEY, []).filter((x) => x.time !== hhmm);
         list.unshift({ time: hhmm, used: Date.now() });
@@ -14158,7 +13331,6 @@
         render(true);
       }
 
-      /* ── drawing ── */
       const R = 110, C = 2 * Math.PI * R;
       function render(force) {
         if (!ov) return;
@@ -14215,7 +13387,6 @@
         $('.tmr-hist').classList.toggle('on', open);
       }
 
-      /* ── fullscreen (smooth morph: fade UI -> ring flies to centre and grows) ── */
       const ringRect = () => $('.tmr-ring-wrap').getBoundingClientRect();
       function flip(el, from, to) {
         if (REDUCED || !el.animate) return;
@@ -14263,7 +13434,6 @@
         busy = false;
       }
 
-      /* ── open / close ── */
       function close() {
         if (!ov || busy) return;
         if (fullOn) { leaveFull(); return; }
