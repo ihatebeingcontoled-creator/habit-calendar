@@ -2606,6 +2606,7 @@
     body.money-mode .day-cell.money-pos  { --rgb: 34,197,94;  border-color: rgba(34,197,94,.75);  background-color: #fafafa; background-image: linear-gradient(rgba(var(--rgb), var(--tint,.1)), rgba(var(--rgb), var(--tint,.1))); box-shadow: 0 6px 18px rgba(var(--rgb), .20); }
     body.money-mode .day-cell.money-neg  { --rgb: 239,68,68;  border-color: rgba(248,113,113,.8); background-color: #fafafa; background-image: linear-gradient(rgba(var(--rgb), var(--tint,.1)), rgba(var(--rgb), var(--tint,.1))); box-shadow: 0 6px 18px rgba(var(--rgb), .20); }
     body.money-mode .day-cell.money-zero { border-color: #eceaa8; box-shadow: none; background: #fafafa; background-image: none; }
+    body.money-mode .day-cell.money-small { border-color: #dcdce0; box-shadow: none; background: #fafafa; background-image: none; }
     body.money-mode .day-cell.money-future, body.money-mode .day-cell.money-loading { border-color: #e4e4e7; box-shadow: none; background: #fafafa; background-image: none; }
     .money-enter { animation: money-cell-in .6s var(--m-ease) backwards; animation-delay: calc(var(--i, 0) * 14ms); }
     @keyframes money-cell-in { from { opacity: 0; transform: translateY(10px) scale(.9); } to { opacity: 1; transform: none; } }
@@ -2666,7 +2667,7 @@
     body.night-mode .money-panel input:focus, body.night-mode .money-panel select:focus { background: #1c1c1e; }
     body.night-mode .money-btn { background: #f5f5f5; color: #111; } body.night-mode .money-btn.alt { background: #2c2c2e; color: #f5f5f5; }
     body.night-mode .mstat { background: #232325; border-color: #2c2c2e; }
-    body.night-mode.money-mode .day-cell.money-pos, body.night-mode.money-mode .day-cell.money-neg, body.night-mode.money-mode .day-cell.money-zero, body.night-mode.money-mode .day-cell.money-future, body.night-mode.money-mode .day-cell.money-loading { background-color: #1c1c1c; }
+    body.night-mode.money-mode .day-cell.money-pos, body.night-mode.money-mode .day-cell.money-neg, body.night-mode.money-mode .day-cell.money-zero, body.night-mode.money-mode .day-cell.money-small, body.night-mode.money-mode .day-cell.money-future, body.night-mode.money-mode .day-cell.money-loading { background-color: #1c1c1c; }
     body.night-mode .money-skel { background: linear-gradient(90deg, #2a2a2d 25%, #353539 50%, #2a2a2d 75%); background-size: 200% 100%; }
     body.night-mode .mp-sheet { background: rgba(28,28,30,.94); color: #f5f5f5; box-shadow: 0 -12px 60px rgba(0,0,0,.6); }
     body.night-mode .mp-grab { background: rgba(255,255,255,.22); }
@@ -13255,6 +13256,7 @@
       const monthTab = $('globalTabMonth');
       const REDUCED = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
       const CACHE_KEY = 'moneyCache.v2';
+      const BIG_DAY = 50; // days with |net| above this (€) get the colored tint + glow
       const SRC = { 'apple pay': 'Apple Pay', manual: 'Manual', cash: 'Cash', import: 'Imported', screenshot: 'Scanned' };
 
       // "2026-10" -> entries[]  (kept in memory + localStorage so the numbers show instantly)
@@ -13350,7 +13352,7 @@
       // ---- painting: the grid always exists, numbers are layered on top ----
       function decorate(cell, d) {
         const mk = viewKey(), data = months[mk];
-        cell.classList.remove('money-pos', 'money-neg', 'money-zero', 'money-future', 'money-loading');
+        cell.classList.remove('money-pos', 'money-neg', 'money-zero', 'money-small', 'money-future', 'money-loading');
         cell.style.removeProperty('--tint');
         cell.querySelectorAll('.money-amt, .money-skel').forEach((n) => n.remove());
         if (!cell._ms) { cell._ms = true; cell.style.setProperty('--i', d); cell.classList.add('money-enter'); }
@@ -13361,8 +13363,12 @@
         }
         const { map, max } = dayOf(mk), list = map[k] || [], net = netOf(list);
         if (!list.length) { cell.classList.add(k > todayKey() ? 'money-future' : 'money-zero'); cell._mk = mk; cell._net = 0; return; }
-        cell.classList.add(net > 0.004 ? 'money-pos' : net < -0.004 ? 'money-neg' : 'money-zero');
-        cell.style.setProperty('--tint', (0.07 + 0.2 * Math.min(1, Math.abs(net) / (max || 1))).toFixed(3));
+        if (Math.abs(net) > BIG_DAY) {
+          cell.classList.add(net > 0 ? 'money-pos' : 'money-neg');
+          cell.style.setProperty('--tint', (0.12 + 0.2 * Math.min(1, (Math.abs(net) - BIG_DAY) / Math.max(1, (max || BIG_DAY) - BIG_DAY))).toFixed(3));
+        } else {
+          cell.classList.add('money-small'); // has entries, but under the threshold: number only, no tint
+        }
         const a = document.createElement('div');
         a.className = 'money-amt ' + (net < -0.004 ? 'neg' : 'pos');
         a._v = cell._mk === mk && cell._net != null ? cell._net : 0;
