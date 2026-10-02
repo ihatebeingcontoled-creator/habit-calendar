@@ -1,3 +1,5 @@
+/* run non-essential startup work after first paint */
+const onIdle = (fn, ms) => ('requestIdleCallback' in window) ? requestIdleCallback(fn, { timeout: ms }) : setTimeout(fn, Math.min(ms, 1500));
 const PIP_MAX = 3;
     const DEFAULT_TARGET = 1; // reproduces the old ">0 counts as done" behavior
 
@@ -5510,10 +5512,11 @@ const PIP_MAX = 3;
       }
 
       async function init() {
-        if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+        if (!('serviceWorker' in navigator)) return;
         try {
+          // always register the SW (app-shell cache); push is optional on top of it
           const reg = await navigator.serviceWorker.register('/sw.js');
-          if (Notification.permission === 'granted') await ensureSubscribed(reg);
+          if ('PushManager' in window && typeof Notification !== 'undefined' && Notification.permission === 'granted') await ensureSubscribed(reg);
         } catch (err) { /* not supported in this browser, ignore */ }
       }
 
@@ -5557,7 +5560,7 @@ const PIP_MAX = 3;
 
       return { init, ensureSubscribed };
     })();
-    PushNotifications.init();
+    onIdle(() => PushNotifications.init(), 3000);
 
     const NotificationScheduler = (() => {
       const timers = new Map(); // record.id -> setTimeout id
@@ -7011,7 +7014,7 @@ const PIP_MAX = 3;
     })();
     SettingsButtonFade.init();
 
-    (function restoreScheduledNotifications() {
+    onIdle(function restoreScheduledNotifications() {
       if (!NotificationScheduler.supported() || !NotificationScheduler.permissionGranted()) return;
       try {
         const all = JSON.parse(localStorage.getItem('habitcal_events_cache') || '{}');
@@ -7021,7 +7024,7 @@ const PIP_MAX = 3;
           });
         });
       } catch { /* ignore malformed/missing storage */ }
-    })();
+    }, 2500);
 
     (async function autoLockYesterday() {
       await EventStore.whenReady();
