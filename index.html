@@ -1770,6 +1770,37 @@
     }
     .section-block { margin-bottom: 22px; }
 
+    .w5-panel { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .35s ease; }
+    .w5-panel.open { grid-template-rows: 1fr; }
+    .w5-inner { overflow: hidden; min-height: 0; }
+    .w5-box { margin-top: 10px; padding: 14px; border: 1.5px solid #ececec; border-radius: 14px; background: #fafafa; }
+    .w5-hero { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+    .w5-pct { font-size: 34px; font-weight: 800; letter-spacing: -1px; line-height: 1; }
+    .w5-pct.ok { color: #16a34a; } .w5-pct.bad { color: #dc2626; }
+    .w5-goal { font-size: 12px; font-weight: 700; color: #888; }
+    .w5-bar { position: relative; height: 10px; border-radius: 6px; background: #e8e8ec; margin: 10px 0 4px; overflow: visible; }
+    .w5-fill { height: 100%; border-radius: 6px; background: #22c55e; }
+    .w5-fill.bad { background: #ef4444; }
+    .w5-mark { position: absolute; top: -4px; width: 2px; height: 18px; background: #111; border-radius: 1px; }
+    .w5-status { font-size: 12.5px; font-weight: 700; margin: 8px 0 12px; line-height: 1.4; }
+    .w5-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .w5-card { background: #fff; border: 1.5px solid #ececec; border-radius: 11px; padding: 9px 10px; }
+    .w5-card.wide { grid-column: 1 / -1; }
+    .w5-lbl { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; color: #aaa; }
+    .w5-val { font-size: 20px; font-weight: 800; letter-spacing: -.4px; margin-top: 2px; }
+    .w5-val.w5-over { color: #dc2626; }
+    .w5-sub { font-size: 11px; font-weight: 600; color: #888; margin-top: 2px; line-height: 1.3; }
+    .w5-h { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .6px; color: #aaa; margin: 14px 0 6px; }
+    .w5-table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+    .w5-table th { text-align: right; font-size: 10px; text-transform: uppercase; letter-spacing: .4px; color: #aaa; font-weight: 800; padding: 3px 4px; }
+    .w5-table th:first-child, .w5-table td:first-child { text-align: left; }
+    .w5-table td { text-align: right; padding: 5px 4px; border-top: 1px solid #eee; font-weight: 600; }
+    .w5-table tr.cur td { background: #fff7e6; font-weight: 800; }
+    .w5-table td.over { color: #dc2626; font-weight: 800; }
+    body.night-mode .w5-box { background: #1c1c1c; border-color: #333; }
+    body.night-mode .w5-card { background: #232325; border-color: #333; }
+    body.night-mode .w5-bar { background: #333; } body.night-mode .w5-mark { background: #f5f5f5; }
+    body.night-mode .w5-table td { border-color: #333; } body.night-mode .w5-table tr.cur td { background: #3a3220; }
     .wake-5am-btn {
       display: block; width: 100%; margin-bottom: 18px; padding: 10px 14px; background: #fafafa;
       border: 2px solid #e2e2e2; border-radius: 11px; font-size: 13px; font-weight: 700; color: #555;
@@ -3216,6 +3247,9 @@
       </div>
 
       <button type="button" class="targets-btn" id="editTargetsBtn" style="margin-top:8px; padding:9px 14px; font-size:12px;">⚙ Edit Daily Targets</button>
+
+      <button type="button" class="targets-btn" id="wake5Btn" style="margin-top:8px; padding:9px 14px; font-size:12px;" aria-expanded="false">⏰ 5am - 2026</button>
+      <div class="w5-panel" id="wake5Panel"><div class="w5-inner" id="wake5Body"></div></div>
 
       <div class="fs-push-row">
         <button type="button" class="targets-btn" id="testPushBtn" style="margin-top:0; padding:9px 14px; font-size:12px; width:auto; flex:1;">🔔 Send Test Notification</button>
@@ -4901,6 +4935,107 @@
 
     document.getElementById('prevMonth').addEventListener('click', () => navigateMonth(-1));
     document.getElementById('nextMonth').addEventListener('click', () => navigateMonth(1));
+
+    /* ── 5am - 2026: win % and how many losses the 75% goal still allows ── */
+    (function wireWake5() {
+      const YEAR = 2026, GOAL = 0.75;
+      const btn = document.getElementById('wake5Btn'), panel = document.getElementById('wake5Panel'), body = document.getElementById('wake5Body');
+      if (!btn || !panel || !body) return;
+      const MN = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      const key = (y, m, d) => y + '-' + pad(m + 1) + '-' + pad(d);
+      const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+      const pct = (n) => (Math.round(n * 10) / 10) + '%';
+
+      function compute() {
+        const today = todayStr();
+        const months = [];
+        let wins = 0, losses = 0, yearDays = 0;
+        for (let m = 0; m < 12; m++) {
+          const dim = new Date(YEAR, m + 1, 0).getDate();
+          let w = 0, l = 0, pending = 0;
+          for (let d = 1; d <= dim; d++) {
+            const k = key(YEAR, m, d), won = !!(habitsData[k] && habitsData[k].wokeAt5);
+            if (k > today || (k === today && !won)) pending++;   // future days, and today until it is marked
+            else if (won) w++; else l++;
+          }
+          months.push({ m, dim, w, l, pending });
+          wins += w; losses += l; yearDays += dim;
+        }
+        const counted = wins + losses;
+        const required = Math.ceil(GOAL * yearDays - 1e-9);
+        const maxLosses = yearDays - required;
+        return { months, wins, losses, counted, yearDays, required, maxLosses,
+                 left: maxLosses - losses, daysLeft: yearDays - counted, winsNeeded: Math.max(0, required - wins),
+                 winPct: counted ? wins / counted * 100 : 0 };
+      }
+
+      function card(label, value, sub, wide, cls) {
+        const c = el('div', 'w5-card' + (wide ? ' wide' : ''));
+        c.append(el('div', 'w5-lbl', label), el('div', 'w5-val' + (cls ? ' ' + cls : ''), value));
+        if (sub) c.appendChild(el('div', 'w5-sub', sub));
+        return c;
+      }
+
+      function render() {
+        const r = compute(), nowM = new Date().getFullYear() === YEAR ? new Date().getMonth() : -1;
+        const ok = r.winPct >= GOAL * 100;
+        body.innerHTML = '';
+        const box = el('div', 'w5-box');
+
+        const hero = el('div', 'w5-hero');
+        hero.append(el('div', 'w5-pct ' + (ok ? 'ok' : 'bad'), pct(r.winPct)), el('div', 'w5-goal', 'win rate \u00B7 goal ' + (GOAL * 100) + '% of ' + r.yearDays + ' days'));
+        const bar = el('div', 'w5-bar'), fill = el('div', 'w5-fill' + (ok ? '' : ' bad'));
+        fill.style.width = Math.min(100, r.winPct) + '%';
+        const mark = el('div', 'w5-mark'); mark.style.left = (GOAL * 100) + '%';
+        bar.append(fill, mark);
+
+        let status, color;
+        if (r.left < 0 || r.winsNeeded > r.daysLeft) { status = 'Goal out of reach: ' + r.winsNeeded + ' more wins needed but only ' + r.daysLeft + ' days left.'; color = '#dc2626'; }
+        else if (r.left === 0) { status = 'No losses left to spare \u2014 every remaining day must be a win.'; color = '#d97706'; }
+        else { status = 'You can still afford ' + r.left + ' loss' + (r.left === 1 ? '' : 'es') + ' this year and hit ' + (GOAL * 100) + '%.'; color = '#16a34a'; }
+        const st = el('div', 'w5-status', status); st.style.color = color;
+
+        const grid = el('div', 'w5-grid');
+        grid.append(card('Wins', String(r.wins), 'woke at 5am'), card('Losses', String(r.losses), 'missed days'), card('Days left', String(r.daysLeft), 'incl. today if unmarked'));
+        grid.append(card('Affordable losses \u00B7 whole year', r.left < 0 ? '\u2212' + Math.abs(r.left) : String(r.left),
+          'budget ' + r.maxLosses + ' (' + r.yearDays + ' \u2212 ' + r.required + ' wins needed) \u00B7 used ' + r.losses, true, r.left < 0 ? 'w5-over' : ''));
+        grid.append(card('Wins still needed', String(r.winsNeeded), 'of ' + r.required + ' wins for the year'));
+        grid.append(card('Wins so far', pct(r.wins / r.yearDays * 100), 'of the whole year'));
+        grid.append(card('Pace needed', r.daysLeft ? pct(r.winsNeeded / r.daysLeft * 100) : '\u2014', 'wins on remaining days'));
+
+        // this month / next month
+        const mk = (idx, title) => {
+          if (idx < 0 || idx > 11) return null;
+          const mo = r.months[idx], budget = Math.floor(mo.dim * (1 - GOAL)), spare = budget - mo.l;
+          const maxThis = Math.max(0, Math.min(r.left, mo.pending));
+          return card(title + ' \u00B7 ' + MN[idx], spare < 0 ? '\u2212' + Math.abs(spare) : String(spare),
+            'monthly 75% budget ' + budget + ' \u00B7 used ' + mo.l + '. Up to ' + maxThis + ' if every other day is a win.', true, spare < 0 ? 'w5-over' : '');
+        };
+        const cm = mk(nowM, 'This month'), nm = mk(nowM + 1, 'Next month');
+        if (cm) grid.appendChild(cm); if (nm) grid.appendChild(nm);
+
+        const tbl = el('table', 'w5-table');
+        const hr = el('tr'); ['Month', 'Wins', 'Losses', 'Budget', 'Left'].forEach((h) => hr.appendChild(el('th', null, h))); tbl.appendChild(hr);
+        r.months.forEach((mo) => {
+          const budget = Math.floor(mo.dim * (1 - GOAL)), spare = budget - mo.l, tr = el('tr', mo.m === nowM ? 'cur' : '');
+          tr.append(el('td', null, MN[mo.m].slice(0, 3)), el('td', null, String(mo.w)), el('td', null, String(mo.l)), el('td', null, String(budget)), el('td', spare < 0 ? 'over' : '', String(spare)));
+          tbl.appendChild(tr);
+        });
+        const tot = el('tr'); tot.style.fontWeight = '800';
+        tot.append(el('td', null, 'Year'), el('td', null, String(r.wins)), el('td', null, String(r.losses)), el('td', null, String(r.maxLosses)), el('td', r.left < 0 ? 'over' : '', String(r.left)));
+        tbl.appendChild(tot);
+
+        box.append(hero, bar, st, grid, el('div', 'w5-h', 'Every month'), tbl);
+        body.appendChild(box);
+      }
+
+      btn.addEventListener('click', () => {
+        const open = !panel.classList.contains('open');
+        if (open) render();
+        panel.classList.toggle('open', open);
+        btn.setAttribute('aria-expanded', String(open));
+      });
+    })();
 
     /* ── Phone swipe: drag the month left/right with a finger to change month ──
        The grid follows the finger, then slides out and the next/previous month
