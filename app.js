@@ -9693,13 +9693,17 @@ const PIP_MAX = 3;
         head.appendChild(h('div', 'mp-grab'));
         head.appendChild(h('div', 'mp-date', when.toLocaleDateString('en', { weekday: 'long', day: 'numeric', month: 'long' })));
         const tot = h('div', 'mp-total', fmt(0)); head.appendChild(tot);
+        // Edit toggle: pencil + x on the cards only show while this is on
+        const editBtn = h('button', 'mp-editbtn', 'Edit'); editBtn.type = 'button';
+        editBtn.onclick = () => { const on = sheet.classList.toggle('editing'); editBtn.textContent = on ? 'Done' : 'Edit'; };
+        head.appendChild(editBtn);
         const sub = h('div', 'mp-sub'); head.appendChild(sub);
         const body = h('div', 'mp-body');
 
         function refreshHead(animate) {
           const net = netOf(list), spent = list.filter((e) => e.amount < 0).reduce((s, e) => s - e.amount, 0), got = list.filter((e) => e.amount > 0).reduce((s, e) => s + e.amount, 0);
           tot.style.color = net < -0.004 ? '#dc2626' : net > 0.004 ? '#16a34a' : '';
-          if (animate) countTo(tot, net, fmt, 800); else { tot._v = net; tot.textContent = fmt(net); }
+          if (animate) countTo(tot, net, fmt, 600); else { tot._v = net; tot.textContent = fmt(net); }
           sub.innerHTML = '';
           const bit = (label, val) => { const s = h('span'); s.append(label + ' '); s.appendChild(h('b', null, val)); sub.appendChild(s); };
           bit(list.length === 1 ? 'Entry' : 'Entries', String(list.length));
@@ -9823,13 +9827,15 @@ const PIP_MAX = 3;
         refreshHead(false);
         document.body.appendChild(ov);
         document.body.style.overflow = 'hidden';
-        raf2(() => { ov.classList.add('open'); setTimeout(() => refreshHead(true), 120); });
+        raf2(() => { ov.classList.add('open'); setTimeout(() => refreshHead(true), 260); });
 
-        function close() {
+        function close(fromDrag) {
           if (!sheetOpen) return; sheetOpen = false;
+          // dragged shut: keep sliding from where the finger left it (no jump back to the top first)
+          if (fromDrag === true) sheet.style.transform = 'translate3d(0,105%,0)';
           ov.classList.remove('open'); document.removeEventListener('keydown', onKey);
           document.body.style.overflow = '';
-          setTimeout(() => ov.remove(), 520);
+          setTimeout(() => ov.remove(), 480);
         }
         const onKey = (ev) => { if (ev.key === 'Escape') close(); };
         document.addEventListener('keydown', onKey);
@@ -9838,7 +9844,7 @@ const PIP_MAX = 3;
         // drag the grey handle (phones):
         //   up   -> the sheet grows to ~82% of the screen (empty space stays white). If EVERY card fits open
         //           without scrolling they all open; if not, they stay collapsed and open only when tapped.
-        //   down -> from the tall sheet back to normal; from the normal sheet it closes.
+        //   down -> a short pull down closes the sheet completely, from the tall or the normal state.
         const autoOpen = new Set();
         let full = false, settle = 0;
         const liveCards = () => cards.filter((c) => c.card.isConnected && !c.card.classList.contains('out'));
@@ -9869,28 +9875,62 @@ const PIP_MAX = 3;
           sheet.style.height = natural + 'px';
           settleHeight();
         }
-        let sy = null, rawD = 0, startH = 0;
-        head.addEventListener('pointerdown', (ev) => { if (window.innerWidth >= 640) return; sy = ev.clientY; rawD = 0; startH = sheet.offsetHeight; head.setPointerCapture(ev.pointerId); sheet.style.transition = 'none'; });
-        head.addEventListener('pointermove', (ev) => {
-          if (sy == null) return;
-          rawD = ev.clientY - sy;
-          if (full) return; // going back down is decided when you let go
-          if (rawD < 0) {
-            sheet.style.transform = '';
-            const t = fullH(); if (startH < t) sheet.style.height = Math.min(t, startH - rawD) + 'px';
-          } else {
-            sheet.style.height = startH + 'px';
-            sheet.style.transform = 'translateY(' + rawD + 'px)';
+        // Gesture handling (touch events on the whole overlay, so it works from anywhere on screen):
+        //   pull DOWN anywhere (sheet body only when it is scrolled to the top) -> sheet follows the finger;
+        //        let go past a short distance (or flick) and it closes completely, also from the tall state.
+        //   drag the handle UP -> sheet grows. All per-frame work is batched into one requestAnimationFrame.
+        const isMobile = () => window.innerWidth < 640;
+        let dg = null;
+        function dgApply() {
+          if (!dg) return; dg.raf = 0;
+          if (dg.mode === 'down') sheet.style.transform = 'translate3d(0,' + Math.max(0, dg.dy) + 'px,0)';
+          else if (dg.mode === 'up') { const t = fullH(); if (dg.startH < t) sheet.style.height = Math.max(dg.startH, Math.min(t, dg.startH - dg.dy)) + 'px'; }
+        }
+        function dgStart(y, target) {
+          if (!sheetOpen || dg || !isMobile()) return;
+          const now = performance.now();
+          dg = { y0: y, mode: null, startH: sheet.offsetHeight, inBody: body.contains(target), inHead: head.contains(target), dy: 0, last: y, lastT: now, v: 0, raf: 0 };
+        }
+        function dgMove(y, ev) {
+          if (!dg) return;
+          const now = performance.now();
+          if (now > dg.lastT) dg.v = 0.7 * ((y - dg.last) / (now - dg.lastT)) + 0.3 * dg.v;
+          dg.last = y; dg.lastT = now;
+          if (dg.mode === null) {
+            const d = y - dg.y0; if (Math.abs(d) < 3) return;
+            if (d > 0 && !(dg.inBody && body.scrollTop > 0)) dg.mode = 'down';
+            else if (d < 0 && dg.inHead && !full) dg.mode = 'up';
+            else dg.mode = 'scroll';
+            if (dg.mode !== 'scroll') { dg.y0 = y; clearTimeout(settle); sheet.style.transition = 'none'; dg.startH = sheet.offsetHeight; }
           }
-        });
-        const end = () => {
-          if (sy == null) return; sy = null; sheet.style.transition = ''; sheet.style.transform = '';
-          if (full) { if (rawD > 60) goPeek(); return; }
-          if (rawD < -40) goFull();
-          else if (rawD > 110) close();
-          else { sheet.style.height = startH + 'px'; settleHeight(); }
-        };
-        head.addEventListener('pointerup', end); head.addEventListener('pointercancel', end);
+          if (dg.mode === 'scroll') return;
+          if (ev.cancelable) ev.preventDefault();
+          dg.dy = y - dg.y0;
+          if (!dg.raf) dg.raf = requestAnimationFrame(dgApply);
+        }
+        function dgEnd(cancelled) {
+          if (!dg) return;
+          const g = dg; dg = null; cancelAnimationFrame(g.raf);
+          if (g.mode !== 'down' && g.mode !== 'up') return;
+          sheet.style.transition = '';
+          if (g.mode === 'down') {
+            const dy = Math.max(0, g.dy);
+            if (!cancelled && (dy > (full ? 45 : 110) || (g.v > 0.55 && dy > 20))) close(true);
+            else sheet.style.transform = ''; // springs back
+          } else {
+            if (!cancelled && (-g.dy > 40 || g.v < -0.5)) goFull();
+            else { sheet.style.height = g.startH + 'px'; if (!full) settleHeight(); }
+          }
+        }
+        ov.addEventListener('touchstart', (ev) => { if (ev.touches.length === 1) dgStart(ev.touches[0].clientY, ev.target); else dgEnd(true); }, { passive: true });
+        ov.addEventListener('touchmove', (ev) => { if (ev.touches.length === 1) dgMove(ev.touches[0].clientY, ev); }, { passive: false });
+        ov.addEventListener('touchend', () => dgEnd(false));
+        ov.addEventListener('touchcancel', () => dgEnd(true));
+        // mouse in a narrow desktop window: drag the handle
+        head.addEventListener('pointerdown', (ev) => { if (ev.pointerType !== 'mouse') return; dgStart(ev.clientY, ev.target); if (dg) head.setPointerCapture(ev.pointerId); });
+        head.addEventListener('pointermove', (ev) => { if (ev.pointerType === 'mouse' && dg) dgMove(ev.clientY, ev); });
+        head.addEventListener('pointerup', (ev) => { if (ev.pointerType === 'mouse') dgEnd(false); });
+        head.addEventListener('pointercancel', (ev) => { if (ev.pointerType === 'mouse') dgEnd(true); });
       }
 
       function shrink(file) {
