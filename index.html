@@ -194,6 +194,11 @@
     .weekday { text-align: center; font-size: 11px; font-weight: 700; color: #bbb; text-transform: uppercase; letter-spacing: 0.6px; padding: 4px 0; }
     .days-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 7px; }
 
+    .day-skel { aspect-ratio: 1; min-height: 78px; border-radius: 13px; border: 2px solid #e6e6ea; background: #fafafa; opacity: .55; }
+    body.night-mode .day-skel { background: #1c1c1e; border-color: #2c2c2e; }
+    .days-grid { min-height: calc(5 * 78px + 4 * 7px); }
+    .month-label:empty::before { content: '\00a0'; }
+
     .day-cell {
       aspect-ratio: 1; min-height: 78px; border-radius: 13px; border: 2px solid #3b82f6;
       background: #fafafa; cursor: pointer; display: flex; flex-direction: column;
@@ -2646,6 +2651,24 @@
     .mp-fields dt { color: #8a8a8e; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding-top: 2px; }
     .mp-fields dd { margin: 0; font-weight: 600; word-break: break-word; }
     .mp-fields dd.none { color: #c4c4c8; font-weight: 500; }
+    .mp-card { cursor: pointer; }
+    .mp-top { align-items: center; }
+    .mp-chev { flex: none; width: 16px; text-align: center; color: #b0b0b6; font-size: 12px; transition: transform .3s var(--m-ease); }
+    .mp-card.open .mp-chev { transform: rotate(90deg); }
+    .mp-more { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .35s var(--m-ease); }
+    .mp-card.open .mp-more { grid-template-rows: 1fr; }
+    .mp-more > div { overflow: hidden; min-height: 0; }
+    .mp-ed { border: none; background: #f1f1f4; color: #8a8a8e; width: 26px; height: 26px; border-radius: 13px; font-size: 13px; line-height: 1; cursor: pointer; flex: none; transition: transform .25s var(--m-ease), background .2s, color .2s; }
+    .mp-ed:hover { background: #dbeafe; color: #2563eb; } .mp-ed:active { transform: scale(.88); }
+    .mp-form { display: grid; grid-template-columns: 88px 1fr; gap: 8px 10px; margin: 12px 0 0; padding-top: 12px; border-top: 1px solid #f0f0f3; align-items: center; cursor: default; }
+    .mp-form label { color: #8a8a8e; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+    .mp-form input { width: 100%; box-sizing: border-box; height: 36px; padding: 0 10px; border: 1px solid #e0e0e6; border-radius: 10px; background: #fafafa; font: inherit; font-size: 15px; font-weight: 600; color: inherit; }
+    .mp-form input:focus { outline: none; border-color: #111; background: #fff; }
+    .mp-form .mp-formbtns { grid-column: 1 / -1; display: flex; gap: 8px; margin-top: 4px; }
+    .mp-form .money-btn { flex: 1; justify-content: center; }
+    body.night-mode .mp-ed { background: #333336; }
+    body.night-mode .mp-form { border-color: #333336; }
+    body.night-mode .mp-form input { background: #2c2c2e; border-color: #3a3a3d; color: #f5f5f5; }
     .mp-badge { display: inline-block; font-size: 11.5px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: #f1f1f4; color: #555; }
     .mp-badge.apple { background: #111; color: #fff; }
     .mp-bar { display: flex; gap: 8px; padding: 10px 16px 16px; }
@@ -2933,7 +2956,7 @@
           <div class="weekday">Sat</div>
           <div class="weekday">Sun</div>
         </div>
-        <div class="days-grid" id="daysGrid"></div>
+        <div class="days-grid" id="daysGrid"><div class="day-skel"></div><div class="day-skel"></div><div class="day-skel"></div><div class="day-skel"></div><div class="day-skel"></div><div class="day-skel"></div><div class="day-skel"></div><div class="day-skel"></div><div class="day-skel"></div><div class="day-skel"></div><div class="day-skel"></div><div class="day-skel"></div><div class="day-skel"></div><div class="day-skel"></div><div class="day-skel"></div><div class="day-skel"></div><div class="day-skel"></div><div class="day-skel"></div><div class="day-skel"></div><div class="day-skel"></div><div class="day-skel"></div><div class="day-skel"></div><div class="day-skel"></div><div class="day-skel"></div><div class="day-skel"></div><div class="day-skel"></div><div class="day-skel"></div><div class="day-skel"></div><div class="day-skel"></div><div class="day-skel"></div><div class="day-skel"></div><div class="day-skel"></div><div class="day-skel"></div><div class="day-skel"></div><div class="day-skel"></div></div>
       </div>
     </div>
 
@@ -5173,6 +5196,7 @@
       applyNightMode();
       applyZoomSetting();
       applyLanguage();
+      renderCalendar(); // base calendar shows instantly; numbers/colors fill in once the data arrives
       await Promise.all([loadAllHabits(), loadAllFiles(), loadTargets(), loadSettingsFromServer(), loadBirthdays()]);
       applyStatsBarVisibility();
       applyNightMode();
@@ -13276,10 +13300,13 @@
         const s = Number.isInteger(r) ? r.toFixed(0) : a.toFixed(2);
         return (n < -0.004 ? '\u2212' : '+') + '\u20AC' + s;
       };
+      // calendar cells: no +/- or euro sign (color + glow already say it); 100+ shows whole euros only
       const fmtCell = (n) => {
         const a = Math.abs(n);
-        if (a >= 10000) return (n < 0 ? '\u2212' : '+') + '\u20AC' + (a / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
-        return fmt(n);
+        if (a >= 10000) return (a / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+        if (a >= 100) return String(Math.trunc(a));
+        const r = Number(a.toFixed(2));
+        return Number.isInteger(r) ? r.toFixed(0) : a.toFixed(2);
       };
       const mkey = (y, m) => y + '-' + pad(m + 1);
       const viewKey = () => mkey(viewYear, viewMonth);
@@ -13367,7 +13394,8 @@
           cell.classList.add(net > 0 ? 'money-pos' : 'money-neg');
           cell.style.setProperty('--tint', (0.12 + 0.2 * Math.min(1, (Math.abs(net) - BIG_DAY) / Math.max(1, (max || BIG_DAY) - BIG_DAY))).toFixed(3));
         } else {
-          cell.classList.add('money-small'); // has entries, but under the threshold: number only, no tint
+          cell.classList.add(net > 0 ? 'money-pos' : 'money-neg'); // small days still glow green/red, just softer
+          cell.style.setProperty('--tint', '0.05');
         }
         const a = document.createElement('div');
         a.className = 'money-amt ' + (net < -0.004 ? 'neg' : 'pos');
@@ -13550,22 +13578,88 @@
           });
         }
 
+        async function saveEdit(e, v) {
+          const apple = e.source === 'apple pay';
+          let amt = parseAmt(v.amount);
+          if (amt === null || amt === 0) { setStatus('Enter an amount'); return false; }
+          // typed without a sign -> keep the original expense/income direction
+          if (!/^\s*[-+\u2212]/.test(v.amount)) amt = Math.abs(amt) * (e.amount < 0 ? -1 : 1);
+          else amt = parseAmt(String(v.amount).replace('\u2212', '-'));
+          const title = v.title.trim(), noteVal = v.note.trim();
+          const needsStore = apple || !!e.store || !!noteVal;
+          const row = {
+            date: e.date, amount: amt, source: e.source,
+            store: needsStore ? title : '',
+            note: noteVal || (needsStore ? (apple ? (e.note || '') : title) : title),
+            street: v.street.trim(), item: v.item.trim()
+          };
+          if (e.created_at) row.created_at = e.created_at;
+          try {
+            await post(row); // save the new version first, so nothing is lost if the delete fails
+            const r = await fetch('/api/money?id=' + e.id, { method: 'DELETE' });
+            if (!r.ok) throw new Error('delete failed');
+          } catch (err) { setStatus('Edit failed'); ensure(mk, true); return false; }
+          await fetchMonth(mk); paintAll(); renderSummary();
+          setStatus('Entry updated');
+          close(); setTimeout(() => openPopup(day), 520);
+          return true;
+        }
+
         list.forEach((e, i) => {
           const p = entryParts(e), card = h('div', 'mp-card');
           card.style.setProperty('--i', i);
           const top = h('div', 'mp-top');
+          const chev = h('span', 'mp-chev', '\u25B6');
+          const ed = h('button', 'mp-ed', '\u270E'); ed.title = 'Edit'; ed.setAttribute('aria-label', 'Edit entry');
           const x = h('button', 'mp-x', '\u00D7'); x.title = 'Delete'; x.setAttribute('aria-label', 'Delete entry');
-          x.onclick = () => remove(e, card);
-          top.append(h('div', 'mp-store', p.title), h('div', 'mp-amt ' + (e.amount < 0 ? 'neg' : 'pos'), fmt(e.amount)), x);
+          x.onclick = (ev) => { ev.stopPropagation(); remove(e, card); };
+          top.append(chev, h('div', 'mp-store', p.title), h('div', 'mp-amt ' + (e.amount < 0 ? 'neg' : 'pos'), fmt(e.amount)), ed, x);
+
+          // collapsed by default; everything lives in the expandable part, empty ones show "----"
+          const more = h('div', 'mp-more'), inner = h('div'); more.appendChild(inner);
           const dl = h('dl', 'mp-fields');
-          const row = (label, val) => { dl.appendChild(h('dt', null, label)); dl.appendChild(h('dd', val ? null : 'none', val || '\u2014')); };
-          if (p.apple || p.street) row('Street', p.street);
-          if (p.apple || p.item) row('Purchase', p.item);
-          if (p.note) row('Note', p.note);
-          if (p.time) row('Time', p.time);
+          const row = (label, val) => { dl.appendChild(h('dt', null, label)); dl.appendChild(h('dd', val ? null : 'none', val || '----')); };
+          row('Street', p.street);
+          row('Purchase', p.item);
+          row('Note', p.note);
+          row('Time', p.time);
           dl.appendChild(h('dt', null, 'Paid with'));
           const dd = h('dd'); dd.appendChild(h('span', 'mp-badge' + (p.apple ? ' apple' : ''), SRC[e.source] || e.source || 'Manual')); dl.appendChild(dd);
-          card.append(top, dl); body.appendChild(card);
+          inner.appendChild(dl);
+
+          top.onclick = () => card.classList.toggle('open');
+
+          ed.onclick = (ev) => {
+            ev.stopPropagation();
+            if (inner.querySelector('.mp-form')) return;
+            card.classList.add('open');
+            const form = h('div', 'mp-form'), inputs = {};
+            const field = (key, label, val, mode) => {
+              form.appendChild(h('label', null, label));
+              const inp = h('input'); inp.type = 'text'; inp.value = val || ''; if (mode) inp.inputMode = mode;
+              inputs[key] = inp; form.appendChild(inp);
+            };
+            const raw = Number((e.amount).toFixed(2)).toString();
+            field('title', 'Name', p.title);
+            field('amount', 'Amount', raw, 'decimal');
+            field('street', 'Street', p.street);
+            field('item', 'Purchase', p.item);
+            field('note', 'Note', p.note);
+            const btns = h('div', 'mp-formbtns');
+            const sv = h('button', 'money-btn', 'Save'), cn = h('button', 'money-btn alt', 'Cancel');
+            sv.onclick = async () => {
+              sv.disabled = true;
+              const ok = await saveEdit(e, { title: inputs.title.value, amount: inputs.amount.value, street: inputs.street.value, item: inputs.item.value, note: inputs.note.value });
+              if (!ok) sv.disabled = false;
+            };
+            cn.onclick = () => { form.remove(); dl.style.display = ''; };
+            btns.append(sv, cn); form.appendChild(btns);
+            dl.style.display = 'none'; inner.appendChild(form);
+            inputs.title.focus();
+            form.addEventListener('keydown', (k) => { if (k.key === 'Enter') sv.click(); });
+          };
+
+          card.append(top, more); body.appendChild(card);
         });
         showEmpty();
 
