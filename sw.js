@@ -24,9 +24,10 @@ self.addEventListener('notificationclick', (event) => {
 
 /* ── App-shell caching (new) ──
    Serves the page instantly from cache and refreshes it in the background.
-   Bump SHELL_VERSION whenever you deploy a new index.html. */
-const SHELL_VERSION = 'shell-v1';
-const SHELL = ['/', '/index.html', '/favicon.png', '/manifest.json'];
+   Whenever you change index.html or app.js: bump SHELL_VERSION here AND the ?v=
+   number on the app.js line in index.html (and in SHELL below). */
+const SHELL_VERSION = 'shell-v2';
+const SHELL = ['/', '/index.html', '/app.js?v=1', '/favicon.png', '/manifest.json'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -55,7 +56,8 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET' || url.origin !== location.origin || url.pathname.startsWith('/api/')) return;
   event.respondWith(
     caches.open(SHELL_VERSION).then(async (cache) => {
-      const cached = await cache.match(req, { ignoreSearch: true });
+      // page navigations ignore ?query bits; app.js is matched exactly so ?v=N busts it
+      const cached = await cache.match(req, { ignoreSearch: req.mode === 'navigate' });
       const refresh = fetch(req)
         .then((res) => { if (res.ok) cache.put(req, res.clone()); return res; })
         .catch(() => cached);
