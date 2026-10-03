@@ -1963,9 +1963,21 @@
       width: 56px; height: 56px; border-radius: 50%;
       background: #111; color: #fff; border: none; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
-      font-size: 22px; box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+      font-size: 28px; font-weight: 800; line-height: 1; font-family: inherit; padding: 0;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.25);
       transition: background 0.15s, transform 0.15s;
+      /* the button now has a tap AND a 1-second hold: stop iOS from treating the hold as a text-selection / callout */
+      touch-action: manipulation; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
+      -webkit-tap-highlight-color: transparent;
     }
+    /* ring that grows while you hold the mic; when it is full (1 second) the voice feature opens.
+       transform + opacity only, so it runs on the GPU compositor */
+    .talk-ai-widget::after {
+      content: ''; position: absolute; inset: -7px; border-radius: 50%;
+      border: 3px solid #111; opacity: 0; transform: scale(0.72); pointer-events: none;
+    }
+    .talk-ai-widget.holding::after { opacity: 0.6; transform: scale(1); transition: transform 1s linear, opacity 1s linear; }
+    body.night-mode .talk-ai-widget::after { border-color: #eee; }
     .talk-ai-widget:hover { transform: scale(1.05); }
     .talk-ai-widget:active { transform: scale(0.97); }
     .talk-ai-widget.listening {
@@ -2654,9 +2666,11 @@
     @keyframes money-shim { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 
     /* day sheet */
-    .mp-overlay { position: fixed; inset: 0; z-index: 2100; display: flex; align-items: flex-end; justify-content: center; background: rgba(0,0,0,0); transition: background .35s ease; touch-action: none; }
-    .mp-overlay.open { background: rgba(0,0,0,.42); }
-    .mp-sheet { width: 100%; max-width: 480px; max-height: 88vh; display: flex; flex-direction: column; background: #fbfbfd; color: #111; border-radius: 28px 28px 0 0; box-shadow: 0 -12px 60px rgba(0,0,0,.28); transform: translate3d(0,100%,0); transition: transform .45s var(--m-ease), height .42s var(--m-ease); will-change: transform; padding-bottom: env(safe-area-inset-bottom); font-family: inherit; overflow: hidden; }
+    .mp-overlay { position: fixed; inset: 0; z-index: 2100; display: flex; align-items: flex-end; justify-content: center; touch-action: none; }
+    /* the dimmed background fades via opacity on its own layer (GPU compositor), not by animating background-color on the main thread */
+    .mp-overlay::before { content: ''; position: absolute; inset: 0; z-index: 0; background: rgba(0,0,0,.42); opacity: 0; transition: opacity .35s ease; will-change: opacity; pointer-events: none; }
+    .mp-overlay.open::before { opacity: 1; }
+    .mp-sheet { width: 100%; max-width: 480px; max-height: 88vh; display: flex; flex-direction: column; background: #fbfbfd; color: #111; border-radius: 28px 28px 0 0; box-shadow: 0 -12px 60px rgba(0,0,0,.28); transform: translate3d(0,100%,0); transition: transform .45s var(--m-ease), height .42s var(--m-ease); will-change: transform; padding-bottom: env(safe-area-inset-bottom); font-family: inherit; overflow: hidden; position: relative; z-index: 1; }
     .mp-overlay.open .mp-sheet { transform: translate3d(0,0,0); }
     @media (min-width: 640px) {
       .mp-overlay { align-items: center; }
@@ -2745,7 +2759,7 @@
     @media (prefers-reduced-motion: reduce) {
       .money-enter, .mp-card, .money-panel, .money-skel { animation: none !important; }
       .mp-card { opacity: 1; transform: none; }
-      .mp-sheet, .mp-overlay, .mp-toast { transition-duration: .01s !important; }
+      .mp-sheet, .mp-overlay, .mp-overlay::before, .mp-toast { transition-duration: .01s !important; }
     }
 
     /* ── DAY TIMER (double-tap "Day") ── */
@@ -2867,7 +2881,7 @@
     .fs-push-count.over { color: #d93025; font-weight: 700; }
     #forcePushToggleBtn.on { border-color: #1a73e8; color: #1a73e8; }
   </style>
-  <script src="/app.min.js?v=6" defer></script>
+  <script src="/app.min.js?v=7" defer></script>
 </head>
 <body>
   <script>
@@ -3030,7 +3044,7 @@
 
   <!-- Talk-AI floating widget — lives outside the settings column so
        it's reachable from anywhere in the app, not just the month view. -->
-  <button type="button" class="talk-ai-widget" id="talkAiBtn" title="Talk to add events / update your checklist">🎤</button>
+  <button type="button" class="talk-ai-widget" id="talkAiBtn" title="Tap: money calendar · Hold 1 second: talk to add events" aria-label="Money calendar (hold to talk)">€</button>
   <div class="talk-ai-status" id="talkAiStatus"></div>
   <div class="talk-ai-confirm" id="talkAiConfirm">
     <div class="talk-ai-confirm-title">The widget wants to…</div>
