@@ -7637,13 +7637,45 @@ const PIP_MAX = 3;
       function init() {
         if (!btn) return;
         const voiceSupported = supported();
-        if (!voiceSupported) {
-          btn.title = 'Voice input not supported here — tap to type instead';
-        }
-        btn.addEventListener('click', () => {
+        btn.title = voiceSupported
+          ? 'Tap: money calendar \u00B7 Hold 1 second: talk to add events'
+          : 'Tap: money calendar \u00B7 Hold 1 second: type to add events';
+
+        // TAP  -> flips the month calendar between normal and Money (see MoneyMode.tapToggle).
+        // HOLD (a full second) -> the voice feature (or the type-it box where voice isn't supported).
+        // While a voice session is listening, a tap still stops it, like before.
+        const HOLD_MS = 1000;
+        let holdTimer = 0, holdFired = false, hx = 0, hy = 0;
+        function startVoice() {
           if (!voiceSupported) { openTextFallback(); return; }
-          if (listening) stopListening();
-          else startListening();
+          if (!listening) startListening();
+        }
+        function clearHold() { clearTimeout(holdTimer); holdTimer = 0; btn.classList.remove('holding'); }
+        btn.addEventListener('pointerdown', (ev) => {
+          if (ev.pointerType === 'mouse' && ev.button !== 0) return;
+          clearHold();
+          holdFired = false; hx = ev.clientX; hy = ev.clientY;
+          btn.classList.add('holding');
+          holdTimer = setTimeout(() => {
+            holdTimer = 0; holdFired = true;
+            btn.classList.remove('holding');
+            startVoice();
+          }, HOLD_MS);
+        });
+        btn.addEventListener('pointermove', (ev) => {
+          if (holdTimer && Math.hypot(ev.clientX - hx, ev.clientY - hy) > 14) clearHold(); // finger slid away: not a hold
+        });
+        ['pointerup', 'pointercancel', 'pointerleave'].forEach((t) => btn.addEventListener(t, clearHold));
+        btn.addEventListener('contextmenu', (ev) => ev.preventDefault()); // no long-press menu on the button
+        btn.addEventListener('click', (ev) => {
+          if (holdFired) {
+            // this click is only the finger lifting after a hold - the voice feature is already open
+            holdFired = false; ev.preventDefault();
+            if (textFallbackEl.classList.contains('open')) textInputEl.focus(); // iOS only raises the keyboard inside a tap
+            return;
+          }
+          if (listening) { stopListening(); return; }
+          if (typeof MoneyMode !== 'undefined') MoneyMode.tapToggle();
         });
         confirmBtn.addEventListener('click', confirmPending);
         cancelBtn.addEventListener('click', closeConfirm);
@@ -9343,7 +9375,7 @@ const PIP_MAX = 3;
         refreshActiveTab();
       }
 
-      return { init, goToDay, goToDateInMonthView };
+      return { init, goToDay, goToDateInMonthView, currentView, goToMonthView };
     })();
     GlobalTopBar.init();
 
@@ -9775,13 +9807,19 @@ const PIP_MAX = 3;
           const row = (label, val) => { dl.appendChild(h('dt', null, label)); dl.appendChild(h('dd', val ? null : 'none', val || '----')); };
           row('Street', p.street);
           row('Purchase', p.item);
-          row('Note', p.note);
           row('Time', p.time);
           dl.appendChild(h('dt', null, 'Paid with'));
           const dd = h('dd'); dd.appendChild(h('span', 'mp-badge' + (p.apple ? ' apple' : ''), SRC[e.source] || e.source || 'Manual')); dl.appendChild(dd);
           inner.appendChild(dl);
 
-          top.onclick = () => card.classList.toggle('open');
+          // Tap ANYWHERE on the box - the top bar or the opened details - to open/close it.
+          // Buttons (pencil / x) and the edit form keep their own behaviour.
+          card.addEventListener('click', (ev) => {
+            if (ev.target.closest('button, input, textarea, select, label, .mp-form')) return;
+            const sel = window.getSelection && window.getSelection();
+            if (sel && !sel.isCollapsed && card.contains(sel.anchorNode)) return; // selecting text to copy it
+            card.classList.toggle('open');
+          });
 
           ed.onclick = (ev) => {
             ev.stopPropagation();
@@ -9798,12 +9836,11 @@ const PIP_MAX = 3;
             field('amount', 'Amount', raw, 'decimal');
             field('street', 'Street', p.street);
             field('item', 'Purchase', p.item);
-            field('note', 'Note', p.note);
             const btns = h('div', 'mp-formbtns');
             const sv = h('button', 'money-btn', 'Save'), cn = h('button', 'money-btn alt', 'Cancel');
             sv.onclick = async () => {
               sv.disabled = true;
-              const ok = await saveEdit(e, { title: inputs.title.value, amount: inputs.amount.value, street: inputs.street.value, item: inputs.item.value, note: inputs.note.value });
+              const ok = await saveEdit(e, { title: inputs.title.value, amount: inputs.amount.value, street: inputs.street.value, item: inputs.item.value, note: p.note });
               if (!ok) sv.disabled = false;
             };
             cn.onclick = () => { form.remove(); dl.style.display = ''; };
@@ -10042,9 +10079,7 @@ const PIP_MAX = 3;
       }
 
       function init() {
-        let last = 0;
         monthTab.style.touchAction = 'manipulation';
-        monthTab.addEventListener('click', () => { const n = Date.now(); if (n - last < 400) { last = 0; toggle(); } else last = n; });
         $('daysGrid').addEventListener('click', (e) => {
           if (!on) return;
           const cell = e.target.closest('.day-cell:not(.empty)');
@@ -10059,7 +10094,17 @@ const PIP_MAX = 3;
         $('moneyFile').addEventListener('change', (e) => { const f = e.target.files[0]; if (f) importFile(f); e.target.value = ''; });
       }
       init();
-      return { toggle };
+
+      // Mic-button TAP: flips the month calendar between normal and Money.
+      // From Day / Week view it first jumps to the month calendar and makes sure Money is on.
+      function tapToggle() {
+        const gt = typeof GlobalTopBar !== 'undefined' ? GlobalTopBar : null;
+        if (gt && gt.currentView && gt.currentView() !== 'month') {
+          gt.goToMonthView();
+          if (!on) setTimeout(() => { if (!on) toggle(); }, 60);
+        } else toggle();
+      }
+      return { toggle, tapToggle, isOn: () => on };
     })();
   ;
 
