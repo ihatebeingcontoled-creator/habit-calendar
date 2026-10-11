@@ -1982,6 +1982,127 @@ const PIP_MAX = 3;
       });
     })();
 
+    // ── Send all info to watch ──
+    // Cuts a big text into notifications that exactly fit the watch's subject /
+    // text character limits, with ZERO characters lost (every character lands in
+    // exactly one notification, in order), spread as evenly as possible.
+    function splitForWatch(text, subjMax, bodyMax, target) {
+      const chars = Array.from(text);              // code points: emoji count as 1, never cut in half
+      const N = chars.length;
+      if (!N) return [];
+      const cap = subjMax + bodyMax;               // most one notification can carry
+      const needed = Math.ceil(N / cap);           // minimum count so nothing is dropped
+      const count = Math.min(N, Math.max(target, needed));
+      const base = Math.floor(N / count), extra = N % count; // sizes differ by at most 1
+      const out = [];
+      let pos = 0;
+      for (let i = 0; i < count; i++) {
+        const size = base + (i < extra ? 1 : 0);
+        const piece = chars.slice(pos, pos + size);
+        pos += size;
+        out.push({
+          subject: piece.slice(0, subjMax).join(''),   // fill the subject line first…
+          body: piece.slice(subjMax).join('')          // …the rest goes in the text line
+        });
+      }
+      return out;
+    }
+
+    (() => {
+      const LKEY = 'habitWatchLimits2'; // new key so the 120/250 defaults replace the old saved 10/50 test values
+      const MAXB = 3900; // server push payload cap (bytes)
+      const panel = document.getElementById('watchPanel');
+      const toggle = document.getElementById('watchToggleBtn');
+      const subjIn = document.getElementById('watchSubjMax');
+      const bodyIn = document.getElementById('watchBodyMax');
+      const countIn = document.getElementById('watchCount');
+      const fileIn = document.getElementById('watchFile');
+      const textIn = document.getElementById('watchText');
+      const info = document.getElementById('watchInfo');
+      const bar = document.getElementById('watchBarFill');
+      const send = document.getElementById('watchSendBtn');
+      const out = document.getElementById('testPushResult');
+      try {
+        const l = JSON.parse(localStorage.getItem(LKEY) || 'null');
+        if (l) { subjIn.value = l.subj || subjIn.value; bodyIn.value = l.body || bodyIn.value; countIn.value = l.count || countIn.value; }
+      } catch (e) {}
+      const num = (el, def) => { const n = parseInt(el.value, 10); return Number.isFinite(n) && n > 0 ? n : def; };
+      const limits = () => ({ subj: num(subjIn, 120), body: num(bodyIn, 250), count: num(countIn, 6) });
+      const bytes = (o) => new TextEncoder().encode(JSON.stringify(o)).length;
+      const plan = () => {
+        const l = limits();
+        return splitForWatch(textIn.value, l.subj, l.body, l.count);
+      };
+      const refresh = () => {
+        const l = limits();
+        try { localStorage.setItem(LKEY, JSON.stringify(l)); } catch (e) {}
+        const n = Array.from(textIn.value).length;
+        const parts = plan();
+        if (!n) { info.textContent = '0 characters'; return; }
+        const biggest = Math.max(...parts.map(p => bytes({ title: p.subject, body: p.body, tag: 'watch-0000000000000-00' })));
+        info.textContent = n + ' characters → ' + parts.length + ' notifications (up to ' + (l.subj + l.body) + ' chars each)' +
+          (biggest > MAXB ? ' — ⚠ too many bytes per notification, lower the limits' : '');
+      };
+      [subjIn, bodyIn, countIn, textIn].forEach(el => el.addEventListener('input', refresh));
+      refresh();
+      toggle.addEventListener('click', () => {
+        const open = !panel.classList.contains('open');
+        panel.classList.toggle('open', open);
+        toggle.classList.toggle('on', open);
+        toggle.setAttribute('aria-expanded', String(open));
+      });
+      fileIn.addEventListener('change', async () => {
+        const f = fileIn.files && fileIn.files[0];
+        if (!f) return;
+        try {
+          textIn.value = (await f.text()).replace(/^\uFEFF/, '');
+          refresh();
+        } catch (err) {
+          out.textContent = '❌ Could not read that file: ' + (err && err.message ? err.message : String(err));
+        }
+      });
+      send.addEventListener('click', async () => {
+        const parts = plan();
+        if (!parts.length) { out.textContent = 'Choose a text file or paste some text first.'; return; }
+        const tooBig = parts.some(p => bytes({ title: p.subject, body: p.body, tag: 'watch-0000000000000-00' }) > MAXB);
+        if (tooBig) { out.textContent = '❌ A notification would exceed the push size limit (about ' + MAXB + ' bytes). Lower the limits.'; return; }
+        send.disabled = true;
+        bar.style.width = '0%';
+        try {
+          out.textContent = 'Requesting notification permission...';
+          const perm = await NotificationScheduler.requestPermission();
+          if (perm !== 'granted') { out.textContent = '❌ Notifications are not allowed for this app (permission: ' + perm + ').'; return; }
+          await PushNotifications.ensureSubscribed();
+          const stamp = Date.now();
+          for (let i = 0; i < parts.length; i++) {
+            out.textContent = 'Sending ' + (i + 1) + ' / ' + parts.length + '...';
+            const res = await fetch('/api/test-push', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                title: parts[i].subject, body: parts[i].body,
+                force: true, raw: true,            // raw = keep every character, no trimming
+                tag: 'watch-' + stamp + '-' + i    // unique tag so they don't replace each other
+              })
+            });
+            const data = await res.json().catch(() => ({ ok: false, error: 'Non-JSON response, HTTP ' + res.status }));
+            const sent = data && data.ok !== false && Array.isArray(data.results) && data.results.some(r => r.result === 'sent');
+            if (!sent) {
+              out.textContent = '❌ Stopped at notification ' + (i + 1) + ' of ' + parts.length + ':\n' + JSON.stringify(data, null, 2);
+              return;
+            }
+            bar.style.width = Math.round(((i + 1) / parts.length) * 100) + '%';
+            if (i < parts.length - 1) await new Promise(r => setTimeout(r, 1200)); // keep them arriving in order
+          }
+          out.textContent = '✅ Sent all ' + parts.length + ' notifications (' + Array.from(textIn.value).length + ' characters, none dropped).';
+        } catch (err) {
+          out.textContent = '❌ Error: ' + (err && err.message ? err.message : String(err));
+        } finally {
+          send.disabled = false;
+        }
+      });
+    })();
+
     // All of these only touch the staged pendingSettings copy — nothing is
     // applied to the live calendar or persisted until "Save Settings".
     document.getElementById('toggleDailyTargets').addEventListener('change', (e) => {
