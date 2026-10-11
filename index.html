@@ -2880,8 +2880,20 @@
     .fs-push-count { margin-top: 4px; font-size: 11px; text-align: right; color: #888; font-variant-numeric: tabular-nums; }
     .fs-push-count.over { color: #d93025; font-weight: 700; }
     #forcePushToggleBtn.on { border-color: #1a73e8; color: #1a73e8; }
+
+    /* ── Send all info to watch ── */
+    .wt-panel { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows .3s ease, opacity .25s ease; }
+    .wt-panel.open { grid-template-rows: 1fr; opacity: 1; }
+    .wt-inner { overflow: hidden; min-height: 0; }
+    .wt-limits { display: flex; gap: 8px; margin-top: 4px; }
+    .wt-limits > div { flex: 1; min-width: 0; }
+    .wt-info { margin-top: 6px; font-size: 11px; color: #888; font-variant-numeric: tabular-nums; }
+    .wt-bar { height: 5px; border-radius: 3px; background: #ececec; margin-top: 8px; overflow: hidden; }
+    .wt-bar > i { display: block; height: 100%; width: 0; background: #1a73e8; transition: width .25s ease; }
+    body.night-mode .wt-bar { background: #333; }
+    #watchToggleBtn.on { border-color: #1a73e8; color: #1a73e8; }
   </style>
-  <script src="/app.min.js?v=7" defer></script>
+  <script src="/app.min.js?v=9" defer></script>
 </head>
 <body>
   <script>
@@ -3293,6 +3305,31 @@
           <textarea id="forcePushText" class="fs-push-input fs-push-textarea" placeholder="Notification text" rows="4" maxlength="4000"></textarea>
           <div class="fs-push-count" id="forcePushCount">0 / 3900 bytes</div>
           <button type="button" class="targets-btn" id="forcePushSendBtn" style="margin-top:8px; padding:9px 14px; font-size:12px;">🚀 Send Now</button>
+        </div>
+      </div>
+      <button type="button" class="targets-btn" id="watchToggleBtn" style="margin-top:8px; padding:9px 14px; font-size:12px;" aria-expanded="false">⌚ Send all info to watch</button>
+      <div class="wt-panel" id="watchPanel">
+        <div class="wt-inner">
+          <div class="wt-limits">
+            <div>
+              <label class="fs-push-label" for="watchSubjMax">Subject max chars</label>
+              <input type="number" id="watchSubjMax" class="fs-push-input" min="1" max="500" value="120">
+            </div>
+            <div>
+              <label class="fs-push-label" for="watchBodyMax">Text max chars</label>
+              <input type="number" id="watchBodyMax" class="fs-push-input" min="1" max="1500" value="250">
+            </div>
+            <div>
+              <label class="fs-push-label" for="watchCount">Notifications</label>
+              <input type="number" id="watchCount" class="fs-push-input" min="1" max="60" value="6">
+            </div>
+          </div>
+          <label class="fs-push-label" for="watchFile">Text file (.txt) — or paste below</label>
+          <input type="file" id="watchFile" accept=".txt,text/plain,.md,.csv,.json" class="fs-push-input">
+          <textarea id="watchText" class="fs-push-input fs-push-textarea" style="margin-top:6px;" placeholder="Paste the big text here" rows="5"></textarea>
+          <div class="wt-info" id="watchInfo">0 characters</div>
+          <div class="wt-bar"><i id="watchBarFill"></i></div>
+          <button type="button" class="targets-btn" id="watchSendBtn" style="margin-top:8px; padding:9px 14px; font-size:12px;">🚀 Split &amp; send to watch</button>
         </div>
       </div>
       <div id="testPushResult" style="margin-top:6px; font-size:11px; line-height:1.5; white-space:pre-wrap; word-break:break-word; color:#555;"></div>
