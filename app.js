@@ -10229,6 +10229,430 @@ const PIP_MAX = 3;
     })();
   ;
 
+    /* ───────────────────────── ADS TAB ─────────────────────────
+       A third "calendar theme" next to Month / Money.
+         • every day is red (nothing), orange (poster) or green (video, with a count: "3× video")
+         • tap a day -> pick what you did
+         • "Bank" button -> create posters / see saved ones (used / not used, edit text, change image)
+       Data lives in D1 through /api/ads (functions/api/ads.js) and is cached in localStorage so it paints instantly. */
+    const AdsMode = (() => {
+      const $ = (id) => document.getElementById(id);
+      const adsTab = $('globalTabAds'), monthTab = $('globalTabMonth'), dayTab = $('globalTabDay'), weekTab = $('globalTabWeek');
+      if (!adsTab || !$('adsPanel')) return { isOn: () => false };
+
+      const REDUCED = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+      const API = '/api/ads';
+      const DAYS_KEY = 'adsDays.v1', BANK_KEY = 'adsBank.v1';
+      const KINDS = { none: { name: 'Nothing' }, poster: { name: 'Poster', label: 'poster' }, video: { name: 'Video', label: 'video' } };
+      let on = false, modal = null;
+
+      const h = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+      const raf2 = (fn) => requestAnimationFrame(() => requestAnimationFrame(fn));
+      const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
+      const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+      const dateKey = (d) => viewYear + '-' + pad(viewMonth + 1) + '-' + pad(d);
+      const todayKey = () => { const t = new Date(); return t.getFullYear() + '-' + pad(t.getMonth() + 1) + '-' + pad(t.getDate()); };
+      const post = (qs, body) => fetch(API + qs, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+
+      let days = load(DAYS_KEY, {});          // 'YYYY-MM-DD' -> { kind, count }
+      let bank = load(BANK_KEY, []);          // [{ id, title, description, used, thumb, created_at }]
+      const fullCache = {};                   // id -> full-size image (loaded on demand)
+      const persistDays = () => save(DAYS_KEY, days);
+      const persistBank = () => save(BANK_KEY, bank);
+
+      let toastEl = null, toastT = 0;
+      function toast(msg) {
+        if (toastEl) toastEl.remove(); clearTimeout(toastT);
+        const t = h('div', 'mp-toast'); t.appendChild(h('span', null, msg));
+        document.body.appendChild(t); toastEl = t; raf2(() => t.classList.add('show'));
+        toastT = setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 500); }, 3500);
+      }
+
+      /* ---------- calendar painting ---------- */
+      function decorate(cell, d) {
+        cell.classList.remove('ads-none', 'ads-poster', 'ads-video', 'ads-future');
+        cell.querySelectorAll('.ads-label').forEach((n) => n.remove());
+        if (!cell._as) { cell._as = true; cell.style.setProperty('--i', d); if (!REDUCED) cell.classList.add('ads-enter'); }
+        const k = dateKey(d), e = days[k];
+        if (e && KINDS[e.kind]) {
+          cell.classList.add('ads-' + e.kind);
+          const l = h('div', 'ads-label');
+          l.appendChild(h('b', null, e.count + '\u00D7'));
+          l.appendChild(h('span', null, KINDS[e.kind].label));
+          cell.appendChild(l);
+        } else cell.classList.add(k > todayKey() ? 'ads-future' : 'ads-none');
+      }
+      function paintAll() {
+        document.querySelectorAll('#daysGrid .day-cell:not(.empty)').forEach((c) => decorate(c, parseInt(c.dataset.day, 10)));
+      }
+
+      const origFill = fillDayCell;
+      fillDayCell = function (cell, d, today) {
+        origFill(cell, d, today);
+        if (!on) return;
+        cell.className = cell.className.replace(/\blvl-\d+\b|\bfully-complete\b/g, '').trim();
+        const num = cell.querySelector('.day-num');
+        cell.innerHTML = '';
+        if (num) cell.appendChild(num);
+        decorate(cell, d);
+      };
+      const origRender = renderCalendar;
+      renderCalendar = function () {
+        origRender.apply(this, arguments);
+        if (on) renderSummary();
+      };
+
+      /* ---------- month summary ---------- */
+      function renderSummary() {
+        const box = $('adsSummary');
+        if (!box.dataset.ready) {
+          box.dataset.ready = '1';
+          box.innerHTML = '<div class="mstat"><span class="lbl">Days</span><span class="val" data-k="days">0</span></div>'
+            + '<div class="mstat ads-o"><span class="lbl">Posters</span><span class="val" data-k="poster">0</span></div>'
+            + '<div class="mstat pos"><span class="lbl">Videos</span><span class="val" data-k="video">0</span></div>';
+        }
+        $('adsMonthTitle').textContent = 'Ads \u00B7 ' + new Date(viewYear, viewMonth, 1).toLocaleString('en', { month: 'long', year: 'numeric' });
+        const prefix = viewYear + '-' + pad(viewMonth + 1) + '-';
+        let n = 0, p = 0, v = 0;
+        Object.keys(days).forEach((k) => {
+          if (k.indexOf(prefix) !== 0) return;
+          n++; if (days[k].kind === 'poster') p += days[k].count; else if (days[k].kind === 'video') v += days[k].count;
+        });
+        const q = (k) => box.querySelector('[data-k="' + k + '"]');
+        q('days').textContent = n; q('poster').textContent = p; q('video').textContent = v;
+      }
+
+      /* ---------- days: load + save ---------- */
+      async function fetchDays() {
+        try {
+          const r = await fetch(API + '?resource=days', { cache: 'no-store' });
+          if (!r.ok) throw new Error('status ' + r.status);
+          const map = {};
+          ((await r.json()).days || []).forEach((x) => { map[x.date] = { kind: x.kind, count: x.count }; });
+          const changed = JSON.stringify(map) !== JSON.stringify(days);
+          days = map; persistDays();
+          $('adsStatus').textContent = '';
+          if (on && changed) { paintAll(); renderSummary(); }
+        } catch (e) { $('adsStatus').textContent = 'Could not load \u2014 tap to retry'; }
+      }
+      $('adsStatus').addEventListener('click', () => { if ($('adsStatus').textContent) { $('adsStatus').textContent = 'Retrying\u2026'; fetchDays(); } });
+
+      function setDay(k, kind, count) {
+        const prev = days[k];
+        if (kind === 'none') delete days[k]; else days[k] = { kind, count };
+        persistDays(); paintAll(); renderSummary();
+        post('?resource=days', { date: k, kind, count }).then((r) => { if (!r.ok) throw new Error('save'); }).catch(() => {
+          if (prev) days[k] = prev; else delete days[k];
+          persistDays(); paintAll(); renderSummary(); toast("Couldn't save \u2014 check your connection");
+        });
+      }
+
+      /* ---------- modal plumbing ---------- */
+      function mount(extra) {
+        const ov = h('div', 'ads-overlay'), sheet = h('div', 'ads-sheet' + (extra ? ' ' + extra : ''));
+        ov.appendChild(sheet); document.body.appendChild(ov);
+        const m = { ov, sheet, screen: '', close() { if (modal !== m) return; modal = null; ov.classList.remove('show'); setTimeout(() => ov.remove(), 320); } };
+        ov.addEventListener('click', (e) => { if (e.target === ov) m.close(); });
+        modal = m; raf2(() => ov.classList.add('show'));
+        return m;
+      }
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && modal) modal.close(); });
+
+      /* ---------- day sheet: what ad did you do? ---------- */
+      function openDay(day) {
+        if (modal) return;
+        const k = dateKey(day), cur = days[k] || { kind: 'none', count: 1 };
+        let kind = cur.kind, count = cur.count || 1;
+        const m = mount('ads-daysheet');
+        const s = m.sheet;
+        s.appendChild(h('div', 'ads-grab'));
+        s.appendChild(h('div', 'ads-date', new Date(viewYear, viewMonth, day).toLocaleDateString('en', { weekday: 'long', day: 'numeric', month: 'long' })));
+        s.appendChild(h('div', 'ads-q', 'What did you do?'));
+
+        const types = h('div', 'ads-types'), tbtn = {};
+        ['none', 'poster', 'video'].forEach((t) => {
+          const b = h('button', 'ads-type ads-t-' + t); b.type = 'button';
+          b.appendChild(h('i')); b.appendChild(h('span', null, KINDS[t].name));
+          b.onclick = () => { kind = t; sync(); };
+          tbtn[t] = b; types.appendChild(b);
+        });
+        s.appendChild(types);
+
+        const cnt = h('div', 'ads-count');
+        cnt.appendChild(h('div', 'ads-q', 'How many?'));
+        const stepper = h('div', 'ads-stepper');
+        const minus = h('button', 'ads-step', '\u2212'), num = h('div', 'ads-num'), plus = h('button', 'ads-step', '+');
+        minus.type = plus.type = 'button';
+        minus.onclick = () => { count = Math.max(1, count - 1); sync(); };
+        plus.onclick = () => { count = Math.min(999, count + 1); sync(); };
+        stepper.append(minus, num, plus);
+        const chips = h('div', 'ads-chips'), cbtn = [];
+        for (let n = 1; n <= 6; n++) {
+          const c = h('button', 'ads-chip', String(n)); c.type = 'button';
+          c.onclick = () => { count = n; sync(); };
+          cbtn.push(c); chips.appendChild(c);
+        }
+        cnt.append(stepper, chips);
+        s.appendChild(cnt);
+
+        const saveBtn = h('button', 'money-btn ads-save', 'Save'); saveBtn.type = 'button';
+        saveBtn.onclick = () => { setDay(k, kind, count); m.close(); };
+        s.appendChild(saveBtn);
+
+        function sync() {
+          Object.keys(tbtn).forEach((t) => tbtn[t].classList.toggle('sel', t === kind));
+          cnt.hidden = kind === 'none';
+          num.textContent = count + '\u00D7';
+          cbtn.forEach((c, i) => c.classList.toggle('sel', i + 1 === count));
+        }
+        sync();
+      }
+
+      /* ---------- Bank ---------- */
+      function shrink(file, max, q) {
+        return new Promise((res, rej) => {
+          const img = new Image(), u = URL.createObjectURL(file);
+          img.onload = () => {
+            const sc = Math.min(1, max / Math.max(img.width, img.height));
+            const c = document.createElement('canvas');
+            c.width = Math.max(1, Math.round(img.width * sc)); c.height = Math.max(1, Math.round(img.height * sc));
+            const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height);
+            x.drawImage(img, 0, 0, c.width, c.height);
+            URL.revokeObjectURL(u); res(c.toDataURL('image/jpeg', q));
+          };
+          img.onerror = () => { URL.revokeObjectURL(u); rej(new Error('bad image')); };
+          img.src = u;
+        });
+      }
+
+      async function loadBank() {
+        try {
+          const r = await fetch(API + '?resource=bank', { cache: 'no-store' });
+          if (!r.ok) throw new Error('status ' + r.status);
+          bank = (await r.json()).items || []; persistBank();
+          if (modal && modal.screen === 'saved') bankSaved(modal);
+          else if (modal && modal.screen === 'menu') bankMenu(modal);
+        } catch (e) { if (modal && modal.screen !== 'form') toast("Couldn't load the Bank"); }
+      }
+      async function getFull(id) {
+        if (fullCache[id]) return fullCache[id];
+        try {
+          const r = await fetch(API + '?resource=bank&id=' + id, { cache: 'no-store' });
+          if (!r.ok) return '';
+          fullCache[id] = ((await r.json()).item || {}).image || '';
+          return fullCache[id];
+        } catch (e) { return ''; }
+      }
+
+      function screen(m, name, build) {
+        m.screen = name; m.sheet.innerHTML = ''; m.sheet.classList.toggle('ads-wide', name === 'form');
+        const b = h('div', 'ads-screen'); m.sheet.appendChild(b); build(b);
+      }
+      function head(m, title, onBack) {
+        const r = h('div', 'ads-head');
+        if (onBack) { const bk = h('button', 'ads-back', '\u2039'); bk.type = 'button'; bk.setAttribute('aria-label', 'Back'); bk.onclick = onBack; r.appendChild(bk); }
+        r.appendChild(h('div', 'ads-htitle', title));
+        const x = h('button', 'ads-x', '\u00D7'); x.type = 'button'; x.setAttribute('aria-label', 'Close'); x.onclick = () => m.close();
+        r.appendChild(x);
+        return r;
+      }
+
+      function openBank() {
+        if (modal) return;
+        const m = mount('ads-bank');
+        bankMenu(m); loadBank();
+      }
+
+      function bankMenu(m) {
+        screen(m, 'menu', (b) => {
+          b.appendChild(head(m, 'Bank'));
+          const wrap = h('div', 'ads-menu');
+          const create = h('button', 'ads-menu-btn'); create.type = 'button';
+          create.append(h('b', null, 'Create'), h('span', null, 'Build a new poster'));
+          create.onclick = () => bankForm(m, null);
+          const saved = h('button', 'ads-menu-btn'); saved.type = 'button';
+          saved.append(h('b', null, 'Saved'), h('span', null, bank.length + (bank.length === 1 ? ' poster' : ' posters')));
+          saved.onclick = () => bankSaved(m);
+          wrap.append(create, saved); b.appendChild(wrap);
+        });
+      }
+
+      function bankSaved(m) {
+        screen(m, 'saved', (b) => {
+          b.appendChild(head(m, 'Saved posters', () => bankMenu(m)));
+          const grid = h('div', 'ads-grid');
+          const add = h('button', 'ads-tile ads-tile-new'); add.type = 'button';
+          add.append(h('i', null, '+'), h('span', null, 'New'));
+          add.onclick = () => bankForm(m, null);
+          grid.appendChild(add);
+          bank.forEach((it, i) => grid.appendChild(tile(m, it, i)));
+          b.appendChild(grid);
+          if (!bank.length) b.appendChild(h('div', 'ads-empty', 'Nothing saved yet \u2014 tap + to make your first poster.'));
+        });
+      }
+
+      function tile(m, it, i) {
+        const t = h('div', 'ads-tile' + (it.used ? ' used' : '')); t.style.setProperty('--i', i);
+        t.tabIndex = 0; t.setAttribute('role', 'button');
+        if (it.thumb) { const im = h('img'); im.src = it.thumb; im.alt = ''; t.appendChild(im); }
+        else t.appendChild(h('div', 'ads-noimg', 'no image'));
+        t.appendChild(h('div', 'ads-tile-title', it.title || (it.description || '').split('\n')[0] || 'Poster'));
+        const badge = h('button', 'ads-badge', it.used ? 'Used' : 'Not used'); badge.type = 'button';
+        badge.onclick = (e) => {
+          e.stopPropagation();
+          const was = it.used ? 1 : 0, now = was ? 0 : 1;
+          it.used = now; t.classList.toggle('used', !!now); badge.textContent = now ? 'Used' : 'Not used'; persistBank();
+          post('?resource=bank&id=' + it.id, { used: now }).then((r) => { if (!r.ok) throw new Error('save'); }).catch(() => {
+            it.used = was; t.classList.toggle('used', !!was); badge.textContent = was ? 'Used' : 'Not used'; persistBank(); toast("Couldn't save \u2014 check your connection");
+          });
+        };
+        t.appendChild(badge);
+        t.onclick = () => bankForm(m, it);
+        t.onkeydown = (e) => { if (e.key === 'Enter') bankForm(m, it); };
+        return t;
+      }
+
+      function bankForm(m, item) {
+        const edit = !!item;
+        screen(m, 'form', (b) => {
+          b.appendChild(head(m, edit ? 'Edit post' : 'Create post', () => bankSaved(m)));
+          let image = '', thumb = '', changed = false, used = edit ? !!item.used : false;
+          const cols = h('div', 'ads-cols'), left = h('div', 'ads-left'), right = h('div', 'ads-right');
+
+          /* left: the form */
+          const desc = h('textarea', 'ads-input ads-area'); desc.placeholder = "What's on your mind?"; desc.rows = 5;
+          const pick = h('label', 'ads-pick');
+          const prev = h('img', 'ads-prev'); prev.alt = ''; prev.hidden = true;
+          const hint = h('span', 'ads-pick-hint', 'Add a photo');
+          const sub = h('span', 'ads-pick-sub', 'or drag and drop');
+          const file = h('input'); file.type = 'file'; file.accept = 'image/*'; file.hidden = true;
+          pick.append(prev, hint, sub, file);
+          const title = h('input', 'ads-input'); title.type = 'text'; title.placeholder = 'Poster name (only for you, optional)'; title.maxLength = 120;
+          left.append(desc, pick, title);
+          if (edit) { title.value = item.title || ''; desc.value = item.description || ''; }
+
+          /* right: live Facebook-style preview */
+          right.appendChild(h('div', 'ads-prev-title', 'Preview'));
+          const card = h('div', 'ads-fb');
+          const top = h('div', 'ads-fb-top');
+          const av = h('img', 'ads-fb-av'); av.src = '/favicon.png'; av.alt = '';
+          const who = h('div', 'ads-fb-who'); who.append(h('b', null, 'Viskas svetain\u0117ms'), h('span', null, 'Just now \u00B7 \uD83C\uDF10'));
+          top.append(av, who, h('div', 'ads-fb-dots', '\u00B7\u00B7\u00B7'));
+          const ptext = h('div', 'ads-fb-text'), pimg = h('img', 'ads-fb-img'); pimg.alt = ''; pimg.hidden = true;
+          const acts = h('div', 'ads-fb-acts'); ['Like', 'Comment', 'Share'].forEach((t) => acts.appendChild(h('span', null, t)));
+          card.append(top, ptext, pimg, acts); right.appendChild(card);
+          const upd = () => { ptext.textContent = desc.value; ptext.hidden = !desc.value.trim(); };
+          desc.addEventListener('input', upd); upd();
+
+          const showImg = (src) => { prev.src = src; prev.hidden = false; pimg.src = src; pimg.hidden = false; pick.classList.add('has'); hint.textContent = 'Change photo'; };
+          if (edit && item.thumb) showImg(item.thumb);
+          if (edit) getFull(item.id).then((img) => { if (img && !changed && m.screen === 'form' && prev.isConnected) showImg(img); });
+          const take = async (f) => {
+            if (!f || !/^image\//.test(f.type || 'image/')) return;
+            hint.textContent = 'Loading\u2026';
+            try { image = await shrink(f, 1200, 0.82); thumb = await shrink(f, 260, 0.7); changed = true; showImg(image); }
+            catch (e) { hint.textContent = "Couldn't read that image"; }
+          };
+          file.onchange = () => { const f = file.files[0]; file.value = ''; take(f); };
+          ['dragenter', 'dragover'].forEach((ev) => pick.addEventListener(ev, (e) => { e.preventDefault(); pick.classList.add('drag'); }));
+          ['dragleave', 'drop'].forEach((ev) => pick.addEventListener(ev, (e) => { e.preventDefault(); pick.classList.remove('drag'); }));
+          pick.addEventListener('drop', (e) => take(e.dataTransfer && e.dataTransfer.files[0]));
+
+          if (edit) {
+            const sw = h('button', 'ads-switch'); sw.type = 'button';
+            const paint = () => { sw.classList.toggle('on', used); sw.replaceChildren(h('span', 'ads-knob'), h('b', null, used ? 'Used' : 'Not used')); };
+            sw.onclick = () => { used = !used; paint(); };
+            paint(); left.appendChild(sw);
+          }
+          const msg = h('div', 'ads-msg'); left.appendChild(msg);
+          const row = h('div', 'ads-actions');
+          const saveBtn = h('button', 'money-btn ads-save', 'Save'); saveBtn.type = 'button';
+          row.appendChild(saveBtn);
+          saveBtn.onclick = async () => {
+            const body = { title: title.value.trim(), description: desc.value.trim() };
+            if (!edit && !image && !body.title && !body.description) { msg.textContent = 'Add a photo or some text first.'; return; }
+            if (edit) body.used = used ? 1 : 0;
+            if (image) { body.image = image; body.thumb = thumb; }
+            saveBtn.disabled = true; saveBtn.textContent = 'Saving\u2026'; msg.textContent = '';
+            try {
+              const r = await post('?resource=bank' + (edit ? '&id=' + item.id : ''), body);
+              if (!r.ok) throw new Error(((await r.json().catch(() => ({}))).error) || ('status ' + r.status));
+              const it = (await r.json()).item;
+              if (edit) { const i = bank.findIndex((x) => x.id === item.id); if (i > -1) bank[i] = { ...it, thumb: it.thumb || bank[i].thumb }; if (image) fullCache[item.id] = image; }
+              else { bank.unshift(it); if (image) fullCache[it.id] = image; }
+              persistBank();
+              if (modal === m) bankSaved(m);
+            } catch (e) { saveBtn.disabled = false; saveBtn.textContent = 'Save'; msg.textContent = 'Could not save: ' + e.message; }
+          };
+          if (edit) {
+            const del = h('button', 'money-btn alt ads-del', 'Delete'); del.type = 'button';
+            let armed = 0;
+            del.onclick = async () => {
+              if (!armed) { armed = setTimeout(() => { armed = 0; del.textContent = 'Delete'; }, 3000); del.textContent = 'Tap again to delete'; return; }
+              clearTimeout(armed); del.disabled = true;
+              try {
+                const r = await fetch(API + '?resource=bank&id=' + item.id, { method: 'DELETE' });
+                if (!r.ok) throw new Error('status ' + r.status);
+                bank = bank.filter((x) => x.id !== item.id); delete fullCache[item.id]; persistBank();
+                if (modal === m) bankSaved(m);
+              } catch (e) { del.disabled = false; armed = 0; del.textContent = 'Delete'; msg.textContent = 'Could not delete: ' + e.message; }
+            };
+            row.appendChild(del);
+          }
+          left.appendChild(row);
+          cols.append(left, right); b.appendChild(cols);
+        });
+      }
+
+      /* ---------- turning the Ads calendar on / off ---------- */
+      function setOn(v, o) {
+        o = o || {};
+        if (v === on) return;
+        if (v && typeof MoneyMode !== 'undefined' && MoneyMode.isOn()) MoneyMode.toggle();
+        on = v;
+        document.body.classList.toggle('ads-mode', on);
+        $('adsPanel').hidden = !on;
+        adsTab.classList.toggle('active', on);
+        if (on) monthTab.classList.remove('active');
+        else if (o.tabs !== false && typeof GlobalTopBar !== 'undefined' && GlobalTopBar.currentView() === 'month') monthTab.classList.add('active');
+        document.querySelectorAll('#daysGrid .day-cell').forEach((c) => { c._as = false; c.classList.remove('ads-enter'); });
+        renderCalendar();
+        if (on) { renderSummary(); fetchDays(); }
+      }
+
+      function init() {
+        adsTab.style.touchAction = 'manipulation';
+        adsTab.addEventListener('click', () => {
+          if (on) return;
+          if (typeof GlobalTopBar !== 'undefined' && GlobalTopBar.currentView() !== 'month') {
+            GlobalTopBar.goToMonthView();
+            setTimeout(() => setOn(true), 60);
+          } else setOn(true);
+        });
+        monthTab.addEventListener('click', () => { if (on) setOn(false); });
+        dayTab.addEventListener('click', () => { if (on) setOn(false, { tabs: false }); });
+        weekTab.addEventListener('click', () => { if (on) setOn(false, { tabs: false }); });
+        // GlobalTopBar re-marks "Month" active on every view change - keep it off while Ads is showing
+        new MutationObserver(() => { if (on && monthTab.classList.contains('active')) monthTab.classList.remove('active'); })
+          .observe(monthTab, { attributes: true, attributeFilter: ['class'] });
+        // the € Money calendar and Ads can't both be on
+        new MutationObserver(() => { if (on && document.body.classList.contains('money-mode')) setOn(false); })
+          .observe(document.body, { attributes: true, attributeFilter: ['class'] });
+
+        $('daysGrid').addEventListener('click', (e) => {
+          if (!on) return;
+          const cell = e.target.closest('.day-cell:not(.empty)');
+          if (!cell) return;
+          e.stopImmediatePropagation(); e.preventDefault();
+          openDay(parseInt(cell.dataset.day, 10));
+        }, true);
+        $('adsBankBtn').addEventListener('click', openBank);
+      }
+      init();
+      return { isOn: () => on };
+    })();
+  ;
+
     (() => {
       const HKEY = 'habitTimerHistory', AKEY = 'habitTimerActive';
       const dayTab = document.getElementById('globalTabDay');
