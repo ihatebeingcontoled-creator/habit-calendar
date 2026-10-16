@@ -10444,6 +10444,55 @@ const PIP_MAX = 3;
         } catch (e) { return ''; }
       }
 
+      /* ---------- full-quality originals (exact file you picked, no shrinking) ---------- */
+      const MAX_ORIG = 30 * 1024 * 1024;       // 30 MB per photo
+      const IS_MOBILE = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      const canShareFiles = (f) => { try { return !!(navigator.canShare && navigator.share && navigator.canShare({ files: [f] })); } catch (e) { return false; } };
+      const extOf = (mime, name) => {
+        const m = /\.([a-z0-9]{2,5})$/i.exec(name || ''); if (m) return m[1].toLowerCase();
+        return ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'image/heic': 'heic', 'image/heif': 'heif' })[mime] || 'jpg';
+      };
+      const b64ToBytes = (b64) => { const bin = atob(b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; };
+      // sends the untouched file as-is (the server puts it in R2)
+      async function uploadOriginal(id, f) {
+        const r = await fetch(API + '?resource=orig&id=' + id, {
+          method: 'POST',
+          headers: { 'Content-Type': f.type || 'application/octet-stream', 'X-Orig-Name': encodeURIComponent(f.name || '') },
+          body: f
+        });
+        if (!r.ok) throw new Error(((await r.json().catch(() => ({}))).error) || ('status ' + r.status));
+      }
+      // gets the exact original; if there is none (older posters) or it fails, falls back to the stored 1200px copy
+      async function fetchOriginal(item) {
+        let fellBack = false;
+        if (item.has_orig) {
+          try {
+            const rr = await fetch(API + '?resource=orig&id=' + item.id, { cache: 'no-store' });
+            if (rr.ok) {
+              const blob = await rr.blob();
+              let nm = ''; try { nm = decodeURIComponent(rr.headers.get('X-Orig-Name') || ''); } catch (e) {}
+              return { blob, mime: blob.type || 'image/jpeg', name: nm, original: true };
+            }
+            const get = async (i) => {
+              const r = await fetch(API + '?resource=orig&id=' + item.id + '&idx=' + i, { cache: 'no-store' });
+              if (!r.ok) throw new Error('status ' + r.status);
+              return r.json();
+            };
+            const first = await get(0), pieces = [first];
+            for (let i = 1; i < first.total; i += 4) {
+              const batch = []; for (let j = i; j < Math.min(i + 4, first.total); j++) batch.push(get(j));
+              pieces.push(...await Promise.all(batch));
+            }
+            const mime = first.mime || 'image/jpeg';
+            return { blob: new Blob(pieces.map((c) => b64ToBytes(c.data)), { type: mime }), mime, name: first.name || '', original: true };
+          } catch (e) { fellBack = true; }
+        }
+        const full = await getFull(item.id);
+        if (!full) throw new Error('no image');
+        const mime = (/^data:([^;,]+)/.exec(full) || [])[1] || 'image/jpeg';
+        return { blob: new Blob([b64ToBytes(full.slice(full.indexOf(',') + 1))], { type: mime }), mime, name: '', original: false, fellBack };
+      }
+
       function screen(m, name, build) {
         m.screen = name; m.sheet.innerHTML = ''; m.sheet.classList.toggle('ads-wide', name === 'form');
         const b = h('div', 'ads-screen'); m.sheet.appendChild(b); build(b);
@@ -10516,7 +10565,7 @@ const PIP_MAX = 3;
         const edit = !!item;
         screen(m, 'form', (b) => {
           b.appendChild(head(m, edit ? 'Edit post' : 'Create post', () => bankSaved(m)));
-          let image = '', thumb = '', changed = false, used = edit ? !!item.used : false;
+          let image = '', thumb = '', changed = false, used = edit ? !!item.used : false, origFile = null;
           const cols = h('div', 'ads-cols'), left = h('div', 'ads-left'), right = h('div', 'ads-right');
 
           /* left: the form */
@@ -10530,6 +10579,40 @@ const PIP_MAX = 3;
           const title = h('input', 'ads-input'); title.type = 'text'; title.placeholder = 'Poster name (only for you, optional)'; title.maxLength = 120;
           left.append(desc, pick, title);
           if (edit) { title.value = item.title || ''; desc.value = item.description || ''; }
+
+          /* saved poster: get the photo back out (full quality) */
+          let dlWrap = null;
+          if (edit) {
+            dlWrap = h('div', 'ads-dl');
+            const bDl = h('button', 'ads-dl-btn', 'Download'); bDl.type = 'button'; bDl.disabled = true;
+            const bGal = h('button', 'ads-dl-btn', 'Save to gallery'); bGal.type = 'button'; bGal.disabled = true; bGal.hidden = !IS_MOBILE;
+            const note = h('div', 'ads-dl-note', 'Getting the full-quality photo\u2026');
+            dlWrap.append(bDl, bGal, note); left.appendChild(dlWrap);
+            let ready = null;                                   // { blob, file, name, original }
+            fetchOriginal(item).then((o) => {
+              if (!dlWrap.isConnected) return;
+              const base = (item.title || '').trim().replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-').slice(0, 40) || 'poster-' + item.id;
+              const name = o.name || (base + '.' + extOf(o.mime, ''));
+              ready = { blob: o.blob, name, original: o.original, file: new File([o.blob], name, { type: o.mime }) };   // File is built NOW so the Share tap stays a direct tap
+              bDl.disabled = false; bGal.disabled = false;
+              note.textContent = o.original
+                ? 'Full quality \u2014 exactly the file you uploaded.' + (IS_MOBILE ? ' On iPhone tap \u201CSave to gallery\u201D, then \u201CSave Image\u201D.' : '')
+                : (o.fellBack ? "Couldn't load the original, so this is the compressed copy (max 1200px). Close and reopen to try again."
+                              : 'This one was saved before originals were kept, so this is the compressed copy (max 1200px). Pick the photo again and Save once to keep the original.');
+            }).catch(() => { if (dlWrap.isConnected) note.textContent = "Couldn't load the photo \u2014 check your connection."; });
+            bDl.onclick = () => {
+              if (!ready) return;
+              const a = document.createElement('a'); a.href = URL.createObjectURL(ready.blob); a.download = ready.name; a.style.display = 'none';
+              document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 10000);
+            };
+            bGal.onclick = async () => {
+              if (!ready) return;
+              if (canShareFiles(ready.file)) {
+                try { await navigator.share({ files: [ready.file] }); }
+                catch (e) { if (!e || e.name !== 'AbortError') toast("Couldn't open the share sheet"); }
+              } else { window.open(URL.createObjectURL(ready.blob), '_blank'); toast('Press and hold the photo, then tap Add to Photos'); }
+            };
+          }
 
           /* right: live Facebook-style preview */
           right.appendChild(h('div', 'ads-prev-title', 'Preview'));
@@ -10550,7 +10633,12 @@ const PIP_MAX = 3;
           const take = async (f) => {
             if (!f || !/^image\//.test(f.type || 'image/')) return;
             hint.textContent = 'Loading\u2026';
-            try { image = await shrink(f, 1200, 0.82); thumb = await shrink(f, 260, 0.7); changed = true; showImg(image); }
+            try {
+              image = await shrink(f, 1200, 0.82); thumb = await shrink(f, 260, 0.7); changed = true; showImg(image);
+              origFile = f.size <= MAX_ORIG ? f : null;       // the untouched file, uploaded on Save
+              if (dlWrap) dlWrap.hidden = true;               // those buttons were for the old photo
+              if (!origFile) msg.textContent = 'That photo is over 30 MB, so only the 1200px version will be kept.';
+            }
             catch (e) { hint.textContent = "Couldn't read that image"; }
           };
           file.onchange = () => { const f = file.files[0]; file.value = ''; take(f); };
@@ -10578,10 +10666,16 @@ const PIP_MAX = 3;
               const r = await post('?resource=bank' + (edit ? '&id=' + item.id : ''), body);
               if (!r.ok) throw new Error(((await r.json().catch(() => ({}))).error) || ('status ' + r.status));
               const it = (await r.json()).item;
+              let origFailed = false;
+              if (origFile) {
+                try { saveBtn.textContent = 'Saving original\u2026'; await uploadOriginal(it.id, origFile); it.has_orig = 1; }
+                catch (e) { it.has_orig = 0; origFailed = true; }
+              }
               if (edit) { const i = bank.findIndex((x) => x.id === item.id); if (i > -1) bank[i] = { ...it, thumb: it.thumb || bank[i].thumb }; if (image) fullCache[item.id] = image; }
               else { bank.unshift(it); if (image) fullCache[it.id] = image; }
               persistBank();
               if (modal === m) bankSaved(m);
+              if (origFailed) toast("Saved, but the full-quality original didn't upload \u2014 open it and pick the photo again");
             } catch (e) { saveBtn.disabled = false; saveBtn.textContent = 'Save'; msg.textContent = 'Could not save: ' + e.message; }
           };
           if (edit) {
