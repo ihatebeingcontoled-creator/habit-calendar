@@ -2868,6 +2868,11 @@
     .ads-pick.has .ads-prev { max-height: 64px; max-width: 64px; margin: 0; border-radius: 8px; object-fit: cover; }
     .ads-pick.has .ads-pick-hint { position: static; transform: none; background: none; color: #111; padding: 0; font-size: 14px; }
     .ads-pick.has .ads-pick-sub { display: none; }
+    .ads-dl { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; } .ads-dl[hidden] { display: none; }
+    .ads-dl-btn { flex: 1; min-width: 130px; height: 44px; border: none; border-radius: 12px; background: #efeff2; color: #111; font: inherit; font-weight: 800; font-size: 14px; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: transform .2s var(--m-ease), opacity .2s; }
+    .ads-dl-btn[hidden] { display: none; } .ads-dl-btn:active { transform: scale(.96); } .ads-dl-btn:disabled { opacity: .45; cursor: default; }
+    .ads-dl-note { width: 100%; font-size: 12px; line-height: 1.35; color: #8a8a8e; font-weight: 600; }
+    body.night-mode .ads-dl-btn { background: #2c2c2e; color: #f5f5f5; }
     .ads-fb { background: #fff; color: #050505; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,.18); overflow: hidden; }
     .ads-fb-top { display: flex; align-items: center; gap: 10px; padding: 12px 12px 6px; }
     .ads-fb-av { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: #111; flex: none; }
@@ -3012,7 +3017,7 @@
     body.night-mode .wt-bar { background: #333; }
     #watchToggleBtn.on { border-color: #1a73e8; color: #1a73e8; }
   </style>
-  <script src="/app.min.js?v=11" defer></script>
+  <script src="/app.min.js?v=13" defer></script>
 </head>
 <body>
   <script>
