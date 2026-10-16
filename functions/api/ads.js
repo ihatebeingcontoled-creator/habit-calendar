@@ -14,6 +14,13 @@
 //     POST   /api/ads?resource=bank&id=5   {title?, description?, used?, image?, thumb?} -> edits one
 //     DELETE /api/ads?resource=bank&id=5
 //
+//   orig  = the ORIGINAL, untouched photo for a bank item (exact bytes you uploaded, no shrinking).
+//           The file itself lives in R2 (binding ADS_IMAGES -> bucket trade-journal-images, key ads-originals/<id>);
+//           D1 only keeps a tiny marker row so the list can say has_orig = 1.
+//     POST   /api/ads?resource=orig&id=5     raw file as the body (Content-Type = the photo's type, X-Orig-Name = file name)
+//     GET    /api/ads?resource=orig&id=5     -> the original file itself
+//     GET    /api/ads?resource=orig&id=5&idx=0  -> (legacy) a base64 piece saved by the earlier D1-only version
+//
 // The tables are created automatically the first time this runs, so there is NO sql file to run.
 
 const json = (d, s = 200) =>
@@ -38,12 +45,23 @@ function ensureSchema(db) {
       thumb       TEXT DEFAULT '',
       used        INTEGER DEFAULT 0,
       created_at  TEXT DEFAULT CURRENT_TIMESTAMP)`).run();
+    await db.prepare(`CREATE TABLE IF NOT EXISTS ads_bank_orig (
+      bank_id INTEGER NOT NULL,
+      idx     INTEGER NOT NULL,
+      total   INTEGER NOT NULL,
+      mime    TEXT DEFAULT '',
+      name    TEXT DEFAULT '',
+      data    TEXT NOT NULL,
+      PRIMARY KEY (bank_id, idx))`).run();
   })().catch((e) => { schemaReady = null; throw e; });
   return schemaReady;
 }
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-const META = 'id, title, description, used, thumb, created_at';
+const META = 'id, title, description, used, thumb, created_at, ' +
+  '(SELECT CASE WHEN COUNT(*) = MAX(total) THEN 1 ELSE 0 END FROM ads_bank_orig o WHERE o.bank_id = ads_bank.id) AS has_orig';
+const MAX_ORIG = 30 * 1024 * 1024;           // 30 MB per photo
+const R2_KEY = (id) => 'ads-originals/' + id;   // its own folder inside the bucket, away from the trade photos
 const okImg = (s, max) => typeof s === 'string' && s.startsWith('data:image/') && s.length <= max;
 
 export async function onRequest({ request, env }) {
@@ -103,6 +121,10 @@ export async function onRequest({ request, env }) {
         if (b.thumb)               { sets.push('thumb = ?');       vals.push(b.thumb); }
         if (!sets.length) return json({ error: 'nothing to change' }, 400);
         await db.prepare(`UPDATE ads_bank SET ${sets.join(', ')} WHERE id = ?`).bind(...vals, id).run();
+        if (b.image) { // old original no longer matches the new photo
+          await db.prepare('DELETE FROM ads_bank_orig WHERE bank_id = ?').bind(id).run();
+          if (env.ADS_IMAGES) { try { await env.ADS_IMAGES.delete(R2_KEY(id)); } catch (e) {} }
+        }
         const row = await db.prepare(`SELECT ${META} FROM ads_bank WHERE id = ?`).bind(id).first();
         return row ? json({ item: row }) : json({ error: 'not found' }, 404);
       }
@@ -122,6 +144,47 @@ export async function onRequest({ request, env }) {
     if (request.method === 'DELETE') {
       if (!id) return json({ error: 'id required' }, 400);
       await db.prepare('DELETE FROM ads_bank WHERE id = ?').bind(id).run();
+      await db.prepare('DELETE FROM ads_bank_orig WHERE bank_id = ?').bind(id).run();
+      if (env.ADS_IMAGES) { try { await env.ADS_IMAGES.delete(R2_KEY(id)); } catch (e) {} }
+      return json({ ok: true });
+    }
+    return json({ error: 'method not allowed' }, 405);
+  }
+
+  /* ---------------- original (full-quality) photo ---------------- */
+  if (resource === 'orig') {
+    if (!id) return json({ error: 'id required' }, 400);
+
+    if (request.method === 'GET') {
+      // legacy: a base64 piece from the earlier D1-only version
+      if (url.searchParams.has('idx')) {
+        const idx = parseInt(url.searchParams.get('idx'), 10) || 0;
+        const row = await db.prepare('SELECT idx, total, mime, name, data FROM ads_bank_orig WHERE bank_id = ? AND idx = ?').bind(id, idx).first();
+        return row ? json(row) : json({ error: 'not found' }, 404);
+      }
+      // the file itself, straight from R2
+      const m = await db.prepare("SELECT mime, name, (data = 'r2') AS is_r2 FROM ads_bank_orig WHERE bank_id = ? AND idx = 0").bind(id).first();
+      if (!m || !m.is_r2) return json({ error: 'not found' }, 404);
+      if (!env.ADS_IMAGES) return json({ error: 'R2 binding \"ADS_IMAGES\" not found' }, 500);
+      const obj = await env.ADS_IMAGES.get(R2_KEY(id));
+      if (!obj) return json({ error: 'not found' }, 404);
+      return new Response(obj.body, {
+        headers: { 'Content-Type': m.mime || 'image/jpeg', 'X-Orig-Name': encodeURIComponent(m.name || ''), 'Cache-Control': 'no-store' },
+      });
+    }
+
+    if (request.method === 'POST') {
+      if (!env.ADS_IMAGES) return json({ error: 'R2 binding \"ADS_IMAGES\" not found - add it in the Pages project settings' }, 500);
+      const exists = await db.prepare('SELECT 1 AS x FROM ads_bank WHERE id = ?').bind(id).first();
+      if (!exists) return json({ error: 'not found' }, 404);
+      const buf = await request.arrayBuffer();
+      if (!buf.byteLength) return json({ error: 'empty file' }, 400);
+      if (buf.byteLength > MAX_ORIG) return json({ error: 'file over 30 MB' }, 413);
+      const mime = (request.headers.get('Content-Type') || 'application/octet-stream').slice(0, 100);
+      let name = ''; try { name = decodeURIComponent(request.headers.get('X-Orig-Name') || '').slice(0, 200); } catch (e) {}
+      await env.ADS_IMAGES.put(R2_KEY(id), buf, { httpMetadata: { contentType: mime }, customMetadata: { name } });
+      await db.prepare('DELETE FROM ads_bank_orig WHERE bank_id = ?').bind(id).run();
+      await db.prepare("INSERT INTO ads_bank_orig (bank_id, idx, total, mime, name, data) VALUES (?, 0, 1, ?, ?, 'r2')").bind(id, mime, name).run();
       return json({ ok: true });
     }
     return json({ error: 'method not allowed' }, 405);
