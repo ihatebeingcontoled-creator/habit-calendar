@@ -42,6 +42,7 @@ function ensureSchema(db) {
     ]).then(async () => {
       // tables made by Part 1 do not have the "found" column yet; on a fresh table this fails harmlessly
       try { await db.prepare('ALTER TABLE scan_settings ADD COLUMN found TEXT').run(); } catch (e) { /* already there */ }
+      try { await db.prepare('ALTER TABLE scan_settings ADD COLUMN ignore_on INTEGER DEFAULT 0').run(); } catch (e) { /* already there */ }
     }).catch((e) => { schemaReady = null; throw e; });
   }
   return schemaReady;
@@ -230,7 +231,8 @@ export async function runScan({ db, env, runId, settings, password }) {
   const host = new URL(start).hostname.replace(/^www\./, '');
   const allowed = (() => { try { return JSON.parse(settings.allowed || '[]').filter(Boolean); } catch (e) { return []; } })();
   const ignore = new Set();
-  try { const r = await db.prepare('SELECT word FROM scan_ignore').all(); for (const x of r.results || []) ignore.add(String(x.word).trim().toLowerCase()); } catch (e) { /* table missing: nothing to ignore */ }
+  if (settings.ignore_on) try { const r = await db.prepare('SELECT word FROM scan_ignore').all(); for (const x of r.results || []) ignore.add(String(x.word).trim().toLowerCase()); } catch (e) { /* table missing: nothing to ignore */ }
+  await log(settings.ignore_on ? 'Word list ON: ' + ignore.size + ' word(s) will be cut out of the text while scanning.' : 'Word list OFF: text is kept as the site gives it.');
   const { http, st } = makeClient(host);
   const user = settings.username || '';
   const pages = [];
@@ -330,12 +332,29 @@ export async function runScan({ db, env, runId, settings, password }) {
     } catch (e) { lines.push('(could not save the discovered page list: ' + e.message + ')'); }
   }
 
-  // save the pages
-  if (pages.length) {
+  // save the pages: only a good scan that found something NEW; and only the newest scan's pages are ever kept
+  const total = pages.reduce((n, p) => n + p.chars, 0);
+  let saved = false;
+  if (status === 'ok' && total > 0) {
+    let same = false;
+    try {
+      const lastRun = await db.prepare('SELECT run_id FROM scan_pages ORDER BY id DESC LIMIT 1').first();
+      if (lastRun) {
+        const { results } = await db.prepare('SELECT url, body FROM scan_pages WHERE run_id = ? ORDER BY id').bind(lastRun.run_id).all();
+        const a = (results || []).map((p) => p.url + '\n' + p.body).join('\u0001');
+        same = a === pages.map((p) => p.url + '\n' + p.body).join('\u0001');
+      }
+    } catch (e) { /* cannot compare: just save */ }
+    if (same) await log('Nothing changed since the last saved scan, so nothing was saved to D1.');
+    else saved = true;
+  } else {
+    await log('Nothing useful to keep (' + (status === 'ok' ? 'no text found' : 'scan did not finish OK') + '), so nothing was saved to D1.');
+  }
+  if (saved) {
     const stmts = pages.map((p) => db.prepare('INSERT INTO scan_pages (run_id, url, title, chars, body) VALUES (?,?,?,?,?)').bind(runId, p.url, p.title, p.chars, p.body));
     for (let i = 0; i < stmts.length; i += 10) await db.batch(stmts.slice(i, i + 10));
+    await db.prepare('DELETE FROM scan_pages WHERE run_id != ?').bind(runId).run();   // older page texts are never kept
   }
-  const total = pages.reduce((n, p) => n + p.chars, 0);
   await log('DONE. ' + pages.length + ' page(s), ' + total + ' characters, ' + st.requests + ' request(s). Status: ' + status + '.');
   await flush(true);
   await db.prepare('UPDATE scan_runs SET status = ?, finished = ?, pages = ? WHERE id = ?').bind(status, new Date().toISOString(), pages.length, runId).run();
@@ -343,7 +362,7 @@ export async function runScan({ db, env, runId, settings, password }) {
   // keep only the newest few runs
   const old = await db.prepare('SELECT id FROM scan_runs ORDER BY started DESC LIMIT -1 OFFSET ?').bind(KEEP_RUNS).all();
   for (const r of old.results || []) {
-    await db.batch([db.prepare('DELETE FROM scan_pages WHERE run_id = ?').bind(r.id), db.prepare('DELETE FROM scan_runs WHERE id = ?').bind(r.id)]);
+    await db.batch([db.prepare('DELETE FROM scan_pages WHERE run_id = ? AND run_id != COALESCE((SELECT run_id FROM scan_pages ORDER BY id DESC LIMIT 1), \'\')').bind(r.id), db.prepare('DELETE FROM scan_runs WHERE id = ?').bind(r.id)]);
   }
   return { status, pages: pages.length, chars: total };
 }
@@ -353,7 +372,7 @@ function publicSettings(s) {
   return {
     start_url: s.start_url || DEFAULT_START, username: s.username || '', hasPassword: !!s.password_enc,
     every: s.every || 'off', hour: s.hour == null ? 7 : s.hour, allowed: (() => { try { return JSON.parse(s.allowed || '[]'); } catch (e) { return []; } })(),
-    last_run: s.last_run || null,
+    last_run: s.last_run || null, ignore_on: !!s.ignore_on,
   };
 }
 
@@ -370,7 +389,8 @@ export async function onRequestGet({ request, env }) {
     if (res === 'latest') {
       const run = await env.DB.prepare('SELECT * FROM scan_runs ORDER BY started DESC LIMIT 1').first();
       if (!run) return json({ run: null });
-      const { results } = await env.DB.prepare('SELECT id, url, title, chars FROM scan_pages WHERE run_id = ? ORDER BY id').bind(run.id).all();
+      const keep = await env.DB.prepare('SELECT run_id FROM scan_pages ORDER BY id DESC LIMIT 1').first();
+      const { results } = await env.DB.prepare('SELECT id, url, title, chars FROM scan_pages WHERE run_id = ? ORDER BY id').bind(keep ? keep.run_id : run.id).all();
       return json({ run: { id: run.id, started: run.started, finished: run.finished, status: run.status, log: run.log || '', pages: run.pages }, pages: results || [] });
     }
     if (res === 'page') {
@@ -386,8 +406,9 @@ export async function onRequestGet({ request, env }) {
       return json({ found, allowed });
     }
     if (res === 'results') {
-      const run = await env.DB.prepare("SELECT id, started FROM scan_runs WHERE status != 'running' ORDER BY started DESC LIMIT 1").first();
+      const run = await env.DB.prepare("SELECT run_id AS id FROM scan_pages ORDER BY id DESC LIMIT 1").first();
       if (!run) return json({ text: '', pages: 0, chars: 0 });
+      run.started = run.id;
       const { results } = await env.DB.prepare('SELECT url, body FROM scan_pages WHERE run_id = ? ORDER BY id').bind(run.id).all();
       const text = (results || []).map((p) => '=== ' + p.url + ' ===\n' + p.body).join('\n\n');
       return json({ text, pages: (results || []).length, chars: text.length, started: run.started });
@@ -423,6 +444,7 @@ export async function onRequestPost({ request, env }) {
       const allowed = Array.isArray(b.allowed) ? JSON.stringify(b.allowed.map(String).slice(0, 200)) : (cur.allowed || '[]');
       await env.DB.prepare('UPDATE scan_settings SET start_url=?, username=?, password_enc=?, every=?, hour=?, allowed=? WHERE id=1')
         .bind(start, String(b.username || '').trim(), enc, every, hour, allowed).run();
+      if (typeof b.ignore_on === 'boolean') await env.DB.prepare('UPDATE scan_settings SET ignore_on = ? WHERE id = 1').bind(b.ignore_on ? 1 : 0).run();
       const s = await env.DB.prepare('SELECT * FROM scan_settings WHERE id = 1').first();
       return json(publicSettings(s));
     }
