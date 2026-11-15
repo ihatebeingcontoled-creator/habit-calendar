@@ -10747,6 +10747,385 @@ const PIP_MAX = 3;
     })();
   ;
 
+    /* ───────────────────────── TEST TAB ─────────────────────────
+       Scans the school diary on the server (functions/api/scan.js) and lists what it fetched.
+         • days can NOT be clicked while this tab is on
+         • Scan now / schedule / clock / account fields / live log / fetched pages / "Results" pop-up
+       Part 2: allowed-pages picker, scanned-text working copy with "Delete characters" / "Delete unnecessary" / "Remove repeated lines", and the Notes pop-ups. */
+    const TestMode = (() => {
+      const $ = (id) => document.getElementById(id);
+      const tab = $('globalTabTest'), monthTab = $('globalTabMonth'), dayTab = $('globalTabDay'), weekTab = $('globalTabWeek');
+      if (!tab || !$('testPanel')) return { isOn: () => false };
+
+      const API = '/api/scan';
+      const NOTES = [{"title": "Handoff summary (copy-paste for another AI)", "sub": "Everything about this project: rules, how the scan works, what is done", "text": "=== HANDOFF: habit-calendar \"Test\" tab + site code gate ===\n\nWHO / WHAT\n- User owns a Cloudflare Pages site (bens-calendar.pages.dev, GitHub repo ihatebeingcontoled-creator/habit-calendar) with a D1 database (binding name DB). It is a habit calendar. Files: index.html (UI+CSS), app.js (source), app.min.js (what the page actually loads: <script src=\"/app.min.js?v=14\">), sw.js, manifest.json, functions/api/*.js (Pages Functions), functions/_middleware.js (code gate).\n- Goal: scan the user's school e-diary manodienynas.lt (Lithuanian) and LATER put upcoming tests into the calendar. FOR NOW only the Test tab scans and shows results. Still NOT wanted yet: Groq/AI, adding tests to the calendar, notifications.\n- The user is not a developer. Answer in short plain English. Always end with: (1) the list of changed files, presented as files, (2) the exact steps the user must do right now.\n\nUSER RULES\n1. Work in TWO PARTS (the AI often runs out of credits). Present each part when done.\n2. Only touch the Test area (plus the access-code gate). No other code, no notifications.\n3. Present the changed files and give the steps to do right now.\n4. Never type or ask for the user's passwords in chat. The user types them into the Test panel.\n5. No zip unless asked (\"zip it up\" = zip). Otherwise loose files.\n6. Summaries/handoffs are copy-paste text in chat, not a file.\n\nSTATE: BOTH PARTS ARE DONE (tested in headless Chrome against a fake diary site; NOT yet tried on the real manodienynas.lt from Cloudflare).\nPart 1\n- functions/_middleware.js: access-code gate. Env var named exactly \"code\". Cookie \"site_access\" = HMAC of the code (HttpOnly, Secure, SameSite=Strict, 1 year). No cookie = no access to any page/API. Left open on purpose: /api/push-check (outside cron), /api/spend with Bearer header (own token check), /manifest.json, /favicon.png. If \"code\" is missing the site shows 503 \"locked\".\n- functions/api/scan.js: server-side login + crawl of manodienynas.lt (browsers cannot, CORS). D1 tables scan_settings / scan_runs / scan_pages are created automatically. Password stored AES-GCM encrypted with a key derived from \"code\". Start URL must be https and *.manodienynas.lt. Max 40 pages and 46 requests per scan (free plan limit 50). Routes: GET/POST ?resource=settings, POST run, GET latest / page&id / results / found, POST allowed.\n- index.html + app.js (TestMode module, after the AdsMode module, \"TEST TAB\" comment) + app.min.js (rebuilt: /opt/npm-tools/node_modules/.bin/esbuild app.js --minify --outfile=app.min.js; verified byte-identical to the original build for unchanged code). Test tab button next to Ads; days not clickable (CSS pointer-events none + capture click handler); clock with current hour; Scan now; schedule (off/hourly/daily at hour; runs only while the site is open, browser time); username/password/start URL; live log; list of fetched pages; click a page = huge pop-up; Results button = pop-up with everything.\nPart 2\n- ALLOWED PAGES picker (\"Choose pages\"): the server remembers every page address it discovers (scan_settings.found). The user ticks the pages the scan may visit; saved with POST ?resource=allowed. Nothing ticked = scan everything. Non-allowed pages are never fetched (saves time and requests).\n- SCANNED TEXT (working copy, local in the browser, kept in localStorage): \"Load latest scan\", \"Delete unnecessary\" (removes dot leaders, repeated , / - _ * ~ | ; empty table cells, lines with no letters or digits, extra spaces and blank lines, consecutive duplicate lines), \"Remove repeated lines\" (drops lines that appear on most pages = the menu repeated on every page), \"Restore original\", Copy, Big view. \"Delete characters\": type characters, press + to add each as a chip, press a chip to delete that character from the scanned text, \"Delete all listed\" for all chips, x forgets a chip. Page header lines \"=== url ===\" are never touched. After a good scan the text is loaded into the working copy automatically.\n- NOTES: summary pages listed like scanned items in the Test tab; click = huge pop-up (this text and the guide).\n- \"Summarize\" means shrink with allowlist + cleaning. NOT AI.\n\nHOW THE EXTRACTION WAS DONE AND WHAT WAS LEARNED\n- First a Chrome extension \"Dienynas Copy\" (options page with Start, live log, result box) proved the approach. Logic: fetch start page https://www.manodienynas.lt/; detect password forms; the page has TWO: pick the one with exactly one password input and NOT field names like new_pass/regist/reset/surname (the other is a create-password form: user_name,user_surname,new_pass1,new_pass2). Login = POST the form action (an AJAX url like /1/lt/ajax/public/...) with hidden inputs + username/password + the submit button, header X-Requested-With: XMLHttpRequest. Confirm login by a logout link (\"Atsijungti\"). Then crawl same-host <a href> links (http->https), turn HTML into text (td -> \" | \", block tags -> newlines). scan.js does the same on the server with a manual cookie jar and manual redirects (Workers keep no cookies).\n- SKIPPED links: logout/atsijungti, delete/trinti, \"/api/\", \"/action/\" (click counters), \"redirect\" (the /api/redirect_to_portal links log the user into third-party cempion.lt), file downloads, duplicate language copies /1/ua /1/ru /1/en.\n- Result in Chrome was a logged-in family account (parent with children, Kauno Vinco Kudirkos progimnazija): 50,631 lines / 700KB, mostly junk (menu repeated on every page, messages in 4 languages, payments, contracts, bills).\n- USEFUL PAGES (base https://www.manodienynas.lt/1/lt/page/...): control_work/dates_pupil (TESTS. Columns: Eil. Nr. | Data | Atsiskaitomojo darbo tipas | Grupė | Atsiskaitomojo darbo tema | Įvesta; example: 2026-11-20 | Kontrolinis darbas | Chemija (-) 8b | ...), classhomework/home_work (Namų darbai), classhomework/class_work, schedule/view, sf/resolve_post/day_view, sf/resolve_post/event/list, marks_pupil/marks, marks_pupil/pupil_attendance, remark/pupil_parent_list. Tests sometimes appear only inside homework text (Lithuanian: kontrolinis, testas, atsiskaitymas, savarankiškas).\n- UNVERIFIED: the Chrome extension ran in the user's own browser (maybe already logged in). Server-side login from Cloudflare has not been verified; the scan log records every step so failures are visible.\n- Cloudflare Pages has no cron: scheduled scans only fire while the site is open. A separate cron Worker would be needed to scan while closed.\n\nHOW THE WEBSITE CODE WAS HANDLED\n- User uploads habit-calendar-main.zip. Unzip with python zipfile into a fresh directory and edit there. app.min.js is built from app.js with esbuild (command above); bump the ?v= number in index.html after rebuilding (now 14, bump to 15 if app.min.js changes again).\n- /api/events POST deletes and re-inserts every event for each date it receives (merge first if ever writing events).\n\nNEXT (not started, only when the user asks)\n- Use Groq (env GROQ_API_KEY, see functions/api/talk-ai.js) to pull test dates out of the cleaned scan text, then add them to the calendar via /api/events (merge per date, ids prefixed \"mdtest-\" so reruns update instead of duplicating).\n- Optional: a cron Worker so scans run when the site is closed."}, {"title": "Test tab guide (what each button does)", "sub": "Scan, schedule, allowed pages, delete tools", "text": "TEST TAB: WHAT EACH THING DOES\n\nTop\n- \"Now\" is your clock and the current hour.\n- Scan now: logs in to manodienynas.lt from the server and reads pages. The log shows each step.\n- Results: opens everything from the latest scan in one huge pop-up (the cleaned copy, if you cleaned it).\n\nSchedule\n- Off / every hour / every day at a chosen hour. It uses your browser's time and only starts while the site is open.\n\nDiary account\n- Start page, username, password. The password is saved encrypted and is never shown again. Leave the password empty to keep the saved one.\n\nAllowed pages\n- \"Choose pages\" lists every page the scans have found. Tick the ones that matter (for example the tests page and the homework page) and press Save. From then on the scan fetches only those pages. Nothing ticked = scan everything.\n- Run \"Scan now\" once first, so the list has pages in it.\n\nScanned text\n- Load latest scan: puts the newest scan in the box (it also happens by itself after a good scan).\n- Delete unnecessary: removes dot lines, repeated commas/slashes/dashes, empty table cells, lines with no letters or digits, extra spaces and blank lines.\n- Remove repeated lines: removes lines that appear on most pages (the menu). Needs at least 3 pages.\n- Delete characters: type characters (for example ,./-) and press +. Each becomes a chip. Press a chip to delete that character from the text. \"Delete all listed\" does every chip. The x forgets a chip.\n- Restore original: brings back the untouched scan text. Copy / Big view: copy it or open it large.\n\nNotes\n- These summary pages. Press one to open it in a pop-up. The first one is the copy-paste summary for another AI.\n\nSetup reminders\n- The Cloudflare variable is named code (the access code). Changing it means saving the diary password again.\n- A scan reads at most 40 pages (Cloudflare free plan limit)."}];
+      let on = false, settings = null, running = false, clockT = 0, modalText = '';
+      const p2 = (n) => String(n).padStart(2, '0');
+      const fmt = (iso) => { try { return new Date(iso).toLocaleString(); } catch (e) { return iso || ''; } };
+      const say = (id, msg) => { $(id).textContent = msg || ''; };
+
+      async function api(qs, opt) {
+        const r = await fetch(API + qs, { cache: 'no-store', ...(opt || {}) });
+        const t = await r.text();
+        let j; try { j = JSON.parse(t); } catch (e) { j = { error: t.slice(0, 200) }; }
+        if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+        return j;
+      }
+      const postJson = (qs, body) => api(qs, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+
+      /* ---------- clock ---------- */
+      function tick() {
+        const n = new Date();
+        say('testClock', p2(n.getHours()) + ':' + p2(n.getMinutes()) + ':' + p2(n.getSeconds()));
+        say('testHourNow', '(hour ' + n.getHours() + ')');
+      }
+
+      /* ---------- settings ---------- */
+      function fillFields() {
+        if (!settings) return;
+        $('testStart').value = settings.start_url || '';
+        $('testUser').value = settings.username || '';
+        $('testPass').value = '';
+        $('testPass').placeholder = settings.hasPassword ? 'Password saved (type to change it)' : 'Password';
+        $('testEvery').value = settings.every || 'off';
+        $('testHour').value = String(settings.hour == null ? 7 : settings.hour);
+        $('testHour').disabled = $('testEvery').value !== 'daily';
+        showLast(); allowedInfo();
+      }
+      function showLast() { say('testLast', 'Last scan: ' + (settings && settings.last_run ? fmt(settings.last_run) : 'never')); }
+      async function loadSettings() { settings = await api('?resource=settings'); fillFields(); }
+      async function saveSettings() {
+        const body = { start_url: $('testStart').value.trim(), username: $('testUser').value.trim(), every: $('testEvery').value, hour: parseInt($('testHour').value, 10) || 0 };
+        const pw = $('testPass').value;
+        if (pw) body.password = pw;
+        say('testSaveMsg', 'Saving...');
+        try {
+          settings = await postJson('?resource=settings', body);
+          fillFields();
+          say('testSaveMsg', 'Saved' + (pw ? ' (password stored encrypted)' : ''));
+        } catch (e) { say('testSaveMsg', 'Could not save: ' + e.message); }
+      }
+
+      /* ---------- pop-up ---------- */
+      function showModal(title, text) {
+        modalText = text || '';
+        say('testModalTitle', title);
+        $('testModalBody').textContent = modalText;
+        $('testModalBody').scrollTop = 0;
+        $('testModal').hidden = false; $('testModal').classList.add('show');
+      }
+      function closeModal() { $('testModal').classList.remove('show'); $('testModal').hidden = true; }
+      async function copyModal() {
+        try { await navigator.clipboard.writeText(modalText); }
+        catch (e) { const r = document.createRange(); r.selectNodeContents($('testModalBody')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); document.execCommand('copy'); s.removeAllRanges(); }
+        const b = $('testModalCopy'); b.textContent = 'Copied'; setTimeout(() => { b.textContent = 'Copy'; }, 1200);
+      }
+      async function openPage(p) {
+        showModal(p.title + '  (' + p.chars + ' characters)', 'Loading...');
+        try { const r = await api('?resource=page&id=' + p.id); if ($('testModal').classList.contains('show')) showModal(p.title + '  (' + r.chars + ' characters)', r.body || '(empty page)'); }
+        catch (e) { showModal(p.title, 'Could not load: ' + e.message); }
+      }
+      async function openResults() {
+        say('testStatus', 'Loading results...');
+        try {
+          if (!work.c) await loadWork(true);
+          say('testStatus', '');
+          showModal(work.c ? 'Latest scan, working copy (' + num(work.c.length) + ' characters' + (work.c.length !== work.o.length ? ', cleaned from ' + num(work.o.length) : '') + ')' : 'Latest scan',
+            work.c || 'No results yet. Press "Scan now" first.');
+        } catch (e) { say('testStatus', 'Could not load results: ' + e.message); }
+      }
+
+      /* ---------- showing a scan ---------- */
+      function render(data) {
+        const run = data && data.run;
+        const logEl = $('testLog');
+        if (!run) { logEl.textContent = 'Nothing yet. Press "Scan now".'; $('testList').innerHTML = ''; say('testListTitle', 'Fetched pages'); return; }
+        const stick = running || logEl.scrollTop + logEl.clientHeight >= logEl.scrollHeight - 24;
+        logEl.textContent = run.log || '(starting...)';
+        if (stick) logEl.scrollTop = logEl.scrollHeight;
+        const pages = data.pages || [];
+        const total = pages.reduce((n, p) => n + (p.chars || 0), 0);
+        say('testListTitle', 'Fetched pages (' + pages.length + ', ' + total + ' characters) · scan from ' + fmt(run.started) + ' · ' + run.status);
+        const box = $('testList');
+        box.innerHTML = '';
+        pages.forEach((p) => {
+          const b = document.createElement('button');
+          b.type = 'button'; b.className = 'test-item';
+          const left = document.createElement('div');
+          left.appendChild(document.createTextNode(p.title));
+          const small = document.createElement('small'); small.textContent = p.url; left.appendChild(small);
+          const n = document.createElement('span'); n.className = 'n'; n.textContent = p.chars + ' chars';
+          b.append(left, n);
+          b.addEventListener('click', () => openPage(p));
+          box.appendChild(b);
+        });
+      }
+
+      /* ---------- scanning ---------- */
+      function setBusy(b) { $('testScanBtn').disabled = b; $('testScanBtn').textContent = b ? 'Scanning...' : 'Scan now'; }
+      async function startScan(auto) {
+        if (running) return;
+        running = true; setBusy(true);
+        say('testStatus', auto ? 'Scheduled scan running...' : 'Scanning...');
+        const pollOnce = async () => { try { render(await api('?resource=latest')); } catch (e) {} };
+        const poll = setInterval(pollOnce, 1000);
+        setTimeout(pollOnce, 400);
+        let scanOk = false;
+        try {
+          const r = await postJson('?resource=run');
+          scanOk = r.status === 'ok';
+          say('testStatus', r.status === 'ok' ? 'Done: ' + r.pages + ' page(s), ' + r.chars + ' characters.'
+            : r.status === 'login-failed' ? 'Login failed. See the log.' : 'Scan failed. See the log.');
+        } catch (e) { say('testStatus', 'Scan failed: ' + e.message); }
+        finally {
+          clearInterval(poll); running = false; setBusy(false);
+          try { render(await api('?resource=latest')); settings = await api('?resource=settings'); showLast(); allowedInfo(); } catch (e) {}
+          if (scanOk) loadWork(true);
+        }
+      }
+      function due() {
+        if (!settings || running || !settings.hasPassword || !settings.username) return false;
+        const now = new Date(), last = settings.last_run ? new Date(settings.last_run) : null;
+        if (settings.every === 'hourly') return !last || now - last >= 3600e3;
+        if (settings.every === 'daily') {
+          const slot = new Date(now.getFullYear(), now.getMonth(), now.getDate(), settings.hour || 0);
+          return now >= slot && (!last || last < slot);
+        }
+        return false;
+      }
+      async function schedTick() {
+        try { if (!settings) settings = await api('?resource=settings'); } catch (e) { return; }
+        if (due()) startScan(true);
+      }
+
+      /* ---------- allowed pages (which pages a scan may visit) ---------- */
+      let pickItems = [], pickChecked = new Set();
+      function allowedInfo() {
+        const n = settings && settings.allowed ? settings.allowed.length : 0;
+        say('testAllowedInfo', n ? 'Only ' + n + ' page(s) are scanned' : 'Scanning everything (nothing is restricted)');
+      }
+      const pickShown = () => {
+        const q = $('testPickFilter').value.trim().toLowerCase();
+        return pickItems.filter((i) => !q || i.path.toLowerCase().includes(q) || (i.text || '').toLowerCase().includes(q));
+      };
+      function renderPicker() {
+        const box = $('testPickList');
+        box.innerHTML = '';
+        pickShown().forEach((i) => {
+          const row = document.createElement('label'); row.className = 'test-pickrow';
+          const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = pickChecked.has(i.path);
+          cb.addEventListener('change', () => { if (cb.checked) pickChecked.add(i.path); else pickChecked.delete(i.path); });
+          const t = document.createElement('span');
+          const b = document.createElement('b'); b.textContent = i.text || '(no label)';
+          const s = document.createElement('small'); s.textContent = i.path;
+          t.append(b, s); row.append(cb, t); box.appendChild(row);
+        });
+      }
+      async function togglePicker() {
+        const box = $('testPicker');
+        if (!box.hidden) { box.hidden = true; return; }
+        box.hidden = false; say('testPickMsg', 'Loading...');
+        try {
+          const r = await api('?resource=found');
+          pickItems = r.found || []; pickChecked = new Set(r.allowed || []);
+          (r.allowed || []).forEach((a) => { if (!pickItems.some((i) => i.path === a)) pickItems.unshift({ path: a, text: '' }); });
+          renderPicker();
+          say('testPickMsg', pickItems.length ? 'Nothing ticked = scan everything.' : 'No pages known yet. Press "Scan now" once, then come back here.');
+        } catch (e) { say('testPickMsg', 'Could not load: ' + e.message); }
+      }
+      async function saveAllowed() {
+        say('testPickMsg', 'Saving...');
+        try {
+          const r = await postJson('?resource=allowed', { allowed: [...pickChecked] });
+          if (settings) settings.allowed = r.allowed;
+          allowedInfo();
+          say('testPickMsg', r.allowed.length ? 'Saved. The next scan fetches only these ' + r.allowed.length + ' page(s).' : 'Saved. Nothing ticked, so the next scan reads everything.');
+        } catch (e) { say('testPickMsg', 'Could not save: ' + e.message); }
+      }
+
+      /* ---------- scanned text: a working copy that is cleaned locally in the browser ---------- */
+      const WORK_KEY = 'testWork.v1', CHIP_KEY = 'testDelChars.v1';
+      const lsGet = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
+      const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+      const num = (n) => n.toLocaleString();
+      const HEADER = /^=== .* ===$/;                       // the "=== address ===" line above each page is never touched
+      const perLine = (t, fn) => t.split('\n').map((l) => (HEADER.test(l) ? l : fn(l))).join('\n');
+      let work = lsGet(WORK_KEY, { o: '', c: '' });
+      let chips = lsGet(CHIP_KEY, []);
+
+      function showWork(msg) {
+        $('testWork').value = work.c;
+        const o = work.o.length, c = work.c.length;
+        say('testWorkInfo', o ? 'Original ' + num(o) + ' → now ' + num(c) + ' characters' + (c !== o ? ' (−' + Math.round((1 - c / o) * 100) + '%)' : '') : 'Empty. Press "Load latest scan".');
+        say('testWorkMsg', msg || '');
+        lsSet(WORK_KEY, work);
+      }
+      async function loadWork(quiet) {
+        try {
+          const r = await api('?resource=results');
+          work = { o: r.text || '', c: r.text || '' };
+          showWork(quiet ? 'Loaded the newest scan.' : (r.pages ? 'Loaded ' + r.pages + ' page(s).' : 'No scan results yet.'));
+        } catch (e) { say('testWorkMsg', 'Could not load: ' + e.message); }
+      }
+      function deleteChars(t, list) { return perLine(t, (l) => { for (const c of list) l = l.split(c).join(''); return l; }); }
+      function cleanUnnecessary(t) {
+        t = perLine(t, (l) => l
+          .replace(/\.{2,}/g, ' ')                                   // dot leaders  ".........."
+          .replace(/([,\/\\\-_*~|;])\1+/g, '$1')                     // ",,," "///" "---" -> one
+          .replace(/(?:[ \t]*\|[ \t]*){2,}/g, ' | ')                 // empty table cells
+          .replace(/^[ \t]*\|[ \t]*/, '').replace(/[ \t]*\|[ \t]*$/, '')
+          .replace(/[ \t ]{2,}/g, ' ').trim());
+        t = perLine(t, (l) => (/[\p{L}\p{N}]/u.test(l) ? l : ''));   // lines with no letters or digits at all
+        t = t.replace(/\n{2,}/g, '\n');
+        const out = []; let prev = null;
+        for (const l of t.split('\n')) { if (l !== prev) out.push(l); prev = l; }
+        return out.join('\n').trim();
+      }
+      function dropRepeated(t) {                                       // the menu that every page repeats
+        const blocks = t.split(/\n(?==== [^\n]* ===(?:\n|$))/);
+        if (blocks.length < 3) return { text: t, removed: 0, few: true };
+        const count = new Map();
+        blocks.forEach((b) => { new Set(b.split('\n').slice(1).map((l) => l.trim()).filter(Boolean)).forEach((l) => count.set(l, (count.get(l) || 0) + 1)); });
+        const need = Math.max(3, Math.ceil(blocks.length * 0.6));
+        let removed = 0;
+        const out = blocks.map((b) => {
+          const ls = b.split('\n');
+          return [ls[0]].concat(ls.slice(1).filter((l) => { const k = l.trim(); if (k && count.get(k) >= need) { removed++; return false; } return true; })).join('\n');
+        });
+        return { text: out.join('\n'), removed };
+      }
+      function needText() { if (work.c) return true; say('testWorkMsg', 'Nothing to clean yet. Press "Load latest scan".'); return false; }
+      function runClean() { if (!needText()) return; const b = work.c.length; work.c = cleanUnnecessary(work.c); showWork('Removed ' + num(b - work.c.length) + ' characters.'); }
+      function runDedup() {
+        if (!needText()) return;
+        const b = work.c.length, r = dropRepeated(work.c);
+        if (r.few) { say('testWorkMsg', 'Needs at least 3 pages to spot lines that repeat.'); return; }
+        work.c = r.text; showWork('Removed ' + num(r.removed) + ' repeated lines (' + num(b - work.c.length) + ' characters).');
+      }
+      function applyChars(list) {
+        if (!needText() || !list.length) return;
+        const b = work.c.length; work.c = deleteChars(work.c, list);
+        showWork('Deleted ' + num(b - work.c.length) + ' characters (' + list.join(' ') + ').');
+      }
+      function renderChips() {
+        const box = $('testChips'); box.innerHTML = '';
+        chips.forEach((c) => {
+          const w = document.createElement('span'); w.className = 'test-chip';
+          const a = document.createElement('button'); a.type = 'button'; a.className = 'c'; a.textContent = c; a.title = 'Delete this character from the scanned text';
+          a.addEventListener('click', () => applyChars([c]));
+          const x = document.createElement('button'); x.type = 'button'; x.className = 'x'; x.textContent = '×'; x.title = 'Forget this character';
+          x.addEventListener('click', () => { chips = chips.filter((k) => k !== c); lsSet(CHIP_KEY, chips); renderChips(); });
+          w.append(a, x); box.appendChild(w);
+        });
+      }
+      function addChips() {
+        const inp = $('testDelInput');
+        for (const c of [...inp.value]) { if (/\s/.test(c) || chips.includes(c)) continue; chips.push(c); }
+        inp.value = ''; lsSet(CHIP_KEY, chips); renderChips(); inp.focus();
+      }
+      async function copyWork() {
+        if (!work.c) { say('testWorkMsg', 'Nothing to copy yet.'); return; }
+        try { await navigator.clipboard.writeText(work.c); } catch (e) { $('testWork').select(); document.execCommand('copy'); }
+        say('testWorkMsg', 'Copied ' + num(work.c.length) + ' characters.');
+      }
+
+      /* ---------- notes: summary pages, listed like scanned pages; press one for a huge pop-up ---------- */
+      function renderNotes() {
+        const box = $('testNotes'); box.innerHTML = '';
+        NOTES.forEach((n) => {
+          const b = document.createElement('button'); b.type = 'button'; b.className = 'test-item';
+          const left = document.createElement('div'); left.appendChild(document.createTextNode(n.title));
+          const small = document.createElement('small'); small.textContent = n.sub; left.appendChild(small);
+          const c = document.createElement('span'); c.className = 'n'; c.textContent = num(n.text.length) + ' chars';
+          b.append(left, c); b.addEventListener('click', () => showModal(n.title + '  (' + num(n.text.length) + ' characters)', n.text));
+          box.appendChild(b);
+        });
+      }
+
+      /* ---------- turning Test mode on / off ---------- */
+      function setOn(v, o) {
+        o = o || {};
+        if (v === on) return;
+        if (v) {
+          if (typeof MoneyMode !== 'undefined' && MoneyMode.isOn()) MoneyMode.toggle();
+          if (document.body.classList.contains('ads-mode')) monthTab.click();   // turns Ads off
+        }
+        on = v;
+        document.body.classList.toggle('test-mode', on);
+        $('testPanel').hidden = !on;
+        tab.classList.toggle('active', on);
+        if (on) monthTab.classList.remove('active');
+        else if (o.tabs !== false && typeof GlobalTopBar !== 'undefined' && GlobalTopBar.currentView() === 'month') monthTab.classList.add('active');
+        if (on) {
+          tick(); clearInterval(clockT); clockT = setInterval(tick, 1000);
+          loadSettings().catch((e) => say('testSaveMsg', 'Could not load settings: ' + e.message));
+          api('?resource=latest').then(render).catch(() => {});
+        } else clearInterval(clockT);
+      }
+
+      function init() {
+        const hourSel = $('testHour');
+        for (let h = 0; h < 24; h++) { const op = document.createElement('option'); op.value = String(h); op.textContent = p2(h) + ':00'; hourSel.appendChild(op); }
+        hourSel.value = '7';
+        $('testEvery').addEventListener('change', () => { hourSel.disabled = $('testEvery').value !== 'daily'; });
+        hourSel.disabled = true;
+
+        tab.style.touchAction = 'manipulation';
+        tab.addEventListener('click', () => {
+          if (on) return;
+          if (typeof GlobalTopBar !== 'undefined' && GlobalTopBar.currentView() !== 'month') {
+            GlobalTopBar.goToMonthView();
+            setTimeout(() => setOn(true), 60);
+          } else setOn(true);
+        });
+        monthTab.addEventListener('click', () => { if (on) setOn(false); });
+        dayTab.addEventListener('click', () => { if (on) setOn(false, { tabs: false }); });
+        weekTab.addEventListener('click', () => { if (on) setOn(false, { tabs: false }); });
+        new MutationObserver(() => { if (on && monthTab.classList.contains('active')) monthTab.classList.remove('active'); })
+          .observe(monthTab, { attributes: true, attributeFilter: ['class'] });
+        // Ads / Money calendars and Test can't be on together
+        new MutationObserver(() => {
+          if (on && (document.body.classList.contains('ads-mode') || document.body.classList.contains('money-mode'))) setOn(false, { tabs: false });
+        }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+
+        // no day can be clicked in Test mode
+        $('daysGrid').addEventListener('click', (e) => {
+          if (!on) return;
+          if (e.target.closest('.day-cell')) { e.stopImmediatePropagation(); e.preventDefault(); }
+        }, true);
+
+        $('testScanBtn').addEventListener('click', () => startScan(false));
+        $('testResultsBtn').addEventListener('click', openResults);
+        $('testSaveBtn').addEventListener('click', saveSettings);
+        $('testModalClose').addEventListener('click', closeModal);
+        $('testModalCopy').addEventListener('click', copyModal);
+        $('testModal').addEventListener('click', (e) => { if (e.target === $('testModal')) closeModal(); });
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('testModal').classList.contains('show')) closeModal(); });
+
+        $('testPickBtn').addEventListener('click', togglePicker);
+        $('testPickFilter').addEventListener('input', renderPicker);
+        $('testPickAll').addEventListener('click', () => { pickShown().forEach((i) => pickChecked.add(i.path)); renderPicker(); });
+        $('testPickNone').addEventListener('click', () => { pickShown().forEach((i) => pickChecked.delete(i.path)); renderPicker(); });
+        $('testPickSave').addEventListener('click', saveAllowed);
+        $('testLoadBtn').addEventListener('click', () => loadWork(false));
+        $('testCleanBtn').addEventListener('click', runClean);
+        $('testDedupBtn').addEventListener('click', runDedup);
+        $('testRestoreBtn').addEventListener('click', () => { if (!work.o) { say('testWorkMsg', 'Nothing to restore.'); return; } work.c = work.o; showWork('Original text restored.'); });
+        $('testWorkCopyBtn').addEventListener('click', copyWork);
+        $('testWorkBigBtn').addEventListener('click', () => { if (!work.c) { say('testWorkMsg', 'Nothing to show yet.'); return; } showModal('Scanned text, working copy (' + num(work.c.length) + ' characters)', work.c); });
+        $('testDelAdd').addEventListener('click', addChips);
+        $('testDelInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addChips(); } });
+        $('testDelAll').addEventListener('click', () => applyChars(chips));
+        showWork(); renderChips(); renderNotes();
+
+        setTimeout(schedTick, 5000);
+        setInterval(schedTick, 60000);
+      }
+      init();
+      return { isOn: () => on };
+    })();
+  ;
+
     (() => {
       const HKEY = 'habitTimerHistory', AKEY = 'habitTimerActive';
       const dayTab = document.getElementById('globalTabDay');
