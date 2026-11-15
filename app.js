@@ -10788,6 +10788,7 @@ const PIP_MAX = 3;
         $('testPass').value = '';
         $('testPass').placeholder = settings.hasPassword ? 'Password saved (type to change it)' : 'Password';
         $('testEvery').value = settings.every || 'off';
+        $('testIgnoreOn').checked = !!settings.ignore_on;
         $('testHour').value = String(settings.hour == null ? 7 : settings.hour);
         $('testHour').disabled = $('testEvery').value !== 'daily';
         showLast(); allowedInfo();
@@ -10795,7 +10796,7 @@ const PIP_MAX = 3;
       function showLast() { say('testLast', 'Last scan: ' + (settings && settings.last_run ? fmt(settings.last_run) : 'never')); }
       async function loadSettings() { settings = await api('?resource=settings'); fillFields(); }
       async function saveSettings() {
-        const body = { start_url: $('testStart').value.trim(), username: $('testUser').value.trim(), every: $('testEvery').value, hour: parseInt($('testHour').value, 10) || 0 };
+        const body = { start_url: $('testStart').value.trim(), username: $('testUser').value.trim(), every: $('testEvery').value, hour: parseInt($('testHour').value, 10) || 0, ignore_on: $('testIgnoreOn').checked };
         const pw = $('testPass').value;
         if (pw) body.password = pw;
         say('testSaveMsg', 'Saving...');
@@ -10944,7 +10945,7 @@ const PIP_MAX = 3;
       }
 
       /* ---------- scanned text: a working copy that is cleaned locally in the browser ---------- */
-      const WORK_KEY = 'testWork.v1', CHIP_KEY = 'testDelChars.v1';
+      const WORK_KEY = 'testWork.v1', CHIP_KEY = 'testDelChars.v2';
       const lsGet = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
       const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
       const num = (n) => n.toLocaleString();
@@ -10952,6 +10953,9 @@ const PIP_MAX = 3;
       const perLine = (t, fn) => t.split('\n').map((l) => (HEADER.test(l) ? l : fn(l))).join('\n');
       let work = lsGet(WORK_KEY, { o: '', c: '' });
       let chips = lsGet(CHIP_KEY, []);
+      const LISTS_KEY = 'testDelLists.v1', AUTO_KEY = 'testDelAuto.v1';
+      let lists = lsGet(LISTS_KEY, {});
+      let auto = lsGet(AUTO_KEY, { on: false, name: '' });
 
       function showWork(msg) {
         $('testWork').value = work.c;
@@ -10964,10 +10968,18 @@ const PIP_MAX = 3;
         try {
           const r = await api('?resource=results');
           work = { o: r.text || '', c: r.text || '' };
-          showWork(quiet ? 'Loaded the newest scan.' : (r.pages ? 'Loaded ' + r.pages + ' page(s).' : 'No scan results yet.'));
+          if (quiet && auto.on && lists[auto.name] && work.c) work.c = deleteChars(work.c, lists[auto.name]);
+          showWork(quiet ? 'Loaded the newest scan' + (auto.on && lists[auto.name] ? ' and ran the list "' + auto.name + '".' : '.') : (r.pages ? 'Loaded ' + r.pages + ' page(s).' : 'No scan results yet.'));
         } catch (e) { say('testWorkMsg', 'Could not load: ' + e.message); }
       }
-      function deleteChars(t, list) { return perLine(t, (l) => { for (const c of list) l = l.split(c).join(''); return l; }); }
+      // a chip is either one character (typed) or a whole line "L:..." (pasted words/phrases: deletes only lines that are exactly that)
+      function deleteChars(t, list) {
+        const chars = list.filter((c) => c.slice(0, 2) !== 'L:');
+        const lines = new Set(list.filter((c) => c.slice(0, 2) === 'L:').map((c) => c.slice(2).trim().toLowerCase()));
+        let out = perLine(t, (l) => { if (lines.size && lines.has(l.trim().toLowerCase())) return ''; for (const c of chars) l = l.split(c).join(''); return l; });
+        if (lines.size) out = out.replace(/\n{3,}/g, '\n\n');
+        return out;
+      }
       function cleanUnnecessary(t) {
         t = perLine(t, (l) => l
           .replace(/\.{2,}/g, ' ')                                   // dot leaders  ".........."
@@ -11011,16 +11023,35 @@ const PIP_MAX = 3;
         const box = $('testChips'); box.innerHTML = '';
         chips.forEach((c) => {
           const w = document.createElement('span'); w.className = 'test-chip';
-          const a = document.createElement('button'); a.type = 'button'; a.className = 'c'; a.textContent = c; a.title = 'Delete this character from the scanned text';
+          const a = document.createElement('button'); a.type = 'button'; a.className = 'c'; a.textContent = c.slice(0, 2) === 'L:' ? c.slice(2) : c; a.title = c.slice(0, 2) === 'L:' ? 'Delete every line that is exactly this' : 'Delete this character from the scanned text';
           a.addEventListener('click', () => applyChars([c]));
           const x = document.createElement('button'); x.type = 'button'; x.className = 'x'; x.textContent = '×'; x.title = 'Forget this character';
           x.addEventListener('click', () => { chips = chips.filter((k) => k !== c); lsSet(CHIP_KEY, chips); renderChips(); });
           w.append(a, x); box.appendChild(w);
         });
       }
+      function renderLists() {
+        const sel = $('testListPick'); sel.innerHTML = '';
+        const names = Object.keys(lists);
+        if (!names.length) { const o = document.createElement('option'); o.value = ''; o.textContent = 'No saved lists yet'; sel.appendChild(o); }
+        names.forEach((n) => { const o = document.createElement('option'); o.value = n; o.textContent = n + ' (' + lists[n].length + ')'; sel.appendChild(o); });
+        if (auto.name && lists[auto.name]) sel.value = auto.name;
+        $('testListAuto').checked = !!auto.on;
+      }
+      function saveList() {
+        const name = $('testListName').value.trim() || 'My list';
+        if (!chips.length) { say('testWorkMsg', 'Add something to the chips first.'); return; }
+        lists[name] = chips.slice(); lsSet(LISTS_KEY, lists); $('testListName').value = ''; renderLists(); $('testListPick').value = name;
+        say('testWorkMsg', 'Saved list "' + name + '" (' + chips.length + ' items).');
+      }
+      function pickedList() { const n = $('testListPick').value; if (!n || !lists[n]) { say('testWorkMsg', 'Pick a saved list first.'); return null; } return n; }
       function addChips() {
         const inp = $('testDelInput');
-        for (const c of [...inp.value]) { if (/\s/.test(c) || chips.includes(c)) continue; chips.push(c); }
+        const v = inp.value, add = (c) => { if (c && !chips.includes(c)) chips.push(c); };
+        const quoted = [...v.matchAll(/'((?:[^']|'')*)'/g)].map((m) => m[1].replace(/''/g, "'").trim()).filter(Boolean);
+        if (quoted.length) quoted.forEach((p) => add('L:' + p));                       // pasted SQL list: every 'phrase' becomes a line chip
+        else if (/\n/.test(v)) v.split('\n').map((x) => x.trim()).filter(Boolean).forEach((p) => add('L:' + p));   // one phrase per line
+        else for (const c of [...v]) { if (!/\s/.test(c)) add(c); }                    // typed characters
         inp.value = ''; lsSet(CHIP_KEY, chips); renderChips(); inp.focus();
       }
       async function copyWork() {
@@ -11116,7 +11147,15 @@ const PIP_MAX = 3;
         $('testDelAdd').addEventListener('click', addChips);
         $('testDelInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addChips(); } });
         $('testDelAll').addEventListener('click', () => applyChars(chips));
-        showWork(); renderChips(); renderNotes();
+        $('testIgnoreOn').addEventListener('change', saveSettings);
+        $('testListSave').addEventListener('click', saveList);
+        $('testListRun').addEventListener('click', () => { const n = pickedList(); if (n) applyChars(lists[n]); });
+        $('testListLoad').addEventListener('click', () => { const n = pickedList(); if (!n) return; chips = lists[n].slice(); lsSet(CHIP_KEY, chips); renderChips(); $('testListName').value = n; say('testWorkMsg', 'List "' + n + '" is in the chips above. Change it and press Save list.'); });
+        $('testListDel').addEventListener('click', () => { const n = pickedList(); if (!n) return; delete lists[n]; lsSet(LISTS_KEY, lists); if (auto.name === n) { auto = { on: false, name: '' }; lsSet(AUTO_KEY, auto); } renderLists(); say('testWorkMsg', 'Deleted list "' + n + '".'); });
+        const setAuto = () => { auto = { on: $('testListAuto').checked, name: $('testListPick').value }; lsSet(AUTO_KEY, auto); say('testWorkMsg', auto.on && lists[auto.name] ? 'After every scan the list "' + auto.name + '" will run.' : 'Auto-run is off.'); };
+        $('testListAuto').addEventListener('change', setAuto);
+        $('testListPick').addEventListener('change', () => { if (auto.on) setAuto(); });
+        showWork(); renderChips(); renderLists(); renderNotes();
 
         setTimeout(schedTick, 5000);
         setInterval(schedTick, 60000);
