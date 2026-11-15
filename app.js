@@ -10945,7 +10945,7 @@ const PIP_MAX = 3;
       }
 
       /* ---------- scanned text: a working copy that is cleaned locally in the browser ---------- */
-      const WORK_KEY = 'testWork.v1', CHIP_KEY = 'testDelChars.v2';
+      const WORK_KEY = 'testWork.v1', CHIP_KEY = 'testDelChars.v3';
       const lsGet = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
       const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
       const num = (n) => n.toLocaleString();
@@ -11045,9 +11045,9 @@ const PIP_MAX = 3;
         say('testWorkMsg', 'Saved list "' + name + '" (' + chips.length + ' items).');
       }
       function pickedList() { const n = $('testListPick').value; if (!n || !lists[n]) { say('testWorkMsg', 'Pick a saved list first.'); return null; } return n; }
-      function addChips() {
+      function addChips(pasted) {
         const inp = $('testDelInput');
-        const v = inp.value, add = (c) => { if (c && !chips.includes(c)) chips.push(c); };
+        const v = typeof pasted === 'string' ? pasted : inp.value, add = (c) => { if (c && !chips.includes(c)) chips.push(c); };
         const quoted = [...v.matchAll(/'((?:[^']|'')*)'/g)].map((m) => m[1].replace(/''/g, "'").trim()).filter(Boolean);
         if (quoted.length) quoted.forEach((p) => add('L:' + p));                       // pasted SQL list: every 'phrase' becomes a line chip
         else if (/\n/.test(v)) v.split('\n').map((x) => x.trim()).filter(Boolean).forEach((p) => add('L:' + p));   // one phrase per line
@@ -11144,7 +11144,12 @@ const PIP_MAX = 3;
         $('testRestoreBtn').addEventListener('click', () => { if (!work.o) { say('testWorkMsg', 'Nothing to restore.'); return; } work.c = work.o; showWork('Original text restored.'); });
         $('testWorkCopyBtn').addEventListener('click', copyWork);
         $('testWorkBigBtn').addEventListener('click', () => { if (!work.c) { say('testWorkMsg', 'Nothing to show yet.'); return; } showModal('Scanned text, working copy (' + num(work.c.length) + ' characters)', work.c); });
-        $('testDelAdd').addEventListener('click', addChips);
+        $('testDelAdd').addEventListener('click', () => addChips());
+        // a one-line box throws away the line breaks of a pasted list, so catch the paste ourselves: several lines = one phrase chip per line
+        $('testDelInput').addEventListener('paste', (e) => {
+          const t = (e.clipboardData && e.clipboardData.getData('text')) || '';
+          if (/[\r\n]/.test(t.trim())) { e.preventDefault(); addChips(t.replace(/\r/g, '')); }
+        });
         $('testDelInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addChips(); } });
         $('testDelAll').addEventListener('click', () => applyChars(chips));
         $('testIgnoreOn').addEventListener('change', saveSettings);
