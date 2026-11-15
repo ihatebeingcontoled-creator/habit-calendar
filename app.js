@@ -10849,7 +10849,10 @@ const PIP_MAX = 3;
         say('testListTitle', 'Fetched pages (' + pages.length + ', ' + total + ' characters) · scan from ' + fmt(run.started) + ' · ' + run.status);
         const box = $('testList');
         box.innerHTML = '';
-        pages.forEach((p) => {
+        lastData = data;
+        const shown = more.pages ? pages : pages.slice(0, CAP.pages);
+        const pm = $('testPagesMore'); pm.hidden = pages.length <= CAP.pages; pm.textContent = more.pages ? 'Show fewer' : 'Show all ' + pages.length + ' pages';
+        shown.forEach((p) => {
           const b = document.createElement('button');
           b.type = 'button'; b.className = 'test-item';
           const left = document.createElement('div');
@@ -10953,13 +10956,18 @@ const PIP_MAX = 3;
       const perLine = (t, fn) => t.split('\n').map((l) => (HEADER.test(l) ? l : fn(l))).join('\n');
       let work = lsGet(WORK_KEY, { o: '', c: '' });
       let chips = lsGet(CHIP_KEY, []);
+      const CAP = { chips: 8, pages: 4, work: 3000 };          // what is shown while collapsed; "Expand" shows everything
+      const more = { chips: false, pages: false, work: false, log: false };
+      let lastData = null;
       const LISTS_KEY = 'testDelLists.v1', AUTO_KEY = 'testDelAuto.v1';
       let lists = lsGet(LISTS_KEY, {});
       let auto = lsGet(AUTO_KEY, { on: false, name: '' });
 
       function showWork(msg) {
-        $('testWork').value = work.c;
         const o = work.o.length, c = work.c.length;
+        $('testWork').value = more.work || c <= CAP.work ? work.c : work.c.slice(0, CAP.work) + '\n\n… (' + num(c - CAP.work) + ' more characters hidden, press Expand)';
+        const wm = $('testWorkMore'); wm.hidden = c <= CAP.work; wm.textContent = more.work ? 'Collapse' : 'Expand (' + num(c) + ' characters)';
+        $('testWork').classList.toggle('open', more.work);
         say('testWorkInfo', o ? 'Original ' + num(o) + ' → now ' + num(c) + ' characters' + (c !== o ? ' (−' + Math.round((1 - c / o) * 100) + '%)' : '') : 'Empty. Press "Load latest scan".');
         say('testWorkMsg', msg || '');
         lsSet(WORK_KEY, work);
@@ -11007,25 +11015,27 @@ const PIP_MAX = 3;
         return { text: out.join('\n'), removed };
       }
       function needText() { if (work.c) return true; say('testWorkMsg', 'Nothing to clean yet. Press "Load latest scan".'); return false; }
-      function runClean() { if (!needText()) return; const b = work.c.length; work.c = cleanUnnecessary(work.c); showWork('Removed ' + num(b - work.c.length) + ' characters.'); }
-      function runDedup() {
+      // ONE button does it all: junk characters -> menu lines repeated on every page -> every word/character in the list
+      function runClean() {
         if (!needText()) return;
-        const b = work.c.length, r = dropRepeated(work.c);
-        if (r.few) { say('testWorkMsg', 'Needs at least 3 pages to spot lines that repeat.'); return; }
-        work.c = r.text; showWork('Removed ' + num(r.removed) + ' repeated lines (' + num(b - work.c.length) + ' characters).');
+        const b = work.c.length, parts = [];
+        let t = cleanUnnecessary(work.c); parts.push(num(b - t.length) + ' junk characters');
+        const d = dropRepeated(t);
+        if (!d.few) { t = d.text; parts.push(num(d.removed) + ' repeated lines'); }
+        if (chips.length) { const before = t.length; t = deleteChars(t, chips); parts.push(num(before - t.length) + ' characters from your list'); }
+        work.c = t;
+        showWork('Cleaned: ' + num(b - t.length) + ' characters removed (' + parts.join(', ') + ').');
       }
-      function applyChars(list) {
-        if (!needText() || !list.length) return;
-        const b = work.c.length; work.c = deleteChars(work.c, list);
-        showWork('Deleted ' + num(b - work.c.length) + ' characters (' + list.join(' ') + ').');
-      }
+      const say_keep = () => $('testWorkMsg').textContent;
       function renderChips() {
         const box = $('testChips'); box.innerHTML = '';
-        chips.forEach((c) => {
-          const w = document.createElement('span'); w.className = 'test-chip';
-          const a = document.createElement('button'); a.type = 'button'; a.className = 'c'; a.textContent = c.slice(0, 2) === 'L:' ? c.slice(2) : c; a.title = c.slice(0, 2) === 'L:' ? 'Delete every line that is exactly this' : 'Delete this character from the scanned text';
-          a.addEventListener('click', () => applyChars([c]));
-          const x = document.createElement('button'); x.type = 'button'; x.className = 'x'; x.textContent = '×'; x.title = 'Forget this character';
+        say('testChipsCount', chips.length ? '(' + chips.length + ')' : '(empty)');
+        const cm = $('testChipsMore'); cm.hidden = chips.length <= CAP.chips; cm.textContent = more.chips ? 'Show fewer' : 'Show all ' + chips.length;
+        (more.chips ? chips : chips.slice(0, CAP.chips)).forEach((c) => {
+          const line = c.slice(0, 2) === 'L:';
+          const w = document.createElement('div'); w.className = 'test-chip';
+          const a = document.createElement('span'); a.className = 'c'; a.textContent = line ? c.slice(2) : 'character  ' + c; a.title = line ? 'Every line that is exactly this is removed' : 'This character is removed everywhere';
+          const x = document.createElement('button'); x.type = 'button'; x.className = 'x'; x.textContent = '\u2212'; x.title = 'Take off the list'; x.setAttribute('aria-label', 'Remove from the list');
           x.addEventListener('click', () => { chips = chips.filter((k) => k !== c); lsSet(CHIP_KEY, chips); renderChips(); });
           w.append(a, x); box.appendChild(w);
         });
@@ -11140,7 +11150,6 @@ const PIP_MAX = 3;
         $('testPickSave').addEventListener('click', saveAllowed);
         $('testLoadBtn').addEventListener('click', () => loadWork(false));
         $('testCleanBtn').addEventListener('click', runClean);
-        $('testDedupBtn').addEventListener('click', runDedup);
         $('testRestoreBtn').addEventListener('click', () => { if (!work.o) { say('testWorkMsg', 'Nothing to restore.'); return; } work.c = work.o; showWork('Original text restored.'); });
         $('testWorkCopyBtn').addEventListener('click', copyWork);
         $('testWorkBigBtn').addEventListener('click', () => { if (!work.c) { say('testWorkMsg', 'Nothing to show yet.'); return; } showModal('Scanned text, working copy (' + num(work.c.length) + ' characters)', work.c); });
@@ -11151,10 +11160,12 @@ const PIP_MAX = 3;
           if (/[\r\n]/.test(t.trim())) { e.preventDefault(); addChips(t.replace(/\r/g, '')); }
         });
         $('testDelInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addChips(); } });
-        $('testDelAll').addEventListener('click', () => applyChars(chips));
         $('testIgnoreOn').addEventListener('change', saveSettings);
+        $('testChipsMore').addEventListener('click', () => { more.chips = !more.chips; renderChips(); });
+        $('testWorkMore').addEventListener('click', () => { more.work = !more.work; showWork(say_keep()); });
+        $('testPagesMore').addEventListener('click', () => { more.pages = !more.pages; if (lastData) render(lastData); });
+        $('testLogMore').addEventListener('click', () => { more.log = !more.log; $('testLog').classList.toggle('open', more.log); $('testLogMore').textContent = more.log ? 'Collapse' : 'Expand'; });
         $('testListSave').addEventListener('click', saveList);
-        $('testListRun').addEventListener('click', () => { const n = pickedList(); if (n) applyChars(lists[n]); });
         $('testListLoad').addEventListener('click', () => { const n = pickedList(); if (!n) return; chips = lists[n].slice(); lsSet(CHIP_KEY, chips); renderChips(); $('testListName').value = n; say('testWorkMsg', 'List "' + n + '" is in the chips above. Change it and press Save list.'); });
         $('testListDel').addEventListener('click', () => { const n = pickedList(); if (!n) return; delete lists[n]; lsSet(LISTS_KEY, lists); if (auto.name === n) { auto = { on: false, name: '' }; lsSet(AUTO_KEY, auto); } renderLists(); say('testWorkMsg', 'Deleted list "' + n + '".'); });
         const setAuto = () => { auto = { on: $('testListAuto').checked, name: $('testListPick').value }; lsSet(AUTO_KEY, auto); say('testWorkMsg', auto.on && lists[auto.name] ? 'After every scan the list "' + auto.name + '" will run.' : 'Auto-run is off.'); };
