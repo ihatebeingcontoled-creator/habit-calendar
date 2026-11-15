@@ -2855,6 +2855,42 @@
     body.night-mode .ads-pick { background: #2c2c2e; border-color: #48484a; } body.night-mode .ads-pick.has { border-color: #3a3a3c; }
     body.night-mode .ads-input { background: #2c2c2e; border-color: #3a3a3c; color: #f5f5f5; } body.night-mode .ads-input:focus { background: #1c1c1e; }
     body.night-mode .mstat.ads-o .val { color: #fb923c; }
+
+    /* ── TEST TAB ── (everything below only applies in Test mode / the Test panel) */
+    body.test-mode #daysGrid .day-cell { pointer-events: none; opacity: .4; }
+    .test-top { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; margin-bottom: 10px; font-size: 14px; }
+    .test-clock b { font-size: 18px; font-variant-numeric: tabular-nums; }
+    .test-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px; margin-bottom: 8px; }
+    .test-log { height: 190px; overflow: auto; white-space: pre-wrap; word-break: break-all; background: #f7f7f9; border: 1px solid #efeff2; border-radius: 12px; padding: 10px; font: 12px ui-monospace, Menlo, Consolas, monospace; margin: 0; }
+    .test-list { display: grid; gap: 6px; }
+    .test-item { display: flex; justify-content: space-between; gap: 10px; align-items: center; width: 100%; padding: 10px 12px; border: 1px solid #efeff2; border-radius: 12px; background: #f7f7f9; cursor: pointer; text-align: left; font: inherit; font-size: 13px; color: inherit; }
+    .test-item:active { transform: scale(.99); }
+    .test-item small { display: block; color: #8a8a8e; word-break: break-all; }
+    .test-item .n { color: #8a8a8e; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .test-modal { position: fixed; inset: 0; z-index: 2147483000; background: rgba(0,0,0,.45); display: none; align-items: flex-start; justify-content: center; padding: 64px 3vw 3vh; }
+    .test-modal.show { display: flex; }
+    .test-modal[hidden] { display: none; }
+    .test-modal-box { background: #fff; color: #111; width: min(1100px, 100%); height: 100%; max-height: calc(100vh - 80px); border-radius: 20px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,.35); }
+    .test-modal-head { display: flex; gap: 10px; align-items: center; padding: 12px 14px; border-bottom: 1px solid #e8e8ea; }
+    .test-modal-head b { flex: 1; font-size: 14px; word-break: break-all; }
+    .test-modal-body { flex: 1; margin: 0; padding: 14px; overflow: auto; white-space: pre-wrap; word-break: break-word; font: 12px/1.45 ui-monospace, Menlo, Consolas, monospace; }
+    body.night-mode .test-log, body.night-mode .test-item { background: #232325; border-color: #2c2c2e; }
+    body.night-mode .test-modal-box { background: #1c1c1e; color: #f5f5f5; }
+    body.night-mode .test-modal-head { border-color: #2c2c2e; }
+    .test-picklist { max-height: 270px; overflow: auto; border: 1px solid #efeff2; border-radius: 12px; background: #f7f7f9; padding: 4px; }
+    .test-pickrow { display: flex; gap: 10px; align-items: flex-start; padding: 7px 8px; border-radius: 8px; cursor: pointer; font-size: 13px; }
+    .test-pickrow:hover { background: rgba(0,0,0,.04); }
+    .test-pickrow input { width: 18px; height: 18px; margin: 1px 0 0; padding: 0; flex: none; }
+    .test-pickrow b { display: block; font-weight: 600; }
+    .test-pickrow small { display: block; color: #8a8a8e; word-break: break-all; }
+    .test-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+    .test-chip { display: inline-flex; border: 1px solid #e2e2e6; border-radius: 10px; overflow: hidden; background: #f7f7f9; }
+    .test-chip button { border: 0; background: transparent; color: inherit; font: 14px ui-monospace, Menlo, Consolas, monospace; padding: 6px 10px; cursor: pointer; }
+    .test-chip button.x { border-left: 1px solid #e2e2e6; color: #8a8a8e; padding: 6px 8px; }
+    .test-chip button:active { background: rgba(0,0,0,.08); }
+    .test-work { width: 100%; height: 230px; box-sizing: border-box; border: 1px solid #efeff2; border-radius: 12px; background: #f7f7f9; color: inherit; padding: 10px; font: 12px ui-monospace, Menlo, Consolas, monospace; resize: vertical; }
+    body.night-mode .test-picklist, body.night-mode .test-work, body.night-mode .test-chip { background: #232325; border-color: #2c2c2e; }
+    body.night-mode .test-chip button.x { border-color: #2c2c2e; }
     .ads-sheet { transition: transform .45s var(--m-ease), opacity .3s ease, max-width .3s ease; }
     .ads-sheet.ads-wide { max-width: 960px; }
     .ads-cols { display: grid; grid-template-columns: 1fr; gap: 16px; }
@@ -3017,7 +3053,7 @@
     body.night-mode .wt-bar { background: #333; }
     #watchToggleBtn.on { border-color: #1a73e8; color: #1a73e8; }
   </style>
-  <script src="/app.min.js?v=13" defer></script>
+  <script src="/app.min.js?v=15" defer></script>
 </head>
 <body>
   <script>
@@ -3035,6 +3071,7 @@
       <button type="button" class="global-topbar-tab" id="globalTabWeek" data-view="week">Week</button>
       <button type="button" class="global-topbar-tab active" id="globalTabMonth" data-view="month">Month</button>
       <button type="button" class="global-topbar-tab" id="globalTabAds" data-view="ads">Ads</button>
+      <button type="button" class="global-topbar-tab" id="globalTabTest" data-view="test">Test</button>
     </div>
     <div class="global-topbar-right">
       <!-- Desktop-only (see its own CSS media query) — a display-
@@ -3164,6 +3201,86 @@
     <div class="money-row" style="margin-top:12px">
       <button type="button" class="money-btn" id="adsBankBtn">Bank</button>
       <span class="money-status" id="adsStatus"></span>
+    </div>
+  </div>
+  <!-- TEST TAB: scans the school diary on the server (functions/api/scan.js). Days are not clickable in this mode. -->
+  <div class="money-panel test-panel" id="testPanel" hidden>
+    <div class="money-title">Test · diary scan</div>
+    <div class="test-top">
+      <span class="test-clock">Now: <b id="testClock">--:--:--</b> <span id="testHourNow" class="money-status"></span></span>
+      <span class="money-status" id="testLast">Last scan: never</span>
+    </div>
+    <div class="money-row">
+      <button type="button" class="money-btn" id="testScanBtn">Scan now</button>
+      <button type="button" class="money-btn alt" id="testResultsBtn">Results</button>
+      <span class="money-status" id="testStatus"></span>
+    </div>
+    <div class="money-title" style="margin-top:12px">Schedule</div>
+    <div class="money-row">
+      <select id="testEvery" aria-label="How often"><option value="off">Do not scan automatically</option><option value="hourly">Every hour</option><option value="daily">Every day</option></select>
+      <label class="money-status" for="testHour">at hour</label>
+      <select id="testHour" aria-label="Hour"></select>
+      <span class="money-status">(your browser's time; it runs when the site is open)</span>
+    </div>
+    <div class="money-title" style="margin-top:12px">Diary account</div>
+    <div class="test-fields">
+      <input id="testStart" type="text" placeholder="https://www.manodienynas.lt/" autocomplete="off" aria-label="Start page">
+      <input id="testUser" type="text" placeholder="Username" autocomplete="off" aria-label="Username">
+      <input id="testPass" type="password" placeholder="Password (leave empty to keep the saved one)" autocomplete="new-password" aria-label="Password">
+    </div>
+    <div class="money-row">
+      <button type="button" class="money-btn alt" id="testSaveBtn">Save settings</button>
+      <span class="money-status" id="testSaveMsg"></span>
+    </div>
+    <div class="money-title" style="margin-top:12px">Allowed pages</div>
+    <div class="money-row">
+      <button type="button" class="money-btn alt" id="testPickBtn">Choose pages</button>
+      <span class="money-status" id="testAllowedInfo">Scanning everything (nothing is restricted)</span>
+    </div>
+    <div class="test-picker" id="testPicker" hidden>
+      <div class="money-row">
+        <input id="testPickFilter" type="text" placeholder="Filter pages..." autocomplete="off" aria-label="Filter pages" style="flex:1;min-width:140px">
+        <button type="button" class="money-btn alt" id="testPickAll">Tick all shown</button>
+        <button type="button" class="money-btn alt" id="testPickNone">Untick all</button>
+      </div>
+      <div class="test-picklist" id="testPickList"></div>
+      <div class="money-row" style="margin-top:8px">
+        <button type="button" class="money-btn" id="testPickSave">Save allowed pages</button>
+        <span class="money-status" id="testPickMsg"></span>
+      </div>
+    </div>
+    <div class="money-title" style="margin-top:12px">What it's doing</div>
+    <pre class="test-log" id="testLog">Nothing yet. Press "Scan now".</pre>
+    <div class="money-title" style="margin-top:12px" id="testListTitle">Fetched pages</div>
+    <div class="test-list" id="testList"></div>
+    <div class="money-title" style="margin-top:14px">Scanned text (working copy)</div>
+    <div class="money-row">
+      <button type="button" class="money-btn alt" id="testLoadBtn">Load latest scan</button>
+      <button type="button" class="money-btn" id="testCleanBtn">Delete unnecessary</button>
+      <button type="button" class="money-btn alt" id="testDedupBtn">Remove repeated lines</button>
+      <button type="button" class="money-btn alt" id="testRestoreBtn">Restore original</button>
+      <button type="button" class="money-btn alt" id="testWorkCopyBtn">Copy</button>
+      <button type="button" class="money-btn alt" id="testWorkBigBtn">Big view</button>
+    </div>
+    <div class="money-row">
+      <input id="testDelInput" type="text" maxlength="40" placeholder="Characters to delete, e.g. ,./-" autocomplete="off" aria-label="Characters to delete" style="flex:1;min-width:170px">
+      <button type="button" class="money-btn" id="testDelAdd" title="Add these characters to the list" aria-label="Add">+</button>
+      <button type="button" class="money-btn alt" id="testDelAll">Delete all listed</button>
+    </div>
+    <div class="test-chips" id="testChips"></div>
+    <div class="money-row"><span class="money-status" id="testWorkInfo"></span><span class="money-status" id="testWorkMsg"></span></div>
+    <textarea class="test-work" id="testWork" readonly spellcheck="false" aria-label="Scanned text"></textarea>
+    <div class="money-title" style="margin-top:14px">Notes</div>
+    <div class="test-list" id="testNotes"></div>
+  </div>
+  <div class="test-modal" id="testModal" hidden>
+    <div class="test-modal-box" role="dialog" aria-modal="true" aria-labelledby="testModalTitle">
+      <div class="test-modal-head">
+        <b id="testModalTitle"></b>
+        <button type="button" class="money-btn alt" id="testModalCopy">Copy</button>
+        <button type="button" class="money-btn" id="testModalClose">Close</button>
+      </div>
+      <pre class="test-modal-body" id="testModalBody"></pre>
     </div>
   </div>
   <div class="money-panel" id="moneyPanel" hidden>
