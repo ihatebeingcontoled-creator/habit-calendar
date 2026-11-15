@@ -3053,7 +3053,7 @@
     body.night-mode .wt-bar { background: #333; }
     #watchToggleBtn.on { border-color: #1a73e8; color: #1a73e8; }
   </style>
-  <script src="/app.min.js?v=15" defer></script>
+  <script src="/app.min.js?v=18" defer></script>
 </head>
 <body>
   <script>
@@ -3229,6 +3229,7 @@
       <input id="testPass" type="password" placeholder="Password (leave empty to keep the saved one)" autocomplete="new-password" aria-label="Password">
     </div>
     <div class="money-row">
+      <label class="money-status" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="testIgnoreOn"> Cut out the words from the D1 list (scan_ignore) while scanning</label>
       <button type="button" class="money-btn alt" id="testSaveBtn">Save settings</button>
       <span class="money-status" id="testSaveMsg"></span>
     </div>
@@ -3263,11 +3264,22 @@
       <button type="button" class="money-btn alt" id="testWorkBigBtn">Big view</button>
     </div>
     <div class="money-row">
-      <input id="testDelInput" type="text" maxlength="40" placeholder="Characters to delete, e.g. ,./-" autocomplete="off" aria-label="Characters to delete" style="flex:1;min-width:170px">
+      <input id="testDelInput" type="text" placeholder="Characters to delete, e.g. ,./-  or paste words" autocomplete="off" aria-label="Characters to delete" style="flex:1;min-width:170px">
       <button type="button" class="money-btn" id="testDelAdd" title="Add these characters to the list" aria-label="Add">+</button>
       <button type="button" class="money-btn alt" id="testDelAll">Delete all listed</button>
     </div>
     <div class="test-chips" id="testChips"></div>
+    <div class="money-row">
+      <input id="testListName" type="text" placeholder="Name for this list" autocomplete="off" aria-label="List name" style="flex:1;min-width:120px">
+      <button type="button" class="money-btn" id="testListSave" title="Save the chips above as a list">Save list</button>
+    </div>
+    <div class="money-row">
+      <select id="testListPick" aria-label="Saved deletion lists" style="flex:1;min-width:120px"></select>
+      <button type="button" class="money-btn" id="testListRun">Run list</button>
+      <button type="button" class="money-btn alt" id="testListLoad" title="Put this list's items back into the chips above">Edit</button>
+      <button type="button" class="money-btn alt" id="testListDel">Delete list</button>
+    </div>
+    <label class="money-status" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="testListAuto"> Run the picked list automatically after every scan</label>
     <div class="money-row"><span class="money-status" id="testWorkInfo"></span><span class="money-status" id="testWorkMsg"></span></div>
     <textarea class="test-work" id="testWork" readonly spellcheck="false" aria-label="Scanned text"></textarea>
     <div class="money-title" style="margin-top:14px">Notes</div>
