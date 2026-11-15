@@ -138,17 +138,22 @@ export function pickLoginForm(forms) {
   return withPw.sort((a, b) => score(b) - score(a))[0] || null;
 }
 export function buildLoginParams(form, user, pass) {
+  // The first username box and the first password box get your details. If the form lists the same field
+  // name again (the real login form does), the repeat is ignored instead of overwriting your details.
   const p = new URLSearchParams();
   let userSet = false, submitSet = false, pwSet = false;
   for (const el of form.inputs) {
     if (!el.name) continue;
     const t = (el.type || (el.tag === 'input' ? 'text' : '')).toLowerCase();
-    if (t === 'password') { p.set(el.name, pwSet ? '' : pass); pwSet = true; continue; }
+    if (t === 'password') {
+      if (!pwSet) { p.set(el.name, pass); pwSet = true; } else if (!p.has(el.name)) p.set(el.name, '');
+      continue;
+    }
     if (t === 'submit') { if (!submitSet) { p.set(el.name, el.value || ''); submitSet = true; } continue; }
     if (t === 'button' || t === 'image' || t === 'file') continue;
-    if (t === 'checkbox' || t === 'radio') { if (el.checked) p.set(el.name, el.value || 'on'); continue; }
+    if (t === 'checkbox' || t === 'radio') { if (el.checked && !p.has(el.name)) p.set(el.name, el.value || 'on'); continue; }
     if (!userSet && (t === 'text' || t === 'email')) { p.set(el.name, user); userSet = true; continue; }
-    p.set(el.name, el.value || '');
+    if (!p.has(el.name)) p.set(el.name, el.value || '');
   }
   return p;
 }
@@ -242,7 +247,7 @@ export async function runScan({ db, env, runId, settings, password }) {
       const params = buildLoginParams(form, user, password);
       const action = new URL(form.action || first.url, first.url).href;
       const method = (form.method || 'post').toUpperCase();
-      await log('STEP 3: logging in. Sending ' + method + ' with fields: ' + [...params.keys()].join(', '));
+      await log('STEP 3: logging in. Sending ' + method + ' with fields: ' + [...params].map(([k, v]) => k + (v ? '' : ' (EMPTY)')).join(', '));
       let res;
       if (method === 'GET') {
         const u = new URL(action); params.forEach((v, k) => u.searchParams.set(k, v));
