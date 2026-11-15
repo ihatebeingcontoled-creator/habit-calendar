@@ -37,6 +37,7 @@ function ensureSchema(db) {
         every TEXT DEFAULT 'off', hour INTEGER DEFAULT 7, allowed TEXT DEFAULT '[]', last_run TEXT, found TEXT DEFAULT '{}')`),
       db.prepare(`CREATE TABLE IF NOT EXISTS scan_runs (id TEXT PRIMARY KEY, started TEXT, finished TEXT, status TEXT, log TEXT, pages INTEGER DEFAULT 0)`),
       db.prepare(`CREATE TABLE IF NOT EXISTS scan_pages (id INTEGER PRIMARY KEY AUTOINCREMENT, run_id TEXT, url TEXT, title TEXT, chars INTEGER, body TEXT)`),
+      db.prepare(`CREATE TABLE IF NOT EXISTS scan_ignore (word TEXT PRIMARY KEY)`),
       db.prepare(`INSERT OR IGNORE INTO scan_settings (id) VALUES (1)`),
     ]).then(async () => {
       // tables made by Part 1 do not have the "found" column yet; on a fresh table this fails harmlessly
@@ -85,6 +86,11 @@ export function htmlToText(html) {
     .replace(/<\/(p|div|li|tr|h[1-6]|table|option|ul|ol|section|form|header|footer|nav)\s*>/gi, '\n')
     .replace(/<[^>]+>/g, ''))
     .replace(/[ \t ]+/g, ' ').replace(/ ?\n ?/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+// removes every line that is exactly one of the words in the scan_ignore table (ignores capital letters)
+export function dropIgnored(text, ignore) {
+  if (!ignore || !ignore.size) return text;
+  return text.split('\n').filter((ln) => !ignore.has(ln.trim().toLowerCase())).join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 export function titleOf(html, url) {
   const m = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html || '');
@@ -223,6 +229,8 @@ export async function runScan({ db, env, runId, settings, password }) {
   const start = settings.start_url || DEFAULT_START;
   const host = new URL(start).hostname.replace(/^www\./, '');
   const allowed = (() => { try { return JSON.parse(settings.allowed || '[]').filter(Boolean); } catch (e) { return []; } })();
+  const ignore = new Set();
+  try { const r = await db.prepare('SELECT word FROM scan_ignore').all(); for (const x of r.results || []) ignore.add(String(x.word).trim().toLowerCase()); } catch (e) { /* table missing: nothing to ignore */ }
   const { http, st } = makeClient(host);
   const user = settings.username || '';
   const pages = [];
@@ -290,7 +298,7 @@ export async function runScan({ db, env, runId, settings, password }) {
         }
       };
       const record = (url, html) => {
-        const body = htmlToText(html).slice(0, MAX_BODY);
+        const body = dropIgnored(htmlToText(html), ignore).slice(0, MAX_BODY);
         pages.push({ url, title: titleOf(html, url), chars: body.length, body });
       };
       addLinks(first.text, first.url);
