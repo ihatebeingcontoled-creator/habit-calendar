@@ -2858,6 +2858,32 @@
 
     /* ── TEST TAB ── (everything below only applies in Test mode / the Test panel) */
     body.test-mode #daysGrid .day-cell { pointer-events: none; opacity: .4; }
+    .test-panel { max-width: 1400px; }
+    .test-panel .test-more[hidden], .test-panel .money-btn[hidden] { display: none; }
+    .test-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+    .test-right { position: sticky; top: 64px; max-height: calc(100vh - 80px); overflow: auto; padding-right: 4px; }
+    @media (max-width: 900px) { .test-cols { grid-template-columns: 1fr; } .test-right { position: static; max-height: none; overflow: visible; } }
+    .test-fold { border: 1px solid #efeff2; border-radius: 12px; background: #fff; margin: 0 0 10px; padding: 0 12px; }
+    .test-fold > summary { cursor: pointer; padding: 11px 0; font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #6b6b70; list-style: none; display: flex; align-items: center; gap: 10px; user-select: none; }
+    .test-fold > summary::-webkit-details-marker { display: none; }
+    .test-fold > summary::before { content: '+'; flex: none; width: 20px; height: 20px; box-sizing: border-box; border: 1px solid #cfcfd6; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font: 700 14px/1 ui-monospace, Menlo, Consolas, monospace; color: #444; background: #f7f7f9; }
+    .test-fold[open] > summary::before { content: '\2212'; }
+    .test-fold[open] { padding-bottom: 10px; }
+    .test-count { font-weight: 600; letter-spacing: 0; color: #8a8a8e; text-transform: none; }
+    .test-sub { font-size: 12px; font-weight: 700; color: #6b6b70; margin: 12px 0 6px; }
+    .test-panel .test-chips { display: block; border: 1px solid #efeff2; border-radius: 12px; background: #f7f7f9; margin: 8px 0; }
+    .test-panel .test-chips:empty { display: none; }
+    .test-panel .test-chip { display: flex; align-items: center; border: 0; border-bottom: 1px solid #ececf0; border-radius: 0; background: transparent; padding: 0; }
+    .test-panel .test-chip:last-child { border-bottom: 0; }
+    .test-panel .test-chip .c { flex: 1; padding: 7px 10px; font: 13px ui-monospace, Menlo, Consolas, monospace; word-break: break-word; }
+    .test-panel .test-chip .x { flex: none; width: 34px; border: 0; border-left: 1px solid #ececf0; background: transparent; color: #8a8a8e; font: 700 16px/1 ui-monospace, Menlo, Consolas, monospace; cursor: pointer; padding: 7px 0; }
+    .test-panel .test-chip .x:hover { color: #d33; background: rgba(0,0,0,.04); }
+    .test-panel .test-log { height: 110px; transition: height .2s; }
+    .test-panel .test-log.open { height: 420px; }
+    .test-panel .test-work { height: 260px; }
+    .test-panel .test-work.open { height: 70vh; }
+    body.night-mode .test-fold { background: #1c1c1e; border-color: #2c2c2e; }
+    body.night-mode .test-fold > summary::before { background: #232325; border-color: #3a3a3c; color: #ddd; }
     .test-top { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; margin-bottom: 10px; font-size: 14px; }
     .test-clock b { font-size: 18px; font-variant-numeric: tabular-nums; }
     .test-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px; margin-bottom: 8px; }
@@ -3053,7 +3079,7 @@
     body.night-mode .wt-bar { background: #333; }
     #watchToggleBtn.on { border-color: #1a73e8; color: #1a73e8; }
   </style>
-  <script src="/app.min.js?v=19" defer></script>
+  <script src="/app.min.js?v=21" defer></script>
 </head>
 <body>
   <script>
@@ -3205,85 +3231,119 @@
   </div>
   <!-- TEST TAB: scans the school diary on the server (functions/api/scan.js). Days are not clickable in this mode. -->
   <div class="money-panel test-panel" id="testPanel" hidden>
-    <div class="money-title">Test · diary scan</div>
     <div class="test-top">
+      <span class="money-title" style="margin:0">Test · diary scan</span>
       <span class="test-clock">Now: <b id="testClock">--:--:--</b> <span id="testHourNow" class="money-status"></span></span>
       <span class="money-status" id="testLast">Last scan: never</span>
     </div>
-    <div class="money-row">
-      <button type="button" class="money-btn" id="testScanBtn">Scan now</button>
-      <button type="button" class="money-btn alt" id="testResultsBtn">Results</button>
-      <span class="money-status" id="testStatus"></span>
-    </div>
-    <div class="money-title" style="margin-top:12px">Schedule</div>
-    <div class="money-row">
-      <select id="testEvery" aria-label="How often"><option value="off">Do not scan automatically</option><option value="hourly">Every hour</option><option value="daily">Every day</option></select>
-      <label class="money-status" for="testHour">at hour</label>
-      <select id="testHour" aria-label="Hour"></select>
-      <span class="money-status">(your browser's time; it runs when the site is open)</span>
-    </div>
-    <div class="money-title" style="margin-top:12px">Diary account</div>
-    <div class="test-fields">
-      <input id="testStart" type="text" placeholder="https://www.manodienynas.lt/" autocomplete="off" aria-label="Start page">
-      <input id="testUser" type="text" placeholder="Username" autocomplete="off" aria-label="Username">
-      <input id="testPass" type="password" placeholder="Password (leave empty to keep the saved one)" autocomplete="new-password" aria-label="Password">
-    </div>
-    <div class="money-row">
-      <label class="money-status" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="testIgnoreOn"> Cut out the words from the D1 list (scan_ignore) while scanning</label>
-      <button type="button" class="money-btn alt" id="testSaveBtn">Save settings</button>
-      <span class="money-status" id="testSaveMsg"></span>
-    </div>
-    <div class="money-title" style="margin-top:12px">Allowed pages</div>
-    <div class="money-row">
-      <button type="button" class="money-btn alt" id="testPickBtn">Choose pages</button>
-      <span class="money-status" id="testAllowedInfo">Scanning everything (nothing is restricted)</span>
-    </div>
-    <div class="test-picker" id="testPicker" hidden>
-      <div class="money-row">
-        <input id="testPickFilter" type="text" placeholder="Filter pages..." autocomplete="off" aria-label="Filter pages" style="flex:1;min-width:140px">
-        <button type="button" class="money-btn alt" id="testPickAll">Tick all shown</button>
-        <button type="button" class="money-btn alt" id="testPickNone">Untick all</button>
+    <div class="test-cols">
+      <div class="test-left">
+        <details class="test-fold" open>
+          <summary>1 · Scan</summary>
+          <div class="money-row">
+            <button type="button" class="money-btn" id="testScanBtn">Scan now</button>
+            <button type="button" class="money-btn alt" id="testResultsBtn">Results</button>
+            <span class="money-status" id="testStatus"></span>
+          </div>
+        </details>
+        <details class="test-fold" open>
+          <summary>2 · Clean the text</summary>
+          <div class="money-row">
+            <button type="button" class="money-btn alt" id="testLoadBtn">Load latest scan</button>
+            <button type="button" class="money-btn" id="testCleanBtn" title="Removes junk characters, menu lines repeated on every page, and every word in your list below">Clean text</button>
+            <button type="button" class="money-btn alt" id="testRestoreBtn" title="Brings back the text exactly as it was scanned">Undo</button>
+            <button type="button" class="money-btn alt" id="testWorkCopyBtn">Copy</button>
+            <button type="button" class="money-btn alt" id="testWorkBigBtn">Big view</button>
+          </div>
+          <div class="money-status">"Clean text" does everything in one go. "Undo" brings the original back.</div>
+        </details>
+        <details class="test-fold" open>
+          <summary>3 · Words to remove <span id="testChipsCount" class="test-count"></span></summary>
+          <div class="money-row">
+            <input id="testDelInput" type="text" placeholder="Type a word or characters, or paste a list" autocomplete="off" aria-label="Words or characters to remove" style="flex:1;min-width:170px">
+            <button type="button" class="money-btn" id="testDelAdd" title="Add to the list" aria-label="Add">+</button>
+          </div>
+          <div class="test-chips" id="testChips"></div>
+          <div class="money-row"><button type="button" class="money-btn alt test-more" id="testChipsMore" hidden></button></div>
+          <div class="money-status">Everything in this list is removed when you press "Clean text". Use − to take one off.</div>
+          <div class="test-sub">Save this list</div>
+          <div class="money-row">
+            <input id="testListName" type="text" placeholder="Name" autocomplete="off" aria-label="List name" style="flex:1;min-width:120px">
+            <button type="button" class="money-btn" id="testListSave">Save</button>
+          </div>
+          <div class="test-sub">Saved lists</div>
+          <div class="money-row">
+            <select id="testListPick" aria-label="Saved lists" style="flex:1;min-width:120px"></select>
+            <button type="button" class="money-btn alt" id="testListLoad" title="Replace the list above with this saved one">Use</button>
+            <button type="button" class="money-btn alt" id="testListDel" title="Remove this saved list">−</button>
+          </div>
+          <label class="money-status" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="testListAuto"> Apply the picked list automatically after every scan</label>
+        </details>
+        <details class="test-fold">
+          <summary>Schedule</summary>
+          <div class="money-row">
+            <select id="testEvery" aria-label="How often"><option value="off">Do not scan automatically</option><option value="hourly">Every hour</option><option value="daily">Every day</option></select>
+            <label class="money-status" for="testHour">at hour</label>
+            <select id="testHour" aria-label="Hour"></select>
+          </div>
+          <div class="money-status">Uses your browser's time and only runs while the site is open.</div>
+        </details>
+        <details class="test-fold">
+          <summary>Diary account</summary>
+          <div class="test-fields">
+            <input id="testStart" type="text" placeholder="https://www.manodienynas.lt/" autocomplete="off" aria-label="Start page">
+            <input id="testUser" type="text" placeholder="Username" autocomplete="off" aria-label="Username">
+            <input id="testPass" type="password" placeholder="Password (leave empty to keep the saved one)" autocomplete="new-password" aria-label="Password">
+          </div>
+          <label class="money-status" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="testIgnoreOn"> Cut out the words from the D1 list (scan_ignore) while scanning</label>
+          <div class="money-row" style="margin-top:8px">
+            <button type="button" class="money-btn alt" id="testSaveBtn">Save settings</button>
+            <span class="money-status" id="testSaveMsg"></span>
+          </div>
+        </details>
+        <details class="test-fold">
+          <summary>Allowed pages</summary>
+          <div class="money-row">
+            <button type="button" class="money-btn alt" id="testPickBtn">Choose pages</button>
+            <span class="money-status" id="testAllowedInfo">Scanning everything (nothing is restricted)</span>
+          </div>
+          <div class="test-picker" id="testPicker" hidden>
+            <div class="money-row">
+              <input id="testPickFilter" type="text" placeholder="Filter pages..." autocomplete="off" aria-label="Filter pages" style="flex:1;min-width:140px">
+              <button type="button" class="money-btn alt" id="testPickAll">Tick all shown</button>
+              <button type="button" class="money-btn alt" id="testPickNone">Untick all</button>
+            </div>
+            <div class="test-picklist" id="testPickList"></div>
+            <div class="money-row" style="margin-top:8px">
+              <button type="button" class="money-btn" id="testPickSave">Save allowed pages</button>
+              <span class="money-status" id="testPickMsg"></span>
+            </div>
+          </div>
+        </details>
+        <details class="test-fold">
+          <summary>Notes</summary>
+          <div class="test-list" id="testNotes"></div>
+        </details>
       </div>
-      <div class="test-picklist" id="testPickList"></div>
-      <div class="money-row" style="margin-top:8px">
-        <button type="button" class="money-btn" id="testPickSave">Save allowed pages</button>
-        <span class="money-status" id="testPickMsg"></span>
+      <div class="test-right">
+        <details class="test-fold" open>
+          <summary>Scanned text</summary>
+          <div class="money-row"><span class="money-status" id="testWorkInfo"></span><span class="money-status" id="testWorkMsg"></span></div>
+          <textarea class="test-work" id="testWork" readonly spellcheck="false" aria-label="Scanned text"></textarea>
+          <div class="money-row"><button type="button" class="money-btn alt test-more" id="testWorkMore" hidden></button></div>
+        </details>
+        <details class="test-fold" open>
+          <summary>What it's doing</summary>
+          <pre class="test-log" id="testLog">Nothing yet. Press "Scan now".</pre>
+          <div class="money-row"><button type="button" class="money-btn alt test-more" id="testLogMore">Expand</button></div>
+        </details>
+        <details class="test-fold" open>
+          <summary><span id="testListTitle">Fetched pages</span></summary>
+          <div class="test-list" id="testList"></div>
+          <div class="money-row" style="margin-top:6px"><button type="button" class="money-btn alt test-more" id="testPagesMore" hidden></button></div>
+        </details>
       </div>
     </div>
-    <div class="money-title" style="margin-top:12px">What it's doing</div>
-    <pre class="test-log" id="testLog">Nothing yet. Press "Scan now".</pre>
-    <div class="money-title" style="margin-top:12px" id="testListTitle">Fetched pages</div>
-    <div class="test-list" id="testList"></div>
-    <div class="money-title" style="margin-top:14px">Scanned text (working copy)</div>
-    <div class="money-row">
-      <button type="button" class="money-btn alt" id="testLoadBtn">Load latest scan</button>
-      <button type="button" class="money-btn" id="testCleanBtn">Delete unnecessary</button>
-      <button type="button" class="money-btn alt" id="testDedupBtn">Remove repeated lines</button>
-      <button type="button" class="money-btn alt" id="testRestoreBtn">Restore original</button>
-      <button type="button" class="money-btn alt" id="testWorkCopyBtn">Copy</button>
-      <button type="button" class="money-btn alt" id="testWorkBigBtn">Big view</button>
-    </div>
-    <div class="money-row">
-      <input id="testDelInput" type="text" placeholder="Characters to delete, e.g. ,./-  or paste words" autocomplete="off" aria-label="Characters to delete" style="flex:1;min-width:170px">
-      <button type="button" class="money-btn" id="testDelAdd" title="Add these characters to the list" aria-label="Add">+</button>
-      <button type="button" class="money-btn alt" id="testDelAll">Delete all listed</button>
-    </div>
-    <div class="test-chips" id="testChips"></div>
-    <div class="money-row">
-      <input id="testListName" type="text" placeholder="Name for this list" autocomplete="off" aria-label="List name" style="flex:1;min-width:120px">
-      <button type="button" class="money-btn" id="testListSave" title="Save the chips above as a list">Save list</button>
-    </div>
-    <div class="money-row">
-      <select id="testListPick" aria-label="Saved deletion lists" style="flex:1;min-width:120px"></select>
-      <button type="button" class="money-btn" id="testListRun">Run list</button>
-      <button type="button" class="money-btn alt" id="testListLoad" title="Put this list's items back into the chips above">Edit</button>
-      <button type="button" class="money-btn alt" id="testListDel">Delete list</button>
-    </div>
-    <label class="money-status" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="testListAuto"> Run the picked list automatically after every scan</label>
-    <div class="money-row"><span class="money-status" id="testWorkInfo"></span><span class="money-status" id="testWorkMsg"></span></div>
-    <textarea class="test-work" id="testWork" readonly spellcheck="false" aria-label="Scanned text"></textarea>
-    <div class="money-title" style="margin-top:14px">Notes</div>
-    <div class="test-list" id="testNotes"></div>
   </div>
   <div class="test-modal" id="testModal" hidden>
     <div class="test-modal-box" role="dialog" aria-modal="true" aria-labelledby="testModalTitle">
