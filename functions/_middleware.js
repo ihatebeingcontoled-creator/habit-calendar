@@ -3260,8 +3260,13 @@ async function onRequest({ request, env }) {
   return { onRequest };
 })();
 
+// version counter of THIS file (added into the number shown in the page corner; bump it only when this file changes)
+const FILE_VERSION = 1;
+const M_version = { onRequest: () => new Response(JSON.stringify({ v: FILE_VERSION }), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } }) };
+
 // ================================ ROUTER ================================
 const ROUTES = {
+  'version': M_version,
   'ads': M_ads,
   'auth': M_auth,
   'automate': M_automate,
