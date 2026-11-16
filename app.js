@@ -10772,6 +10772,7 @@ const PIP_MAX = 3;
       const lsGet = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
       const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
       const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+      const flash = (e) => { e.classList.remove('flash'); void e.offsetWidth; e.classList.add('flash'); };
       const hhmmss = () => { const n = new Date(); return p2(n.getHours()) + ':' + p2(n.getMinutes()) + ':' + p2(n.getSeconds()); };
       const fmt = (iso) => { try { return new Date(iso).toLocaleString(); } catch (e) { return iso || ''; } };
 
@@ -10787,6 +10788,7 @@ const PIP_MAX = 3;
       const scanPost = (qs, body) => post(SCAN + qs, body);
 
       /* ---------- state ---------- */
+      let codeDirty = false;
       let on = false, settings = null, busy = '', curWhat = '', finalNote = '';
       let srvLog = '', logLines = [], lastData = null, remoteLoaded = false;
       const stepState = { scan: 'idle', del: 'idle', agent: 'idle', cal: 'idle' };
@@ -10855,9 +10857,10 @@ const PIP_MAX = 3;
       function paintBusy() {
         const all = busy === 'all';
         $('auGo').disabled = !!busy;
+        $('testPanel').classList.toggle('working', !!busy); $('auHead').classList.toggle('working', !!busy);
         $('auGoT').hidden = all; $('auGoS').hidden = !all;
         $('auGoS').innerHTML = all ? SPIN : '';
-        document.querySelectorAll('.au-btn').forEach((b) => {
+        document.querySelectorAll('.au-btns .au-b').forEach((b) => {
           const d = b.dataset.do, running = all || busy === d;
           b.disabled = !!busy;
           b.classList.toggle('run', running);
@@ -10877,14 +10880,14 @@ const PIP_MAX = 3;
       }
       function paintCfg() {
         const setChk = (id, v) => $(id).setAttribute('aria-checked', v ? 'true' : 'false');
-        setChk('auRunOn', cfg.runOn); setChk('auDelOn', cfg.delOn); setChk('auRepOn', cfg.repeatOn); setChk('auAgentOn', cfg.agentOn);
+        setChk('auRunOn', cfg.runOn); setChk('auTopChk', cfg.runOn); setChk('auDelOn', cfg.delOn); setChk('auRepOn', cfg.repeatOn); setChk('auAgentOn', cfg.agentOn);
         $('auEvery').value = cfg.every; $('auDow').value = String(cfg.dow); $('auDow').hidden = cfg.every !== 'weekly'; $('auTime').value = cfg.time || '08:00';
         cfg.delNames = (cfg.delNames || []).filter((n) => lists[n]);
         $('auListNames').textContent = cfg.delNames.length ? cfg.delNames.join(', ') : '(none ticked)';
         $('auAllowName').textContent = cfg.allowName || 'Test 1';
         const n = settings && settings.allowed ? settings.allowed.length : null;
         $('auAllowInfo').textContent = n == null ? '' : n ? n + ' page(s)' : 'all pages';
-        if (document.activeElement !== $('auPrompt')) $('auPrompt').value = cfg.prompt || '';
+        if (document.activeElement !== $('auPrompt') && !codeDirty) $('auPrompt').value = cfg.prompt || '';
       }
       function statusLine() {
         if (busy) return curWhat || 'Working...';
@@ -10898,23 +10901,23 @@ const PIP_MAX = 3;
         if (ev && ev.length) { any = true; ev.forEach((e) => box.appendChild(document.createTextNode(e.date + '  ' + e.title + (e.description ? '  -  ' + e.description : '') + '\n'))); }
         else if (ev && !ev.length) { any = true; box.appendChild(document.createTextNode('The agent found no tests.')); }
         else if (resp.t) { any = true; box.appendChild(document.createTextNode('The agent answer is not a JSON list (see Agent Response).')); }
-        box.classList.toggle('empty', !any);
+        box.classList.toggle('empty', !any); flash(box);
         if (!any) box.appendChild(document.createTextNode('Nothing yet.'));
       }
       function paintScanned() {
         const b = $('auScanned'), c = work.c || '';
         b.textContent = c ? (c.length > CAP.show ? c.slice(0, CAP.show) + '\n\n... (' + num(c.length - CAP.show) + ' more characters, click the box to see everything)' : c) : 'Nothing scanned yet.';
-        b.classList.toggle('empty', !c);
+        b.classList.toggle('empty', !c); flash(b);
         const y = $('auDelYes'); y.textContent = work.d ? 'yes' : 'no';
-        $('auDelYes').style.color = work.d ? 'var(--g)' : 'var(--r)';
+        $('auDelYes').style.color = '';
       }
-      function paintAgent() { const b = $('auAgentOut'); b.textContent = resp.t || 'No answer yet.'; b.classList.toggle('empty', !resp.t); }
+      function paintAgent() { const b = $('auAgentOut'); b.textContent = resp.t || 'No answer yet.'; b.classList.toggle('empty', !resp.t); flash(b); }
       function paintPages() {
         const box = $('auPages'); box.textContent = '';
         const pages = (lastData && lastData.pages) || [];
         if (!pages.length) { box.appendChild(el('span', 'au-nopages', 'No pages yet.')); return; }
         pages.forEach((p) => {
-          const b = el('button', 'au-pg'); b.type = 'button';
+          const b = el('button', 'au-b au-pg'); b.type = 'button';
           b.append(el('b', '', p.title || p.url), el('small', '', num(p.chars || 0) + ' chars'));
           b.title = p.url; b.addEventListener('click', () => openPage(p));
           box.appendChild(b);
@@ -11165,7 +11168,7 @@ const PIP_MAX = 3;
         const body = $('auDlgBody'); body.textContent = '';
         const tabs = $('auDlgTabs'); tabs.textContent = ''; tabs.hidden = false;
         [['lists', 'Word lists'], ['rep', 'Repeating phrases']].forEach(([k, t]) => {
-          const b = el('button', 'au-mbtn' + (edTab === k ? ' sel' : ''), t); b.type = 'button';
+          const b = el('button', 'au-b' + (edTab === k ? ' sel' : ''), t); b.type = 'button';
           b.addEventListener('click', () => { edTab = k; renderEditor(); }); tabs.appendChild(b);
         });
         if (edTab === 'rep') return renderRepTab(body);
@@ -11186,7 +11189,7 @@ const PIP_MAX = 3;
           row.append(cb, nm, c, x); sc.appendChild(row);
         });
         const nf = el('div', 'au-fl'); const ni = el('input', 'au-in'); ni.placeholder = 'New list name'; ni.style.flex = '1';
-        const nb = el('button', 'au-mbtn', 'Add list'); nb.type = 'button';
+        const nb = el('button', 'au-b', 'Add list'); nb.type = 'button';
         const addList = () => { const n = ni.value.trim(); if (!n) return; if (!lists[n]) lists[n] = []; edSel = n; saveLists(); renderEditor(); };
         nb.addEventListener('click', addList); ni.addEventListener('keydown', (e) => { if (e.key === 'Enter') addList(); });
         nf.append(ni, nb); L.appendChild(nf);
@@ -11198,8 +11201,8 @@ const PIP_MAX = 3;
         const ta = el('textarea'); ta.rows = 4; ta.placeholder = 'Type or paste words here, one per line'; R.appendChild(ta);
         const msg = el('div', 'au-msg');
         const f1 = el('div', 'au-fl');
-        const add = el('button', 'au-mbtn solid', 'Add words'); add.type = 'button';
-        const std = el('button', 'au-mbtn', 'Add the standard menu words'); std.type = 'button';
+        const add = el('button', 'au-b pri', 'Add words'); add.type = 'button';
+        const std = el('button', 'au-b', 'Add the standard menu words'); std.type = 'button';
         const addMany = (ws) => {
           let added = 0, skip = 0, long = 0;
           ws.forEach((w) => { if (w.length > CAP.maxLen) { long++; return; } const e = 'L:' + w; if (arr.includes(e) || arr.length >= CAP.maxWords) { skip++; return; } arr.push(e); added++; });
@@ -11213,7 +11216,7 @@ const PIP_MAX = 3;
         std.addEventListener('click', () => { const r = addMany(STANDARD_WORDS); renderEditor(); const m = $('auDlgBody').querySelector('.au-msg'); if (m) m.textContent = r.added ? 'Added ' + r.added + ' standard words.' : 'They are all in the list already.'; });
         f1.append(add, std); R.append(f1);
         const f2 = el('div', 'au-fl'); const ci = el('input', 'au-in'); ci.placeholder = 'Characters to delete everywhere, for example ,;|'; ci.style.flex = '1';
-        const cb2 = el('button', 'au-mbtn', 'Add characters'); cb2.type = 'button';
+        const cb2 = el('button', 'au-b', 'Add characters'); cb2.type = 'button';
         cb2.addEventListener('click', () => { let a = 0; for (const c of [...ci.value]) { if (/\s/.test(c) || arr.includes(c)) continue; arr.push(c); a++; } saveLists(); renderEditor(); const m = $('auDlgBody').querySelector('.au-msg'); if (m) m.textContent = 'Added ' + a + ' character(s).'; });
         f2.append(ci, cb2); R.append(f2, msg);
         const sc2 = el('div', 'au-scroll'); R.appendChild(sc2);
@@ -11254,10 +11257,10 @@ const PIP_MAX = 3;
       async function openPicker() {
         const body = openDlg('Allowed websites');
         const flt = el('input', 'au-in'); flt.placeholder = 'Filter pages...';
-        const f1 = el('div', 'au-fl'); const all = el('button', 'au-mbtn', 'Tick all shown'), none = el('button', 'au-mbtn', 'Untick all shown'); all.type = none.type = 'button';
+        const f1 = el('div', 'au-fl'); const all = el('button', 'au-b', 'Tick all shown'), none = el('button', 'au-b', 'Untick all shown'); all.type = none.type = 'button';
         const sc = el('div', 'au-scroll'); sc.style.height = '52vh';
         const nm = el('input', 'au-in'); nm.value = cfg.allowName || 'Test 1'; nm.style.maxWidth = '14em'; nm.setAttribute('aria-label', 'Name of this selection');
-        const sv = el('button', 'au-mbtn solid', 'Save allowed pages'); sv.type = 'button';
+        const sv = el('button', 'au-b pri', 'Save allowed pages'); sv.type = 'button';
         const msg = el('div', 'au-msg', 'Loading...');
         const f2 = el('div', 'au-fl'); f2.append(el('span', '', 'Name:'), nm, sv);
         f1.append(all, none);
@@ -11305,7 +11308,7 @@ const PIP_MAX = 3;
         const lab = el('label'); lab.style.cssText = 'display:flex;gap:.5em;align-items:center;font-weight:600;color:var(--k)';
         const ig = el('input'); ig.type = 'checkbox'; ig.checked = !!s.ignore_on; ig.style.accentColor = 'var(--g)';
         lab.append(ig, document.createTextNode('Also cut out the words of the D1 list "scan_ignore" while scanning'));
-        const row = el('div', 'au-fl'); const sv = el('button', 'au-mbtn solid', 'Save'), ts = el('button', 'au-mbtn', 'Save and test'); sv.type = ts.type = 'button';
+        const row = el('div', 'au-fl'); const sv = el('button', 'au-b pri', 'Save'), ts = el('button', 'au-b', 'Save and test'); sv.type = ts.type = 'button';
         const msg = el('div', 'au-msg'); row.append(sv, ts);
         f.append(lab, row, msg, el('div', 'au-hint', 'The password is saved encrypted on the server and is never shown again. Leave it empty to keep the saved one.'));
         body.appendChild(f);
@@ -11324,7 +11327,7 @@ const PIP_MAX = 3;
         const f = el('div', 'au-form');
         const l1 = el('label', '', 'Model (leave empty for openai/gpt-oss-120b)'); const mi = el('input', 'au-in'); mi.value = cfg.model || ''; mi.placeholder = 'openai/gpt-oss-120b'; l1.appendChild(mi);
         const l2 = el('label', '', 'Most characters sent to the AI at once'); const ci = el('input', 'au-in'); ci.type = 'number'; ci.min = '2000'; ci.max = '60000'; ci.value = String(cfg.maxChars || 16000); l2.appendChild(ci);
-        const row = el('div', 'au-fl'); const sv = el('button', 'au-mbtn solid', 'Save'), ts = el('button', 'au-mbtn', 'Save and test'); sv.type = ts.type = 'button'; row.append(sv, ts);
+        const row = el('div', 'au-fl'); const sv = el('button', 'au-b pri', 'Save'), ts = el('button', 'au-b', 'Save and test'); sv.type = ts.type = 'button'; row.append(sv, ts);
         const msg = el('div', 'au-msg');
         f.append(l1, l2, row, msg, el('div', 'au-hint', 'The AI key is the Cloudflare variable GROQ_API_KEY (Settings, Variables and Secrets). It is never shown here. The free Groq plan allows only a few thousand words per minute, so a smaller text works better.'));
         body.appendChild(f);
@@ -11359,7 +11362,7 @@ const PIP_MAX = 3;
       }
       function paintAll() { paintCfg(); paintSteps(); paintFinal(); paintScanned(); paintAgent(); paintPages(); paintLog(); setConn('d', conn.d, conn.dWhy); setConn('a', conn.a); }
 
-      function link(id, fn) { const a = $(id); a.addEventListener('click', fn); a.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fn(); } }); }
+      function link(id, fn) { $(id).addEventListener('click', fn); }
       function bigBox(id, title, getText) {
         $(id).addEventListener('click', () => { if (String(getSelection()).length) return; const t = getText(); if (t) showModal(title, t); });
       }
@@ -11381,20 +11384,25 @@ const PIP_MAX = 3;
 
         // top: Automate + the four buttons
         $('auGo').addEventListener('click', () => runAll(false));
-        document.querySelectorAll('.au-btn').forEach((b) => b.addEventListener('click', () => runOne(b.dataset.do)));
+        document.querySelectorAll('.au-btns .au-b').forEach((b) => b.addEventListener('click', () => runOne(b.dataset.do)));
 
         // check marks
-        const tog = { auRunOn: 'runOn', auDelOn: 'delOn', auRepOn: 'repeatOn', auAgentOn: 'agentOn' };
+        const tog = { auRunOn: 'runOn', auTopChk: 'runOn', auDelOn: 'delOn', auRepOn: 'repeatOn', auAgentOn: 'agentOn' };
         Object.keys(tog).forEach((id) => $(id).addEventListener('click', () => {
           const k = tog[id]; cfg[k] = !cfg[k];
-          if (id === 'auRunOn' && cfg.runOn) { const s = lastSlot(); if (s && (!cfg.lastAuto || new Date(cfg.lastAuto) < s)) cfg.lastAuto = new Date().toISOString(); }   // starts at the NEXT slot
+          if ((id === 'auRunOn' || id === 'auTopChk') && cfg.runOn) { const s = lastSlot(); if (s && (!cfg.lastAuto || new Date(cfg.lastAuto) < s)) cfg.lastAuto = new Date().toISOString(); }   // starts at the NEXT slot
           saveCfg(); paintCfg();
         }));
         $('auEvery').addEventListener('change', () => { cfg.every = $('auEvery').value; saveCfg(); paintCfg(); });
         $('auDow').addEventListener('change', () => { cfg.dow = parseInt($('auDow').value, 10); saveCfg(); });
         $('auTime').addEventListener('change', () => { if ($('auTime').value) { cfg.time = $('auTime').value; saveCfg(); } });
-        let pt = 0;
-        $('auPrompt').addEventListener('input', () => { cfg.prompt = $('auPrompt').value; clearTimeout(pt); pt = setTimeout(saveCfg, 700); });
+        const codeMsg = (m, bad) => { const e = $('auCodeMsg'); e.textContent = m; e.style.color = bad ? 'var(--r)' : ''; };
+        const setDirty = (d) => { codeDirty = d; $('auSaveCode').classList.toggle('dirty', d); codeMsg(d ? 'Not saved yet - press Save' : ''); };
+        $('auPrompt').addEventListener('input', () => { cfg.prompt = $('auPrompt').value; setDirty(true); });
+        $('auSaveCode').addEventListener('click', () => { cfg.prompt = $('auPrompt').value; saveCfg(); setDirty(false); codeMsg('Saved \u2713'); setTimeout(() => { if (!codeDirty) codeMsg(''); }, 2200); });
+        $('auResetCode').addEventListener('click', () => { if (!confirm('Put the default agent code back? (Press Save afterwards to keep it.)')) return; $('auPrompt').value = DEF_PROMPT; cfg.prompt = DEF_PROMPT; setDirty(true); });
+        $('auClock').addEventListener('click', () => { const t = $('auTime'); try { if (t.showPicker) t.showPicker(); else t.focus(); } catch (e) { t.focus(); } });
+        $('auDelNow').addEventListener('click', () => runOne('del'));
 
         // links
         link('auPickList', () => openLists('lists')); link('auSeeWords', seeWords);
