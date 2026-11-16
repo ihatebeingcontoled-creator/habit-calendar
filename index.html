@@ -3018,7 +3018,62 @@
     body.night-mode .wt-bar { background: #333; }
     #watchToggleBtn.on { border-color: #1a73e8; color: #1a73e8; }
   </style>
-  </head>
+  <style id="sdStyles">
+/* ===== PC SIDE DAY PANEL (left column) + Birthdays inside Settings ===== */
+.sd { display: none; }
+@media (min-width: 1000px) and (hover: hover) and (pointer: fine) {
+  .legend-panel { width: 340px; position: sticky; top: 62px; max-height: calc(100vh - 215px); min-height: 520px; display: flex; flex-direction: column; }
+  .legend-panel .legend-list { flex: none; }
+  .sd { display: flex; flex-direction: column; flex: 1; min-height: 360px; margin-top: 14px; padding-top: 12px; border-top: 1px solid #eee; }
+}
+body.night-mode .sd { border-top-color: #333; }
+.sd-head { display: flex; align-items: center; gap: 6px; flex: none; }
+.sd-nav { flex: none; width: 30px; height: 30px; border-radius: 9px; border: 1.5px solid #e2e2e2; background: #fff; color: #333; font-size: 15px; font-weight: 800; cursor: pointer; line-height: 1; display: inline-flex; align-items: center; justify-content: center; transition: transform .12s, background .12s, border-color .12s; }
+.sd-nav:hover { background: #f0f6ff; border-color: #93c5fd; transform: translateY(-1px); } .sd-nav:active { transform: scale(.92); }
+.sd-label { flex: 1; min-width: 0; text-align: center; font-weight: 800; font-size: 14px; color: #222; cursor: pointer; border: 0; background: none; padding: 4px 2px; border-radius: 8px; line-height: 1.15; }
+.sd-label:hover { background: rgba(0,0,0,.05); } .sd-label small { display: block; font-size: 10.5px; font-weight: 700; color: #999; text-transform: uppercase; letter-spacing: .5px; }
+.sd-sub { display: flex; gap: 6px; margin: 8px 0 8px; flex: none; }
+.sd-pill { flex: 1; border: 1.5px solid #e2e2e2; background: #fff; color: #333; font: inherit; font-size: 11.5px; font-weight: 800; padding: 5px 8px; border-radius: 9px; cursor: pointer; transition: background .12s, border-color .12s, transform .12s; }
+.sd-pill:hover { background: #f0f6ff; border-color: #93c5fd; } .sd-pill:active { transform: scale(.96); } .sd-pill.pri { background: #111; color: #fff; border-color: #111; } .sd-pill.pri:hover { background: #333; }
+.sd-scroll { position: relative; flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; border: 1.5px solid #ececec; border-radius: 12px; background: #fff; scrollbar-width: thin; }
+.sd-grid { position: relative; height: calc(var(--sdh, 44px) * 24); user-select: none; -webkit-user-select: none; }
+.sd-hl { position: absolute; left: 0; right: 0; height: 0; border-top: 1px solid #f0f0f0; pointer-events: none; } .sd-hl.half { border-top-style: dotted; border-top-color: #f5f5f5; }
+.sd-hr { position: absolute; left: 6px; width: 34px; font-size: 10px; font-weight: 700; color: #aaa; transform: translateY(-50%); pointer-events: none; background: #fff; text-align: right; }
+.sd-now { position: absolute; left: 40px; right: 0; height: 0; border-top: 2px solid #ef4444; z-index: 4; pointer-events: none; } .sd-now::before { content: ""; position: absolute; left: -5px; top: -5px; width: 8px; height: 8px; border-radius: 50%; background: #ef4444; }
+.sd-ev { --c: #3b82f6; position: absolute; box-sizing: border-box; overflow: hidden; border-radius: 8px; border-left: 4px solid var(--c); background: color-mix(in srgb, var(--c) 20%, #fff); color: #111; padding: 3px 6px; font-size: 12px; line-height: 1.2; font-weight: 700; cursor: grab; touch-action: none; transition: box-shadow .15s, transform .15s; z-index: 2; animation: sdIn .35s cubic-bezier(.2,1.3,.4,1) both; }
+.sd-ev:hover { box-shadow: 0 4px 14px rgba(0,0,0,.18); z-index: 3; } .sd-ev.drag { cursor: grabbing; box-shadow: 0 10px 28px rgba(0,0,0,.28); z-index: 6; transition: none; animation: none; } .sd-ev.lockd { cursor: pointer; }
+.sd-ev .t { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .sd-ev .m { display: block; font-size: 10.5px; font-weight: 700; opacity: .65; }
+.sd-ev .rz { position: absolute; left: 0; right: 0; bottom: 0; height: 7px; cursor: ns-resize; } .sd-ev .rz::after { content: ""; position: absolute; left: 50%; bottom: 2px; width: 22px; margin-left: -11px; height: 3px; border-radius: 2px; background: var(--c); opacity: 0; transition: opacity .15s; } .sd-ev:hover .rz::after { opacity: .7; }
+.sd-ev.flash { animation: sdFlash 1.4s ease-out; }
+@keyframes sdIn { from { opacity: 0; transform: scale(.92); } to { opacity: 1; transform: none; } } @keyframes sdFlash { 0% { box-shadow: 0 0 0 0 var(--c); } 60% { box-shadow: 0 0 0 8px transparent; } }
+.sd-empty { position: absolute; left: 50px; right: 10px; top: 18px; font-size: 12px; font-weight: 700; color: #bbb; pointer-events: none; }
+.sd.flashp { animation: sdPanel 1.1s ease-out; } @keyframes sdPanel { 0% { box-shadow: 0 0 0 0 rgba(99,102,241,.55); } 100% { box-shadow: 0 0 0 16px rgba(99,102,241,0); } }
+body.night-mode .sd-nav, body.night-mode .sd-pill { background: #1a1a1a; border-color: #3a3a3c; color: #ddd; } body.night-mode .sd-pill.pri { background: #f5f5f5; color: #111; }
+body.night-mode .sd-label { color: #f5f5f5; } body.night-mode .sd-scroll { background: #141414; border-color: #333; } body.night-mode .sd-hr { background: #141414; } body.night-mode .sd-hl { border-top-color: #262626; }
+body.night-mode .sd-ev { color: #f5f5f5; background: color-mix(in srgb, var(--c) 32%, #141414); }
+/* editor popup */
+.sd-modal { position: fixed; inset: 0; z-index: 230; background: rgba(0,0,0,.38); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; animation: sdFade .18s ease both; }
+.sd-card { width: min(420px, 92vw); max-height: 92vh; overflow: auto; background: #fff; border-radius: 18px; padding: 16px 18px 18px; box-shadow: 0 24px 60px rgba(0,0,0,.3); animation: sdUp .28s cubic-bezier(.2,1.2,.4,1) both; color: #111; font: 600 13px/1.3 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+body.night-mode .sd-card { background: #1c1c1e; color: #f5f5f5; }
+@keyframes sdFade { from { opacity: 0; } } @keyframes sdUp { from { opacity: 0; transform: translateY(14px) scale(.96); } }
+.sd-card h3 { margin: 0 0 12px; font-size: 16px; font-weight: 800; display: flex; align-items: center; gap: 8px; } .sd-card h3 i { width: 12px; height: 12px; border-radius: 50%; background: var(--c, #3b82f6); display: inline-block; }
+.sd-f { display: grid; gap: 4px; margin-bottom: 10px; font-size: 11px; font-weight: 800; color: #888; text-transform: uppercase; letter-spacing: .4px; }
+.sd-f input[type=text], .sd-f input[type=time], .sd-f input[type=date], .sd-f textarea { width: 100%; box-sizing: border-box; border: 1.5px solid #e2e2e2; border-radius: 10px; padding: 8px 10px; font: 600 14px/1.3 inherit; color: inherit; background: transparent; outline: none; text-transform: none; letter-spacing: 0; } .sd-f textarea { resize: vertical; min-height: 56px; }
+.sd-f input:focus, .sd-f textarea:focus { border-color: #3b82f6; } body.night-mode .sd-f input, body.night-mode .sd-f textarea { border-color: #3a3a3c; color-scheme: dark; }
+.sd-row { display: flex; gap: 10px; } .sd-row > * { flex: 1; min-width: 0; }
+.sd-sw { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 12px; } .sd-sw button { width: 26px; height: 26px; border-radius: 50%; border: 3px solid transparent; background: var(--c); cursor: pointer; padding: 0; box-shadow: 0 0 0 1.5px rgba(0,0,0,.12) inset; transition: transform .12s; } .sd-sw button:hover { transform: scale(1.15); } .sd-sw button.on { border-color: #111; box-shadow: 0 0 0 2px #fff inset; } body.night-mode .sd-sw button.on { border-color: #fff; }
+.sd-chk { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 13px; font-weight: 700; cursor: pointer; user-select: none; } .sd-chk input { width: 16px; height: 16px; accent-color: #111; }
+.sd-btns { display: flex; gap: 8px; margin-top: 14px; } .sd-btns button { flex: 1; border: 0; border-radius: 11px; padding: 10px; font: 800 13px/1 inherit; cursor: pointer; transition: transform .1s; } .sd-btns button:active { transform: scale(.96); }
+.sd-btns .ok { background: #111; color: #fff; } body.night-mode .sd-btns .ok { background: #f5f5f5; color: #111; } .sd-btns .no { background: #eee; color: #333; flex: 0 0 auto; padding: 10px 14px; } .sd-btns .del { background: #fee2e2; color: #c61215; flex: 0 0 auto; padding: 10px 14px; }
+.sd-err { color: #c61215; font-size: 12px; font-weight: 700; min-height: 0; margin-top: 4px; }
+/* Birthdays row inside Settings */
+.bd-row { display: flex; align-items: center; gap: 10px; width: 100%; box-sizing: border-box; margin-bottom: 12px; padding: 12px 14px; border: 1.5px solid #ececec; border-radius: 12px; background: #fafafa; cursor: pointer; font: inherit; color: inherit; text-align: left; transition: background .12s, border-color .12s; }
+.bd-row:hover { background: #f0f6ff; border-color: #93c5fd; } .bd-row .l { flex: 1; font-weight: 800; font-size: 13px; } .bd-row .n { color: #999; font-size: 12px; font-weight: 700; } .bd-row .c { transition: transform .2s; color: #999; } .bd-row.open .c { transform: rotate(90deg); }
+body.night-mode .bd-row { background: #1a1a1a; border-color: #333; } body.night-mode .bd-row:hover { background: #17233a; border-color: #3b82f6; }
+.bd-collapse { margin: -4px 0 14px; padding: 4px 4px 2px; animation: sdUp .25s ease both; } .bd-collapse[hidden] { display: none; }
+.bd-collapse .birthdays-panel { margin: 0; padding: 0; border: 0; } .bd-collapse .birthdays-list { max-height: 240px; }
+</style>
+</head>
 <body>
   <script>
     /* runs before first paint: apply night mode from the last-known settings so there is no white flash */
@@ -3102,22 +3157,6 @@
           <div class="legend-row">12<span class="legend-swatch legend-swatch-perfect" style="background:#dcfce7;"></span></div>
         </div>
 
-        <!-- Birthdays — sits right under the Color Guide, same sidebar
-             column (see .legend-panel above). Toggle just controls
-             whether BirthdaysStore's entries get badged onto the month
-             grid (fillDayCell reads settings.showBirthdays); it doesn't
-             affect whether they're saved or whether reminders fire. -->
-        <div class="birthdays-panel">
-          <div class="birthdays-header">
-            <div class="birthdays-title" id="birthdaysTitleEl">Birthdays</div>
-            <label class="birthdays-toggle" title="Show birthdays on the month view">
-              <input type="checkbox" id="birthdaysShowToggle" checked>
-              <span class="birthdays-toggle-slider"></span>
-            </label>
-          </div>
-          <div class="birthdays-list" id="birthdaysList"></div>
-          <button type="button" id="birthdayAddOpenBtn" class="birthdays-open-add-btn">+ Add Birthday</button>
-        </div>
       </div>
 
       <div class="calendar-main">
@@ -3325,6 +3364,21 @@
         <div class="lang-switch" id="langSwitch" style="display:flex; gap:6px; margin-left:auto;">
           <button type="button" class="lang-btn" data-lang="en" style="padding:6px 12px; font-size:11px; font-weight:800; border-radius:8px; border:1.5px solid #e2e2e2; background:#fff; cursor:pointer; font-family:inherit;">EN</button>
           <button type="button" class="lang-btn" data-lang="lt" style="padding:6px 12px; font-size:11px; font-weight:800; border-radius:8px; border:1.5px solid #e2e2e2; background:#fff; cursor:pointer; font-family:inherit;">LT</button>
+        </div>
+      </div>
+
+      <button type="button" class="bd-row" id="bdRow"><span class="l">🎂 Birthdays</span><span class="n" id="bdCount"></span><span class="c">▸</span></button>
+      <div class="bd-collapse" id="birthdaysCollapse" hidden>
+        <div class="birthdays-panel">
+          <div class="birthdays-header">
+            <div class="birthdays-title" id="birthdaysTitleEl">Birthdays</div>
+            <label class="birthdays-toggle" title="Show birthdays on the month view">
+              <input type="checkbox" id="birthdaysShowToggle" checked>
+              <span class="birthdays-toggle-slider"></span>
+            </label>
+          </div>
+          <div class="birthdays-list" id="birthdaysList"></div>
+          <button type="button" id="birthdayAddOpenBtn" class="birthdays-open-add-btn">+ Add Birthday</button>
         </div>
       </div>
 
@@ -14564,6 +14618,145 @@ window.__TEST_TAB_SRC = "/* test.js - the WHOLE Test tab in one file: its styles
 
 </script>
 <script>
+/* PC SIDE DAY PANEL - the whole day on the left (under the Color Guide): arrows for yesterday/tomorrow, tap the date to jump anywhere,
+   click a box to edit it, drag it to move it, drag its bottom edge to resize it, double-click an empty spot to add one.
+   It uses the same EventStore as the Day/Week views, so everything syncs. On a PC the full-screen Day view is replaced by this panel,
+   so the Month view is always what you see. Phones/tablets keep the old Day view. */
+(function () {
+  var panel = document.querySelector('.legend-panel'); if (!panel) return;
+  var mq = window.matchMedia('(min-width:1000px) and (hover:hover) and (pointer:fine)');
+  var H = 44, SNAP = 15, COLORS = ['#ec4899', '#ef4444', '#78350f', '#86efac', '#22c55e', '#15803d', '#111827', '#3b82f6', '#8b5cf6', '#f59e0b', '#f97316', '#64748b']; /* pink reminder, red waste, brown chore, greens = productive (darker = better), black = best */
+  function el(tag, cls, txt) { var e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; }
+  var p2 = function (n) { return String(n).padStart(2, '0'); }, hm = function (m) { m = Math.max(0, Math.min(1440, m)); return p2(Math.floor(m / 60) % 24) + ':' + p2(m % 60); };
+  var toMin = function (s) { var m = /^(\d{1,2}):(\d{2})$/.exec(s || ''); return m ? (+m[1]) * 60 + (+m[2]) : null; };
+  var key = function () { var s = SelectedDayState.get(); return EventStore.dateKeyFor(s.year, s.month, s.day); };
+  var colorOf = function (r) { return r.color || '#3b82f6'; };
+
+  var sd = el('div', 'sd'), head = el('div', 'sd-head'), prev = el('button', 'sd-nav', '‹'), next = el('button', 'sd-nav', '›'), label = el('button', 'sd-label');
+  prev.title = 'Previous day'; next.title = 'Next day'; label.title = 'Pick a day'; prev.type = next.type = label.type = 'button';
+  var dpick = el('input'); dpick.type = 'date'; dpick.style.cssText = 'position:absolute;opacity:0;pointer-events:none;width:0;height:0';
+  head.append(prev, label, next, dpick);
+  var sub = el('div', 'sd-sub'), todayB = el('button', 'sd-pill', 'Today'), addB = el('button', 'sd-pill pri', '+ New event'); todayB.type = addB.type = 'button'; sub.append(todayB, addB);
+  var scroll = el('div', 'sd-scroll'), grid = el('div', 'sd-grid'); scroll.appendChild(grid); sd.append(head, sub, scroll); panel.appendChild(sd);
+  for (var h = 0; h < 24; h++) { var l = el('div', 'sd-hl'); l.style.top = (h * H) + 'px'; grid.appendChild(l); if (h) { var r = el('div', 'sd-hr', p2(h) + ':00'); r.style.top = (h * H) + 'px'; grid.appendChild(r); } var hf = el('div', 'sd-hl half'); hf.style.top = (h * H + H / 2) + 'px'; grid.appendChild(hf); }
+  var layer = el('div'); layer.style.cssText = 'position:absolute;left:44px;right:6px;top:0;bottom:0'; grid.appendChild(layer);
+  var nowLine = el('div', 'sd-now'); grid.appendChild(nowLine);
+  var ready = false, dragging = false, lastKey = '';
+
+  function dateOf() { var s = SelectedDayState.get(); return new Date(s.year, s.month, s.day); }
+  function goDate(d) { SelectedDayState.set(d.getFullYear(), d.getMonth(), d.getDate()); }
+  function shift(n) { var d = dateOf(); d.setDate(d.getDate() + n); goDate(d); }
+  prev.onclick = function () { shift(-1); }; next.onclick = function () { shift(1); }; todayB.onclick = function () { goDate(new Date()); };
+  label.onclick = function () { var d = dateOf(); dpick.value = d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()); try { dpick.showPicker(); } catch (e) { dpick.focus(); dpick.click(); } };
+  dpick.onchange = function () { var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dpick.value); if (m) goDate(new Date(+m[1], +m[2] - 1, +m[3])); };
+  addB.onclick = function () { var n = new Date(), t = key() === EventStore.dateKeyFor(n.getFullYear(), n.getMonth(), n.getDate()) ? Math.min(1380, Math.ceil((n.getHours() * 60 + n.getMinutes()) / 30) * 30) : 9 * 60; var rec = EventStore.create(key(), t, 60); render(); openEditor(rec, true); };
+
+  function prettyLabel() {
+    var d = dateOf(), t = new Date(), k = function (x) { return x.getFullYear() * 10000 + x.getMonth() * 100 + x.getDate(); }, diff = Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - new Date(t.getFullYear(), t.getMonth(), t.getDate())) / 864e5);
+    var tag = diff === 0 ? 'Today' : diff === 1 ? 'Tomorrow' : diff === -1 ? 'Yesterday' : (diff > 0 ? 'In ' + diff + ' days' : -diff + ' days ago');
+    label.textContent = ''; var small = el('small', '', tag), main = document.createTextNode(d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short', year: d.getFullYear() === t.getFullYear() ? undefined : 'numeric' }));
+    label.append(main, small);
+  }
+  function layout(list) {
+    var evs = list.slice().sort(function (a, b) { return (a.startMinutes - b.startMinutes) || (b.durationMinutes - a.durationMinutes); }), out = [], cluster = [], end = -1;
+    function flush() { var cols = []; cluster.forEach(function (e) { var c = 0; while (cols[c] > e.rec.startMinutes) c++; cols[c] = e.rec.startMinutes + Math.max(e.rec.durationMinutes, 20); e.col = c; }); cluster.forEach(function (e) { e.n = cols.length; out.push(e); }); cluster = []; end = -1; }
+    evs.forEach(function (r) { var e = { rec: r }; if (cluster.length && r.startMinutes >= end) flush(); cluster.push(e); end = Math.max(end, r.startMinutes + Math.max(r.durationMinutes, 20)); });
+    flush(); return out;
+  }
+  function render(flashId) {
+    if (!ready || dragging) return;
+    prettyLabel(); var k = key(), list = EventStore.getForDate(k); layer.textContent = '';
+    if (!list.length) layer.appendChild(el('div', 'sd-empty', 'Nothing planned. Double-click to add.'));
+    layout(list).forEach(function (e) {
+      var r = e.rec, b = el('div', 'sd-ev' + (r.locked ? ' lockd' : '') + (flashId && r.id === flashId ? ' flash' : '')); b.dataset.id = r.id; b.style.setProperty('--c', colorOf(r));
+      b.style.top = (r.startMinutes / 60 * H) + 'px'; b.style.height = Math.max(r.durationMinutes / 60 * H - 2, 20) + 'px'; b.style.left = (e.col / e.n * 100) + '%'; b.style.width = 'calc(' + (100 / e.n) + '% - 3px)';
+      b.append(el('span', 't', (r.notify ? '🔔 ' : '') + (r.locked ? '🔒 ' : '') + (r.type || '(no title)')), el('span', 'm', hm(r.startMinutes) + ' – ' + hm(r.startMinutes + r.durationMinutes)));
+      if (!r.locked) b.appendChild(el('div', 'rz')); layer.appendChild(b); wire(b, r);
+    });
+    var n = new Date(), isToday = k === EventStore.dateKeyFor(n.getFullYear(), n.getMonth(), n.getDate()); nowLine.style.display = isToday ? '' : 'none'; if (isToday) nowLine.style.top = ((n.getHours() * 60 + n.getMinutes()) / 60 * H) + 'px';
+    if (lastKey !== k) { lastKey = k; var first = list.length ? Math.min.apply(null, list.map(function (x) { return x.startMinutes; })) : null, target = isToday ? (n.getHours() * 60 + n.getMinutes()) - 90 : (first != null ? first - 60 : 7 * 60); scroll.scrollTop = Math.max(0, target / 60 * H); }
+  }
+  function commit(r) { EventStore.save(r); try { if (typeof NotificationScheduler !== 'undefined') { r.notify ? NotificationScheduler.schedule(r) : NotificationScheduler.unschedule(r); } } catch (e) {} }
+
+  function wire(b, r) {
+    var sy = 0, st = 0, du = 0, mode = '', moved = false, id = 0;
+    b.addEventListener('pointerdown', function (ev) {
+      if (ev.button !== 0) return; ev.stopPropagation(); sy = ev.clientY; st = r.startMinutes; du = r.durationMinutes; moved = false;
+      mode = (!r.locked && ev.target.classList.contains('rz')) ? 'rz' : (r.locked ? 'none' : 'mv'); id = ev.pointerId; try { b.setPointerCapture(id); } catch (e) {}
+    });
+    b.addEventListener('pointermove', function (ev) {
+      if (!mode) return; var dy = ev.clientY - sy; if (!moved && Math.abs(dy) < 4) return; if (mode === 'none') return; moved = true; dragging = true; b.classList.add('drag');
+      var dm = Math.round(dy / H * 60 / SNAP) * SNAP;
+      if (mode === 'mv') { var ns = Math.max(0, Math.min(1440 - du, st + dm)); b.style.top = (ns / 60 * H) + 'px'; b.dataset.s = ns; b.querySelector('.m').textContent = hm(ns) + ' – ' + hm(ns + du); }
+      else { var nd = Math.max(SNAP, Math.min(1440 - st, du + dm)); b.style.height = Math.max(nd / 60 * H - 2, 20) + 'px'; b.dataset.d = nd; b.querySelector('.m').textContent = hm(st) + ' – ' + hm(st + nd); }
+    });
+    function end(ev) {
+      if (!mode) return; var wasMode = mode; mode = ''; try { b.releasePointerCapture(id); } catch (e) {}
+      if (moved) { dragging = false; if (wasMode === 'mv' && b.dataset.s) r.startMinutes = +b.dataset.s; if (wasMode === 'rz' && b.dataset.d) r.durationMinutes = +b.dataset.d; commit(r); render(r.id); }
+      else if (ev.type === 'pointerup') openEditor(r, false);
+    }
+    b.addEventListener('pointerup', end); b.addEventListener('pointercancel', function (ev) { dragging = false; mode = ''; render(); });
+  }
+  grid.addEventListener('dblclick', function (ev) {
+    if (ev.target.closest('.sd-ev')) return; var y = ev.clientY - grid.getBoundingClientRect().top, m = Math.max(0, Math.min(1380, Math.floor(y / H * 60 / SNAP) * SNAP)); var rec = EventStore.create(key(), m, 60); render(); openEditor(rec, true);
+  });
+
+  /* ---------- editor ---------- */
+  function openEditor(r, isNew) {
+    var old = document.querySelector('.sd-modal'); if (old) old.remove();
+    var ov = el('div', 'sd-modal'), c = el('div', 'sd-card'), color = colorOf(r); c.style.setProperty('--c', color);
+    var h3 = el('h3'); h3.append(el('i'), document.createTextNode(isNew ? 'New event' : 'Edit event'));
+    var fT = el('label', 'sd-f', 'Title'), iT = el('input'); iT.type = 'text'; iT.value = r.type || ''; iT.placeholder = 'What is it?'; fT.appendChild(iT);
+    var fD = el('label', 'sd-f', 'Day'), iD = el('input'); iD.type = 'date'; iD.value = r.dateKey; fD.appendChild(iD);
+    var row = el('div', 'sd-row'), fS = el('label', 'sd-f', 'Starts'), iS = el('input'), fE = el('label', 'sd-f', 'Ends'), iE = el('input'); iS.type = iE.type = 'time'; iS.value = hm(r.startMinutes); iE.value = hm(r.startMinutes + r.durationMinutes === 1440 ? 1439 : r.startMinutes + r.durationMinutes); fS.appendChild(iS); fE.appendChild(iE); row.append(fS, fE);
+    var sw = el('div', 'sd-sw'); COLORS.forEach(function (col) { var b = el('button'); b.type = 'button'; b.style.setProperty('--c', col); if (col === color) b.className = 'on'; b.onclick = function () { color = col; c.style.setProperty('--c', col); sw.querySelectorAll('button').forEach(function (x) { x.className = x === b ? 'on' : ''; }); }; sw.appendChild(b); });
+    var fN = el('label', 'sd-f', 'Notes'), iN = el('textarea'); iN.value = r.description || ''; fN.appendChild(iN);
+    var kN = el('label', 'sd-chk'), cN = el('input'); cN.type = 'checkbox'; cN.checked = !!r.notify; kN.append(cN, document.createTextNode('🔔 Notify me at the start time'));
+    var kL = el('label', 'sd-chk'), cL = el('input'); cL.type = 'checkbox'; cL.checked = !!r.locked; kL.append(cL, document.createTextNode('🔒 Lock (no accidental dragging)'));
+    var err = el('div', 'sd-err'), bt = el('div', 'sd-btns'), bDel = el('button', 'del', 'Delete'), bNo = el('button', 'no', 'Cancel'), bOk = el('button', 'ok', 'Save'); bDel.type = bNo.type = bOk.type = 'button'; bt.append(bDel, bNo, bOk);
+    c.append(h3, fT, fD, row, sw, fN, kN, kL, err, bt); ov.appendChild(c); document.body.appendChild(ov); setTimeout(function () { iT.focus(); iT.select(); }, 30);
+    function close() { ov.remove(); document.removeEventListener('keydown', onKey, true); }
+    function onKey(e) { if (e.key === 'Escape') { e.stopPropagation(); cancel(); } else if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') { e.preventDefault(); save(); } }
+    document.addEventListener('keydown', onKey, true);
+    function cancel() { if (isNew && !r.type && !r.description) { EventStore.remove(r); render(); } close(); }
+    ov.addEventListener('mousedown', function (e) { if (e.target === ov) cancel(); }); bNo.onclick = cancel;
+    bDel.onclick = function () { try { if (typeof NotificationScheduler !== 'undefined') NotificationScheduler.unschedule(r); } catch (e) {} EventStore.remove(r); close(); render(); };
+    function save() {
+      var s = toMin(iS.value), e = toMin(iE.value), d = /^\d{4}-\d{2}-\d{2}$/.test(iD.value) ? iD.value : r.dateKey;
+      if (s == null || e == null) { err.textContent = 'Pick a start and an end time.'; return; } if (e <= s) { err.textContent = 'The end must be after the start.'; return; }
+      var rec = r;
+      if (d !== r.dateKey) { EventStore.remove(r); rec = EventStore.create(d, s, e - s); ['id'].forEach(function () {}); rec.manualLeftUnits = null; rec.manualWidthUnits = null; }
+      rec.type = iT.value.trim().slice(0, 120); rec.startMinutes = s; rec.durationMinutes = Math.max(5, e - s); rec.color = color; rec.description = iN.value.slice(0, 400); rec.notify = cN.checked; rec.locked = cL.checked;
+      commit(rec); close(); if (d !== key()) { var p = d.split('-'); SelectedDayState.set(+p[0], +p[1] - 1, +p[2]); } else render(rec.id);
+    }
+    bOk.onclick = save;
+  }
+
+  /* ---------- wiring ---------- */
+  SelectedDayState.onChange(function () { render(); });
+  EventStore.whenReady().then(function () { ready = true; render(); });
+  setInterval(function () { if (ready && !dragging && !document.hidden && nowLine.style.display !== 'none') render(); }, 60000);
+  (window.__liveHooks = window.__liveHooks || {}).side = function () { ready = true; render(); };
+  /* on a PC the Day tab / "select day" don't open the full-screen Day view any more: they show this panel instead, so Month stays on screen */
+  if (typeof DayViewScroll !== 'undefined' && DayViewScroll.triggerForward) {
+    var orig = DayViewScroll.triggerForward;
+    DayViewScroll.triggerForward = function () {
+      if (mq.matches && !document.body.classList.contains('test-mode')) { sd.classList.remove('flashp'); void sd.offsetWidth; sd.classList.add('flashp'); setTimeout(function () { sd.classList.remove('flashp'); }, 1200); try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) {} render(); return; }
+      return orig.apply(this, arguments);
+    };
+  }
+  /* clicking a day in the month (it still opens the habits popup as before) also moves the panel to that day */
+  var dg = document.getElementById('daysGrid');
+  if (dg) dg.addEventListener('click', function (ev) { if (!mq.matches) return; var c = ev.target.closest && ev.target.closest('.day-cell:not(.empty)'); if (!c || !c.dataset.day) return; try { SelectedDayState.set(viewYear, viewMonth, +c.dataset.day); } catch (e) {} }, true);
+  /* Birthdays row in Settings: open/close + count */
+  var bdRow = document.getElementById('bdRow'), bdBox = document.getElementById('birthdaysCollapse'), bdList = document.getElementById('birthdaysList');
+  if (bdRow && bdBox) bdRow.addEventListener('click', function () { var o = bdBox.hidden; bdBox.hidden = !o; bdRow.classList.toggle('open', o); });
+  function bdCount() { var n = bdList ? bdList.querySelectorAll('.birthdays-row').length : 0, c = document.getElementById('bdCount'); if (c) c.textContent = n ? n + ' saved' : ''; }
+  if (bdList && window.MutationObserver) { new MutationObserver(bdCount).observe(bdList, { childList: true }); bdCount(); }
+  mq.addEventListener && mq.addEventListener('change', function () { render(); });
+})();
+</script>
+<script>
 /* LIVE FEED - when Claude (or anything) changes your data, this shows an animated card and updates the page in place.
    It asks /api/live every ~2.5 s while the page is on screen. The refresh hooks it calls live in window.__liveHooks
    (habits / events / day / week / money / ads, defined next to the code of each view). If a hook is missing it falls back to one page reload. */
@@ -14635,6 +14828,8 @@ window.__TEST_TAB_SRC = "/* test.js - the WHOLE Test tab in one file: its styles
       var tag = d.tag || 'Event', icons = { Event: '📅', Reminder: '⏰', Timer: '⏱️', Test: '📝', Project: '📌' };
       card.style.setProperty('--c', d.color || '#3b82f6'); ic.firstChild.nodeValue = icons[tag] || '📅';
       if (d.action === 'delete') { t.textContent = tag + ' removed'; s.textContent = c.label; ic.firstChild.nodeValue = '🗑️'; card.style.setProperty('--c', '#e5372c'); }
+      else if (d.action === 'update') { t.textContent = tag + ' updated'; s.textContent = prettyDate(c.date) + (d.time ? ' \u00B7 ' + d.time : ''); ic.firstChild.nodeValue = '\u270F\uFE0F';
+        var chip2 = el('div', 'lv-chip'); chip2.append(el('b', '', c.label)); if (d.time) chip2.append(el('span', 'tm', d.time)); body.appendChild(chip2); }
       else if (d.action === 'notify') { t.textContent = 'Notification ' + (d.on ? 'on' : 'off'); s.textContent = c.label; ic.firstChild.nodeValue = d.on ? '🔔' : '🔕'; }
       else {
         t.textContent = tag + ' added'; s.textContent = prettyDate(c.date) + (d.time ? ' · ' + d.time : '');
@@ -14663,7 +14858,7 @@ window.__TEST_TAB_SRC = "/* test.js - the WHOLE Test tab in one file: its styles
       var amt = Number(d.amount) || 0, neg = amt < 0; card.style.setProperty('--c', neg ? '#e5372c' : '#1fa35a'); ic.firstChild.nodeValue = neg ? '💸' : '💰';
       if (d.action === 'delete') { t.textContent = 'Money entry removed'; s.textContent = c.label; ic.firstChild.nodeValue = '🗑️'; }
       else {
-        t.textContent = neg ? 'Spent' : 'Money added'; s.textContent = prettyDate(c.date) + (d.time ? ' · ' + d.time : '');
+        t.textContent = d.action === 'update' ? 'Entry updated' : (neg ? 'Spent' : 'Money added'); s.textContent = prettyDate(c.date) + (d.time ? ' · ' + d.time : '');
         var big = el('div', 'lv-amt ' + (neg ? 'neg' : 'pos')); body.appendChild(big);
         var sign = neg ? '−' : '+'; countUp(big, 0, Math.abs(amt), function (n) { return sign + '€' + (Math.abs(amt) % 1 ? n.toFixed(2) : Math.round(n)); }, 900, 200);
         var meta = el('div', 'lv-meta'), parts = [d.store, d.item, d.street, d.paid_with && ('Paid: ' + d.paid_with)].filter(Boolean);
@@ -14695,7 +14890,7 @@ window.__TEST_TAB_SRC = "/* test.js - the WHOLE Test tab in one file: its styles
     try { if (navigator.vibrate) navigator.vibrate(12); } catch (e) {}
   }
 
-  var NEED = { event: ['events', 'day', 'week'], habit: ['habits'], money: ['money'], ads: ['ads'], birthday: ['habits'], summary: [] };
+  var NEED = { event: ['events', 'day', 'week', 'side'], habit: ['habits'], money: ['money'], ads: ['ads'], birthday: ['habits'], summary: [] };
   function pulseDate(date) {
     try { var parts = String(date || '').split('-'); if (parts.length !== 3) return; var cell = document.querySelector('#daysGrid .day-cell[data-day="' + (+parts[2]) + '"]'); if (cell) { cell.classList.remove('live-pulse'); void cell.offsetWidth; cell.classList.add('live-pulse'); setTimeout(function () { cell.classList.remove('live-pulse'); }, 3200); } } catch (e) {}
   }
