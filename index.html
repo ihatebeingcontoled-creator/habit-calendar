@@ -247,14 +247,12 @@
       display: none !important;
     }
     .day-cell.selected-mini-day {
-      box-shadow: 0 0 0 2px #fff, 0 0 0 4px #3b82f6;
+      box-shadow: none;
     }
     /* the colored day levels below overwrite the box-shadow ring, so the selected day also gets an outline they can't touch */
-    .day-cell.selected-mini-day { outline: 3px solid #3b82f6; outline-offset: 3px; position: relative; z-index: 2; }
-    body.night-mode .day-cell.selected-mini-day { outline-color: #60a5fa; }
-    body.night-mode .day-cell.selected-mini-day {
-      box-shadow: 0 0 0 2px #1c1c1e, 0 0 0 4px #60a5fa;
-    }
+    .day-cell.selected-mini-day { outline: 1.5px solid rgba(59,130,246,.32); outline-offset: 2px; position: relative; z-index: 2; }
+    body.night-mode .day-cell.selected-mini-day { outline-color: rgba(96,165,250,.35); }
+    body.night-mode .day-cell.selected-mini-day { box-shadow: none; }
 
     .day-cell.lvl-0 {
       box-shadow: 0 0 0 2px #c61215, 0 0 6px 2px rgba(198,18,21,0.5),
@@ -1956,136 +1954,6 @@
     }
     .targets-btn:hover { background: #f0f0f0; border-color: #ccc; }
 
-    /* ── Talk-AI widget — a floating assistant mic, fixed to the
-       viewport (like a chat-bubble launcher) rather than sitting
-       inline in the settings column. Idle: dark circle with a mic
-       glyph. Listening: turns red + pulses. Working: spins gently.
-       A small status pill floats just above it while active. ── */
-    .talk-ai-widget {
-      position: fixed; right: 18px; bottom: 18px; z-index: 500;
-      width: 56px; height: 56px; border-radius: 50%;
-      background: #111; color: #fff; border: none; cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 28px; font-weight: 800; line-height: 1; font-family: inherit; padding: 0;
-      box-shadow: 0 4px 14px rgba(0,0,0,0.25);
-      transition: background 0.15s, transform 0.15s;
-      /* the button now has a tap AND a 1-second hold: stop iOS from treating the hold as a text-selection / callout */
-      touch-action: manipulation; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
-      -webkit-tap-highlight-color: transparent;
-    }
-    /* ring that grows while you hold the mic; when it is full (1 second) the voice feature opens.
-       transform + opacity only, so it runs on the GPU compositor */
-    .talk-ai-widget::after {
-      content: ''; position: absolute; inset: -7px; border-radius: 50%;
-      border: 3px solid #111; opacity: 0; transform: scale(0.72); pointer-events: none;
-    }
-    .talk-ai-widget.holding::after { opacity: 0.6; transform: scale(1); transition: transform 1s linear, opacity 1s linear; }
-    body.night-mode .talk-ai-widget::after { border-color: #eee; }
-    .talk-ai-widget:hover { transform: scale(1.05); }
-    .talk-ai-widget:active { transform: scale(0.97); }
-    .talk-ai-widget.listening {
-      background: #c61215;
-      animation: talk-ai-pulse 1.2s ease-in-out infinite;
-    }
-    .talk-ai-widget.working { animation: talk-ai-spin 1s linear infinite; }
-    @keyframes talk-ai-pulse {
-      0%, 100% { box-shadow: 0 4px 14px rgba(0,0,0,0.25), 0 0 0 0 rgba(198,18,21,0.35); }
-      50% { box-shadow: 0 4px 14px rgba(0,0,0,0.25), 0 0 0 10px rgba(198,18,21,0); }
-    }
-    @keyframes talk-ai-spin {
-      0%, 100% { transform: scale(1) rotate(0deg); }
-      50% { transform: scale(1) rotate(15deg); }
-    }
-    body.night-mode .talk-ai-widget { background: #eee; color: #111; }
-    body.night-mode .talk-ai-widget.listening { background: #c61215; color: #fff; }
-
-    .talk-ai-status {
-      position: fixed; right: 18px; bottom: 82px; z-index: 500;
-      background: #111; color: #fff; font-size: 12px; font-weight: 600;
-      padding: 7px 12px; border-radius: 10px; max-width: 240px;
-      text-align: right; opacity: 0; pointer-events: none;
-      transition: opacity 0.15s;
-    }
-    .talk-ai-status.show { opacity: 0.92; }
-    body.night-mode .talk-ai-status { background: #eee; color: #111; }
-
-    /* ── Confirmation card — pops up above the widget once a
-       transcript has been parsed, listing exactly what it wants to
-       change before anything is actually saved. ── */
-    .talk-ai-confirm {
-      position: fixed; right: 18px; bottom: 82px; z-index: 501;
-      width: 280px; max-width: calc(100vw - 36px);
-      background: #fff; border: 1.5px solid #e2e2e2; border-radius: 14px;
-      padding: 16px 16px 14px; box-shadow: 0 8px 28px rgba(0,0,0,0.18);
-      display: none;
-    }
-    .talk-ai-confirm.open { display: block; }
-    body.night-mode .talk-ai-confirm { background: #1c1c1c; border-color: #333; }
-    .talk-ai-confirm-title {
-      font-size: 12px; font-weight: 800; text-transform: uppercase;
-      letter-spacing: 0.4px; color: #999; margin-bottom: 10px;
-    }
-    .talk-ai-confirm-section { margin-bottom: 10px; font-size: 13.5px; line-height: 1.5; color: #222; }
-    body.night-mode .talk-ai-confirm-section { color: #eee; }
-    .talk-ai-confirm-section b { font-weight: 800; }
-    .talk-ai-confirm-actions { display: flex; gap: 8px; margin-top: 12px; }
-    .talk-ai-confirm-btn {
-      flex: 1; padding: 9px 10px; border-radius: 9px; font-size: 12.5px;
-      font-weight: 700; cursor: pointer; border: 1.5px solid transparent; font-family: inherit;
-    }
-    .talk-ai-confirm-btn.confirm { background: #111; color: #fff; }
-    .talk-ai-confirm-btn.cancel { background: #f2f2f2; color: #444; border-color: #e2e2e2; }
-    body.night-mode .talk-ai-confirm-btn.confirm { background: #eee; color: #111; }
-    body.night-mode .talk-ai-confirm-btn.cancel { background: #2c2c2e; color: #ddd; border-color: #3a3a3c; }
-
-    /* ── Live transcript — shown the whole time the mic is listening,
-       same card shell as the confirm popup. Grows as interim/final
-       speech results come in so the person can see exactly what's
-       been picked up before anything is sent off for parsing. Tapping
-       the widget again (or "Done") stops listening, which is what
-       actually triggers the /api/talk-ai call. ── */
-    .talk-ai-live-transcript {
-      position: fixed; right: 18px; bottom: 82px; z-index: 501;
-      width: 280px; max-width: calc(100vw - 36px);
-      background: #fff; border: 1.5px solid #e2e2e2; border-radius: 14px;
-      padding: 16px 16px 14px; box-shadow: 0 8px 28px rgba(0,0,0,0.18);
-      display: none;
-    }
-    .talk-ai-live-transcript.open { display: block; }
-    body.night-mode .talk-ai-live-transcript { background: #1c1c1c; border-color: #333; }
-    .talk-ai-live-transcript-text {
-      font-size: 13.5px; line-height: 1.55; color: #222;
-      max-height: 180px; overflow-y: auto; white-space: pre-wrap;
-      min-height: 20px;
-    }
-    body.night-mode .talk-ai-live-transcript-text { color: #eee; }
-    .talk-ai-live-transcript-text:empty::before {
-      content: 'Listening…'; color: #999;
-    }
-    .talk-ai-live-transcript-actions { display: flex; gap: 8px; margin-top: 12px; }
-
-    /* ── Text-input fallback — same card shell as the confirm popup,
-       shown instead of starting the mic on browsers with no
-       SpeechRecognition support (notably iOS Safari), so the feature
-       still works there via typing instead of speaking. ── */
-    .talk-ai-text-fallback {
-      position: fixed; right: 18px; bottom: 82px; z-index: 501;
-      width: 280px; max-width: calc(100vw - 36px);
-      background: #fff; border: 1.5px solid #e2e2e2; border-radius: 14px;
-      padding: 16px 16px 14px; box-shadow: 0 8px 28px rgba(0,0,0,0.18);
-      display: none;
-    }
-    .talk-ai-text-fallback.open { display: block; }
-    body.night-mode .talk-ai-text-fallback { background: #1c1c1c; border-color: #333; }
-    .talk-ai-text-fallback textarea {
-      width: 100%; min-height: 74px; resize: vertical; font-family: inherit;
-      font-size: 13.5px; border: 1.5px solid #e2e2e2; border-radius: 9px;
-      padding: 9px 11px; box-sizing: border-box; color: #222;
-    }
-    body.night-mode .talk-ai-text-fallback textarea {
-      background: #232325; border-color: #3a3a3c; color: #f5f5f5;
-    }
-
     .targets-field-list { display: flex; flex-direction: column; gap: 8px; }
     .target-row { border: 1.5px solid #ececec; border-radius: 12px; overflow: hidden; }
     .target-row-head {
@@ -3035,21 +2903,31 @@
 }
 /* Day tab is replaced by a Money tab; the title is gone; less room at the top */
 #globalTabDay { display: none !important; }
+#globalTabSettings { display: none; }
 .app-header { display: none !important; }
 .app { padding-top: 8px; }
 @media (min-width: 1000px) and (hover: hover) and (pointer: fine) {
-  .talk-ai-widget { display: none !important; }
-  .app { padding-top: 8px; padding-bottom: 12px; }
+  #globalTabSettings { display: flex; }
+  #openSettingsBtn { display: none !important; }
+  .app { padding-top: 8px; padding-bottom: 4px; }
   .stat-card { padding: 6px 12px; border-radius: 10px; } .stat-label { font-size: 9px; margin-bottom: 1px; } .stat-value { font-size: 15px; } .stats-bar { gap: 8px; }
-  .legend-panel { top: 60px; min-height: 0; height: calc(100vh - 128px); max-height: none; }
-  .month-nav { margin-bottom: 8px; grid-template-columns: 32px 1fr 32px auto; }
-  .month-nav .nav-btn { width: 32px; height: 32px; }
-  .month-label { font-size: 17px; }
+  .legend-panel { top: 60px; min-height: 0; height: calc(100vh - 72px); max-height: none; }
+  .app { max-width: 1480px; }
+  .app-layout { justify-content: center; }
+  .calendar-main { flex: none; width: max(560px, calc(7 * var(--cellh, 70px) + 30px)); }
+  .legend-panel { width: 470px !important; top: 60px !important; min-height: 0 !important; max-height: none !important; height: calc(100vh - 72px) !important; }
+  .global-topbar .month-nav { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: none; align-items: center; gap: 0; margin: 0; height: 36px; border: 1px solid rgba(0,0,0,.08); border-radius: 12px; background: rgba(0,0,0,.02); overflow: hidden; }
+  body.tb-month .global-topbar .month-nav { display: flex; }
+  body.tb-month #globalHourGapControl, body.tb-month #globalDayWidthControl { display: none; }
+  .global-topbar .month-nav .nav-btn { border: 0; border-radius: 0; width: 40px; height: 36px; background: transparent; }
+  .global-topbar .month-nav .nav-btn:hover { background: rgba(0,0,0,.04); }
+  .global-topbar .month-nav .month-label { width: 180px; height: 36px; line-height: 36px; padding: 0; font-size: 15px; border-left: 1px solid rgba(0,0,0,.08); border-right: 1px solid rgba(0,0,0,.08); }
+  body.night-mode .global-topbar .month-nav, body.night-mode .global-topbar .month-nav .month-label { border-color: rgba(255,255,255,.12); }
   .stats-bar { margin-bottom: 8px; }
   .weekdays { gap: 5px; margin-bottom: 4px; }
   .weekday { padding: 2px 0; font-size: 10px; }
   .days-grid { gap: 5px; min-height: 0; }
-  .day-cell, .day-skel { aspect-ratio: auto; min-height: 0; height: clamp(44px, calc((100vh - 170px) / 6), 68px); border-radius: 10px; padding: 17px 4px 4px; }
+  .day-cell, .day-skel { aspect-ratio: auto; min-height: 0; height: var(--cellh, 70px); border-radius: 10px; padding: 17px 4px 4px; }
   .day-cell .day-num { top: 4px; left: 7px; font-size: 10.5px; }
   .day-cell .day-title { font-size: 9.5px; line-height: 1.12; }
 }
@@ -3066,6 +2944,22 @@
 }
   </style>
   <style id="sdStyles">
+body.ads-mode .legend-panel, body.test-mode .legend-panel { display: none !important; }
+.sd-money { display: none; padding: 12px 10px 22px; }
+.sd.sd-moneymode .sd-grid { display: none; } .sd.sd-moneymode .sd-money { display: block; }
+.sd.sd-moneymode .sd-pill.pri { display: none; }
+.sd-total { display: none; flex: 1; align-items: center; justify-content: center; font-size: 12.5px; font-weight: 800; border-radius: 9px; border: 1.5px solid #e2e2e2; background: #fff; }
+.sd.sd-moneymode .sd-total { display: flex; } .sd-total.neg { color: #dc2626; } .sd-total.pos { color: #16a34a; }
+.sd-mrow { display: flex; gap: 8px; align-items: stretch; }
+.sd-mtime { width: 44px; flex: none; text-align: right; font-size: 11px; font-weight: 800; color: #888; padding-top: 13px; }
+.sd-mspine { width: 14px; flex: none; position: relative; } .sd-mspine::before { content: ""; position: absolute; left: 6px; top: 0; bottom: 0; border-left: 2px solid #e5e7eb; }
+.sd-mspine i { position: absolute; left: 1px; top: 15px; width: 12px; height: 12px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 3px #fff; }
+.sd-mcard { flex: 1; min-width: 0; margin: 4px 0; border-radius: 12px; border: 1.5px solid var(--c); background: color-mix(in srgb, var(--c) 9%, #fff); padding: 8px 10px; }
+.sd-mcard .top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; } .sd-mcard .t { font-weight: 800; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .sd-mcard .a { font-weight: 800; font-size: 13px; color: var(--c); flex: none; }
+.sd-mcard .m { font-size: 11px; color: #666; margin-top: 2px; line-height: 1.3; }
+.sd-mgap .sd-mspine::before { border-left: 2px dashed #d4d4d8; }
+.sd-mgap .lbl { flex: 1; align-self: center; font-size: 10.5px; font-weight: 700; color: #aaa; padding: 12px 0; }
+.sd-mnone { text-align: center; color: #999; font-size: 12.5px; padding: 30px 10px; }
 /* ===== PC SIDE DAY PANEL (left column) + Birthdays inside Settings ===== */
 .sd { display: none; }
 @media (min-width: 1000px) and (hover: hover) and (pointer: fine) {
@@ -3085,7 +2979,7 @@ body.night-mode .sd { border-top-color: #333; }
 .sd-scroll { position: relative; flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; border: 1.5px solid #ececec; border-radius: 12px; background: #fff; scrollbar-width: thin; }
 .sd-hold { position:absolute; left:44px; right:6px; border-radius:6px; background:rgba(59,130,246,.16); border:1.5px dashed rgba(59,130,246,.55); opacity:0; pointer-events:none; z-index:4; }
 .sd-hold.ok { background:rgba(59,130,246,.32); border-style:solid; }
-.sd-grid { position: relative; height: calc(var(--sdh, 44px) * 24); user-select: none; -webkit-user-select: none; }
+.sd-grid { position: relative; height: calc(var(--sdh, 60px) * 24); user-select: none; -webkit-user-select: none; }
 .sd-hl { position: absolute; left: 0; right: 0; height: 0; border-top: 1px solid #f0f0f0; pointer-events: none; } .sd-hl.half { border-top-style: dotted; border-top-color: #f5f5f5; }
 .sd-hr { position: absolute; left: 6px; width: 34px; font-size: 10px; font-weight: 700; color: #aaa; transform: translateY(-50%); pointer-events: none; background: #fff; text-align: right; }
 .sd-now { position: absolute; left: 40px; right: 0; height: 0; border-top: 2px solid #ef4444; z-index: 4; pointer-events: none; } .sd-now::before { content: ""; position: absolute; left: -5px; top: -5px; width: 8px; height: 8px; border-radius: 50%; background: #ef4444; }
@@ -3182,6 +3076,7 @@ body.night-mode .bd-row { background: #1a1a1a; border-color: #333; } body.night-
         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="16" y1="2" x2="16" y2="6"></line></svg>
         <span id="lockedDateLabel">Select Day</span>
       </button>
+      <button type="button" class="global-topbar-selectday" id="globalTabSettings">⚙ Settings</button>
     </div>
   </div>
 
@@ -3263,34 +3158,6 @@ body.night-mode .bd-row { background: #1a1a1a; border-color: #333; } body.night-
     <button type="button" class="targets-btn" id="openSettingsBtn">⚙ Settings</button>
   </div>
 
-  <!-- Talk-AI floating widget — lives outside the settings column so
-       it's reachable from anywhere in the app, not just the month view. -->
-  <button type="button" class="talk-ai-widget" id="talkAiBtn" title="Tap: money calendar · Hold 1 second: talk to add events" aria-label="Money calendar (hold to talk)">€</button>
-  <div class="talk-ai-status" id="talkAiStatus"></div>
-  <div class="talk-ai-confirm" id="talkAiConfirm">
-    <div class="talk-ai-confirm-title">The widget wants to…</div>
-    <div id="talkAiConfirmBody"></div>
-    <div class="talk-ai-confirm-actions">
-      <button type="button" class="talk-ai-confirm-btn cancel" id="talkAiCancelBtn">Cancel</button>
-      <button type="button" class="talk-ai-confirm-btn confirm" id="talkAiConfirmBtn">Add it</button>
-    </div>
-  </div>
-  <div class="talk-ai-live-transcript" id="talkAiLiveTranscript">
-    <div class="talk-ai-confirm-title">Listening…</div>
-    <div class="talk-ai-live-transcript-text" id="talkAiLiveTranscriptText"></div>
-    <div class="talk-ai-live-transcript-actions">
-      <button type="button" class="talk-ai-confirm-btn cancel" id="talkAiLiveCancelBtn">Cancel</button>
-      <button type="button" class="talk-ai-confirm-btn confirm" id="talkAiLiveDoneBtn">Done</button>
-    </div>
-  </div>
-  <div class="talk-ai-text-fallback" id="talkAiTextFallback">
-    <div class="talk-ai-confirm-title">Voice isn't supported here — type instead</div>
-    <textarea id="talkAiTextInput" placeholder="e.g. yesterday I had dinner, today I did 50 pushups, plan something at 15 tomorrow…"></textarea>
-    <div class="talk-ai-confirm-actions">
-      <button type="button" class="talk-ai-confirm-btn cancel" id="talkAiTextCancelBtn">Cancel</button>
-      <button type="button" class="talk-ai-confirm-btn confirm" id="talkAiTextSendBtn">Send</button>
-    </div>
-  </div>
 
   <!-- Floating button shown while locked into a single day's hourly
        view — reads "Back to week" if that day was opened from the
@@ -10837,627 +10704,6 @@ const PIP_MAX = 3;
       });
     })();
 
-    const TalkAI = (() => {
-      const btn = document.getElementById('talkAiBtn');
-      const statusEl = document.getElementById('talkAiStatus');
-      const confirmEl = document.getElementById('talkAiConfirm');
-      const confirmBody = document.getElementById('talkAiConfirmBody');
-      const confirmBtn = document.getElementById('talkAiConfirmBtn');
-      const cancelBtn = document.getElementById('talkAiCancelBtn');
-      const textFallbackEl = document.getElementById('talkAiTextFallback');
-      const textInputEl = document.getElementById('talkAiTextInput');
-      const textSendBtn = document.getElementById('talkAiTextSendBtn');
-      const textCancelBtn = document.getElementById('talkAiTextCancelBtn');
-      const liveEl = document.getElementById('talkAiLiveTranscript');
-      const liveTextEl = document.getElementById('talkAiLiveTranscriptText');
-      const liveDoneBtn = document.getElementById('talkAiLiveDoneBtn');
-      const liveCancelBtn = document.getElementById('talkAiLiveCancelBtn');
-
-      let recognition = null;
-      let listening = false;
-      let userStopped = false;   // true only once the person taps the widget/Done/Cancel — controls whether onend restarts or finalizes
-      let cancelledListen = false; // true when Cancel was tapped — discard on end instead of sending
-      let finalTranscript = '';  // accumulates across auto-restarts so a browser-side silence timeout never loses anything
-      let pendingItems = null; // items awaiting confirmation
-
-      const COUNTER_FIELDS = FIELD_CONFIG.filter((f) => f.kind === 'counter').map((f) => f.key);
-      const PIP_FIELDS = FIELD_CONFIG.filter((f) => f.kind === 'pip').map((f) => f.key);
-      const FIELD_LABELS = Object.assign(
-        { wokeAt5: 'Woke at 5am', nDay: 'Day note', nRead: 'Reading note', nExtra: 'Note', title: 'Title' },
-        Object.fromEntries(FIELD_CONFIG.map((f) => [f.key, f.label]))
-      );
-
-      function setStatus(text, show) {
-        if (!statusEl) return;
-        statusEl.textContent = text || '';
-        statusEl.classList.toggle('show', !!show);
-      }
-
-      function supported() {
-        return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
-      }
-
-
-      function openLiveTranscript() {
-        if (!liveEl) return;
-        liveTextEl.textContent = finalTranscript.trim();
-        liveEl.classList.add('open');
-      }
-
-      function setLiveTranscript(text) {
-        if (!liveTextEl) return;
-        liveTextEl.textContent = text;
-        liveTextEl.scrollTop = liveTextEl.scrollHeight;
-      }
-
-      function closeLiveTranscript() {
-        if (liveEl) liveEl.classList.remove('open');
-      }
-
-      // Errors that mean the mic/session is genuinely dead and
-      // shouldn't be silently retried (permission denial, no mic
-      // hardware). Everything else (no-speech, network blips, aborted)
-      // is treated as "browser paused it, keep going".
-      const FATAL_ERRORS = ['not-allowed', 'service-not-allowed', 'audio-capture'];
-
-      function startListening() {
-        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SR) { setStatus('Voice input not supported on this browser.', true); return; }
-        closeConfirm();
-        closeTextFallback();
-        userStopped = false;
-        cancelledListen = false;
-        finalTranscript = '';
-        beginRecognitionSession();
-      }
-
-      // Creates and starts one SpeechRecognition instance. Called
-      // again automatically from onend whenever the session stopped
-      // for a reason other than the person tapping stop/cancel.
-      function beginRecognitionSession() {
-        recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-        recognition.lang = 'en-US';
-        recognition.interimResults = true;
-        recognition.continuous = true;
-        recognition.maxAlternatives = 1;
-
-        recognition.onstart = () => {
-          listening = true;
-          btn.classList.add('listening');
-          setStatus('Listening…', true);
-          openLiveTranscript();
-        };
-        recognition.onerror = (e) => {
-          if (FATAL_ERRORS.includes(e.error)) {
-            userStopped = true; // stop the auto-restart loop too
-            listening = false;
-            btn.classList.remove('listening');
-            closeLiveTranscript();
-            setStatus('Mic error: ' + e.error, true);
-            setTimeout(() => setStatus('', false), 3000);
-          }
-          // Non-fatal errors: do nothing here — onend fires right
-          // after and handles the restart-or-finalize decision.
-        };
-        recognition.onend = () => {
-          if (!userStopped) {
-            // Browser ended the session on its own (silence timeout,
-            // transient error) but the person never asked to stop —
-            // restart transparently and keep the popup open. `listening`
-            // stays true throughout so a tap during this handoff still
-            // reads as "stop", not "start a new session".
-            try { beginRecognitionSession(); } catch { /* retry on next tick if start() races */
-              setTimeout(() => { if (!userStopped) beginRecognitionSession(); }, 250);
-            }
-            return;
-          }
-          listening = false;
-          btn.classList.remove('listening');
-          closeLiveTranscript();
-          setStatus('', false);
-          const transcript = finalTranscript.trim();
-          if (!cancelledListen && transcript) handleTranscript(transcript);
-        };
-        recognition.onresult = (e) => {
-          let interim = '';
-          for (let i = e.resultIndex; i < e.results.length; i++) {
-            const res = e.results[i];
-            if (res.isFinal) finalTranscript += res[0].transcript + ' ';
-            else interim += res[0].transcript;
-          }
-          setLiveTranscript((finalTranscript + interim).trim());
-        };
-
-        recognition.start();
-      }
-
-      // Stops listening for good and lets the (already-heard)
-      // transcript go on to be parsed — used by the widget button and
-      // the "Done" button.
-      function stopListening() {
-        userStopped = true;
-        if (recognition && listening) recognition.stop();
-      }
-
-      // Stops listening for good and discards whatever was heard —
-      // used by the live-transcript popup's Cancel button.
-      function cancelListening() {
-        userStopped = true;
-        cancelledListen = true;
-        if (recognition && listening) recognition.stop();
-        else closeLiveTranscript();
-      }
-
-      async function handleTranscript(transcript) {
-        btn.classList.add('working');
-        setStatus('Thinking…', true);
-        try {
-          const nowISO = new Date().toISOString();
-          // nowISO alone is a bare UTC instant — the model has no way
-          // to know what "today"/"the past hour"/"3pm" mean in the
-          // person's own day without also knowing their offset from
-          // UTC. Reuse whatever TimezoneModal already has (the
-          // person's explicit pick, or their device's offset if they
-          // never touched it) rather than introducing a second source
-          // of truth for "what timezone is this person in."
-          const tzOffsetMinutes = (typeof TimezoneModal !== 'undefined') ? TimezoneModal.getSelected() : -new Date().getTimezoneOffset();
-          const tzLabel = (typeof TimezoneModal !== 'undefined') ? TimezoneModal.label(tzOffsetMinutes) : null;
-          const existingEvents = await gatherExistingEventsContext();
-          const r = await fetch('/api/talk-ai', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ transcript, nowISO, tzOffsetMinutes, tzLabel, existingEvents }),
-          });
-          if (!r.ok) throw new Error('talk-ai request failed: ' + r.status);
-          const { items } = await r.json();
-          if (!Array.isArray(items) || !items.length) {
-            setStatus("Didn't catch anything to add.", true);
-            setTimeout(() => setStatus('', false), 3000);
-            return;
-          }
-          openConfirm(items);
-          setStatus('', false);
-        } catch (err) {
-          setStatus('Something went wrong — try again.', true);
-          setTimeout(() => setStatus('', false), 3000);
-        } finally {
-          btn.classList.remove('working');
-        }
-      }
-
-
-      const EXISTING_EVENTS_WINDOW_DAYS = 14;
-
-      function gatherExistingEventsContext() {
-        return EventStore.whenReady().then(() => {
-          const snapshot = EventStore.getAllSnapshot();
-          const now = new Date();
-          const minDate = new Date(now); minDate.setDate(minDate.getDate() - EXISTING_EVENTS_WINDOW_DAYS);
-          const maxDate = new Date(now); maxDate.setDate(maxDate.getDate() + EXISTING_EVENTS_WINDOW_DAYS);
-          // Local date-key, not toISOString().slice(0,10) — that reads
-          // the date in UTC, which quietly clips off the local
-          // "today" (or duplicates yesterday) for anyone not at
-          // UTC+00:00, worst right around their own midnight.
-          const minKey = EventStore.dateKeyFor(minDate.getFullYear(), minDate.getMonth(), minDate.getDate());
-          const maxKey = EventStore.dateKeyFor(maxDate.getFullYear(), maxDate.getMonth(), maxDate.getDate());
-
-          const out = {};
-          Object.keys(snapshot).forEach((dateKey) => {
-            if (dateKey < minKey || dateKey > maxKey) return;
-            const list = snapshot[dateKey] || [];
-            if (!list.length) return;
-            out[dateKey] = list.map((ev) => ({
-              id: ev.id,
-              title: (ev.type || '').slice(0, 60),
-              color: ev.color || '#3b82f6',
-              locked: !!ev.locked,
-              notify: !!ev.notify,
-              startMinutes: ev.startMinutes,
-              durationMinutes: ev.durationMinutes,
-            }));
-          });
-          return out;
-        });
-      }
-
-
-      const COLOR_NAMES = {
-        '#3b82f6': 'blue', '#e6362a': 'red', '#f59e0b': 'orange', '#10b981': 'green',
-        '#14b8a6': 'teal', '#8b5cf6': 'purple', '#ec4899': 'pink', '#64748b': 'gray',
-        '#78350f': 'brown', '#111827': 'black',
-      };
-
-      function fieldValueLabel(item) {
-        const label = FIELD_LABELS[item.field] || item.field;
-        if (COUNTER_FIELDS.includes(item.field) || PIP_FIELDS.includes(item.field)) {
-          const sign = item.value > 0 ? '+' : '';
-          return `${sign}${item.value} ${label}`;
-        }
-        if (item.field === 'wokeAt5') return item.value ? label : `Not ${label.toLowerCase()}`;
-        return `${label}: "${item.value}"`;
-      }
-
-      // Looks up the event's current title (for display only) from
-      // whatever EventStore already has loaded for that date, so the
-      // confirm card can say "Edit Gym session" rather than just an id.
-      function currentEventTitle(id, dateKey) {
-        try {
-          const rec = EventStore.getForDate(dateKey).find((r) => r.id === id);
-          return (rec && rec.type) ? rec.type : 'that event';
-        } catch { return 'that event'; }
-      }
-
-      function eventEditSummary(item) {
-        const changes = [];
-        if (item.color) changes.push((COLOR_NAMES[item.color] || item.color));
-        if (item.locked !== undefined) changes.push(item.locked ? 'locked' : 'unlocked');
-        if (item.notify !== undefined) changes.push(item.notify ? 'alert on' : 'alert off');
-        if (item.title) changes.push(`renamed to "${item.title}"`);
-        if (item.startMinutes !== undefined) {
-          const h = String(Math.floor(item.startMinutes / 60)).padStart(2, '0');
-          const m = String(item.startMinutes % 60).padStart(2, '0');
-          changes.push(`moved to ${h}:${m}`);
-        }
-        if (item.durationMinutes !== undefined) changes.push(`${item.durationMinutes}m long`);
-        if (item.description) changes.push('description updated');
-        const title = currentEventTitle(item.id, item.dateKey);
-        return `${title} → ${changes.join(', ') || 'no change'}`;
-      }
-
-      function openConfirm(items) {
-        pendingItems = items;
-        const eventsByDate = {};
-        const editsByDate = {};
-        const deletesByDate = {};
-        const habitsByDate = {};
-        items.forEach((it) => {
-          if (it.kind === 'event') {
-            (eventsByDate[it.dateKey] = eventsByDate[it.dateKey] || []).push(it.title);
-          } else if (it.kind === 'event_edit') {
-            (editsByDate[it.dateKey] = editsByDate[it.dateKey] || []).push(eventEditSummary(it));
-          } else if (it.kind === 'event_delete') {
-            (deletesByDate[it.dateKey] = deletesByDate[it.dateKey] || []).push(currentEventTitle(it.id, it.dateKey));
-          } else if (it.kind === 'habit') {
-            (habitsByDate[it.dateKey] = habitsByDate[it.dateKey] || []).push(fieldValueLabel(it));
-          }
-        });
-
-        let html = '';
-        Object.keys(eventsByDate).sort().forEach((dateKey) => {
-          html += `<div class="talk-ai-confirm-section">Add to <b>${dateKey}</b>: ${eventsByDate[dateKey].join(', ')}</div>`;
-        });
-        Object.keys(editsByDate).sort().forEach((dateKey) => {
-          html += `<div class="talk-ai-confirm-section">Edit on <b>${dateKey}</b>: ${editsByDate[dateKey].join('; ')}</div>`;
-        });
-        Object.keys(deletesByDate).sort().forEach((dateKey) => {
-          html += `<div class="talk-ai-confirm-section">Delete from <b>${dateKey}</b>: ${deletesByDate[dateKey].join(', ')}</div>`;
-        });
-        Object.keys(habitsByDate).sort().forEach((dateKey) => {
-          html += `<div class="talk-ai-confirm-section">Checklist <b>(${dateKey})</b>: ${habitsByDate[dateKey].join(', ')}</div>`;
-        });
-        confirmBody.innerHTML = html || '<div class="talk-ai-confirm-section">Nothing recognized.</div>';
-        confirmEl.classList.add('open');
-      }
-
-      function closeConfirm() {
-        confirmEl.classList.remove('open');
-        pendingItems = null;
-      }
-
-      async function confirmPending() {
-        if (!pendingItems) return;
-        const items = pendingItems;
-        closeConfirm();
-        btn.classList.add('working');
-        setStatus('Saving…', true);
-        try {
-          const events = items.filter((it) => it.kind === 'event');
-          const eventEdits = items.filter((it) => it.kind === 'event_edit');
-          const eventDeletes = items.filter((it) => it.kind === 'event_delete');
-          const habitOps = items.filter((it) => it.kind === 'habit');
-          if (events.length) await saveEvents(events);
-          if (eventEdits.length) await saveEventEdits(eventEdits);
-          if (eventDeletes.length) await saveEventDeletes(eventDeletes);
-          if (habitOps.length) await saveHabitOps(habitOps);
-          const didOnlyDelete = eventDeletes.length && !events.length && !eventEdits.length && !habitOps.length;
-          setStatus(didOnlyDelete ? 'Deleted.' : 'Added.', true);
-        } catch {
-          setStatus('Save failed — try again.', true);
-        } finally {
-          btn.classList.remove('working');
-          setTimeout(() => setStatus('', false), 3000);
-        }
-      }
-
-
-      // Groups by dateKey (the shape /api/events already expects),
-      // POSTs once, and also live-injects into EventStore for
-      // whichever date is currently open in the day-time-grid.
-      async function saveEvents(events) {
-        // EventStore's serverCache loads asynchronously on page load;
-        // if the widget is used before that fetch resolves,
-        // getForDate()/getAllSnapshot() below would see an empty
-        // cache for any date not yet touched and the merge would
-        // wipe existing events for that date instead of merging with
-        // them. Wait for it first — this is a no-op once loaded.
-        await EventStore.whenReady();
-
-        const touchedDates = new Set();
-        const newRecordsByDate = {}; // just the ones created this call, for the pop-in paint below
-        const openDateKey = (() => {
-          try {
-            if (DayViewState.get() !== DayViewState.STATES.LOCKED) return null;
-            const sel = SelectedDayState.get();
-            return EventStore.dateKeyFor(sel.year, sel.month, sel.day);
-          } catch { return null; }
-        })();
-
-        events.forEach((ev) => {
-          const record = {
-            id: (window.crypto && crypto.randomUUID) ? crypto.randomUUID()
-                : 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8),
-            dateKey: ev.dateKey,
-            startMinutes: ev.startMinutes,
-            durationMinutes: ev.durationMinutes,
-            type: ev.title || '',
-            color: ev.color || '#3b82f6',
-            description: ev.description || '',
-            manualLeftUnits: null,
-            manualWidthUnits: null,
-            notify: false,
-            locked: false,
-            el: null,
-          };
-          // Push straight into EventStore's own live array for this
-          // date — the SAME array everything else in the app reads
-          // from (getForDate lazily hydrates it from serverCache on
-          // first touch, then hands back that live array every call
-          // after). Doing it this way, instead of building a separate
-          // local list, means the date is correctly cached the moment
-          // we confirm — not just when it happens to be the day
-          // currently open — so navigating there later (even without
-          // a reload) already shows the new event.
-          EventStore.getForDate(ev.dateKey).push(record);
-          touchedDates.add(ev.dateKey);
-          (newRecordsByDate[ev.dateKey] = newRecordsByDate[ev.dateKey] || []).push(record);
-        });
-
-        // getAllSnapshot() serializes every date currently held in
-        // EventStore (server-loaded dates plus whatever's live in
-        // memory), so pulling the touched dates back out of it gives
-        // us the already-merged, deduped list /api/events expects —
-        // it DELETEs-then-inserts per date it receives.
-        const snapshot = EventStore.getAllSnapshot();
-        const entries = {};
-        touchedDates.forEach((dateKey) => { entries[dateKey] = snapshot[dateKey] || []; });
-
-        await fetch('/api/events', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ entries }),
-        });
-
-        // If the day currently open is one we just added to, paint
-        // in only the new box(es) with the pop-in animation — using
-        // renderNewEventsForDate rather than renderEventsForDate,
-        // since the date is already the one rendered and a plain
-        // re-render would no-op instead of showing the new box at
-        // all.
-        if (openDateKey && newRecordsByDate[openDateKey] && typeof DayTimeGrid !== 'undefined' && DayTimeGrid.renderNewEventsForDate) {
-          DayTimeGrid.renderNewEventsForDate(openDateKey, newRecordsByDate[openDateKey]);
-        }
-        if (typeof WeekView !== 'undefined' && WeekView.isOpen() && WeekView.renderNewEventsForDate) {
-          Object.keys(newRecordsByDate).forEach((dateKey) => {
-            WeekView.renderNewEventsForDate(dateKey, newRecordsByDate[dateKey]);
-          });
-        }
-      }
-
-
-      async function saveEventEdits(edits) {
-        await EventStore.whenReady();
-
-        const openDateKey = (() => {
-          try {
-            if (DayViewState.get() !== DayViewState.STATES.LOCKED) return null;
-            const sel = SelectedDayState.get();
-            return EventStore.dateKeyFor(sel.year, sel.month, sel.day);
-          } catch { return null; }
-        })();
-
-        const touchedDates = new Set();
-        const editedRecordsForOpenDate = [];
-
-        edits.forEach((ed) => {
-          const list = EventStore.getForDate(ed.dateKey);
-          const record = list.find((r) => r.id === ed.id);
-          if (!record) return; // event may have been deleted client-side since talk-ai.js was called
-          if (ed.color !== undefined) record.color = ed.color;
-          if (ed.locked !== undefined) record.locked = !!ed.locked;
-          if (ed.notify !== undefined) record.notify = !!ed.notify;
-          if (ed.title !== undefined) record.type = ed.title; // "type" is the box's title field in the record model
-          if (ed.description !== undefined) record.description = ed.description;
-          if (ed.startMinutes !== undefined) record.startMinutes = ed.startMinutes;
-          if (ed.durationMinutes !== undefined) record.durationMinutes = ed.durationMinutes;
-          touchedDates.add(ed.dateKey);
-          if (ed.dateKey === openDateKey) editedRecordsForOpenDate.push(record);
-        });
-
-        if (!touchedDates.size) return;
-
-        // Reuse EventStore's own serialization (via getAllSnapshot, which
-        // re-derives from the live records we just mutated above) so the
-        // POST body always matches whatever shape /api/events expects,
-        // rather than hand-rebuilding it here and risking drift.
-        const snapshot = EventStore.getAllSnapshot();
-        const entries = {};
-        touchedDates.forEach((dateKey) => { entries[dateKey] = snapshot[dateKey] || []; });
-
-        await fetch('/api/events', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ entries }),
-        });
-
-        // Repaint just the edited box(es) on the open day and flash
-        // them — using refreshEditedRecords rather than
-        // renderEventsForDate, since the date is already the one
-        // rendered and a plain re-render would no-op instead of
-        // picking up the changed fields at all.
-        if (editedRecordsForOpenDate.length && typeof DayTimeGrid !== 'undefined' && DayTimeGrid.refreshEditedRecords) {
-          DayTimeGrid.refreshEditedRecords(openDateKey, editedRecordsForOpenDate);
-        }
-      }
-
-
-      async function saveEventDeletes(deletes) {
-        await EventStore.whenReady();
-
-        const openDateKey = (() => {
-          try {
-            if (DayViewState.get() !== DayViewState.STATES.LOCKED) return null;
-            const sel = SelectedDayState.get();
-            return EventStore.dateKeyFor(sel.year, sel.month, sel.day);
-          } catch { return null; }
-        })();
-
-        const touchedDates = new Set();
-        const removedRecordsForOpenDate = [];
-
-        deletes.forEach((del) => {
-          const list = EventStore.getForDate(del.dateKey);
-          const idx = list.findIndex((r) => r.id === del.id);
-          if (idx === -1) return; // already gone client-side since talk-ai.js was called
-          const [record] = list.splice(idx, 1);
-          touchedDates.add(del.dateKey);
-          if (del.dateKey === openDateKey) removedRecordsForOpenDate.push(record);
-        });
-
-        if (!touchedDates.size) return;
-
-        const snapshot = EventStore.getAllSnapshot();
-        const entries = {};
-        touchedDates.forEach((dateKey) => { entries[dateKey] = snapshot[dateKey] || []; });
-
-        await fetch('/api/events', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ entries }),
-        });
-
-        // Tear down the box(es) on the open day immediately, rather
-        // than leaving them sitting there until the day is left and
-        // re-opened.
-        if (removedRecordsForOpenDate.length && typeof DayTimeGrid !== 'undefined' && DayTimeGrid.removeRecordsFromDate) {
-          DayTimeGrid.removeRecordsFromDate(openDateKey, removedRecordsForOpenDate);
-        }
-      }
-
-
-      async function saveHabitOps(habitOps) {
-        const byDate = {};
-        habitOps.forEach((op) => { (byDate[op.dateKey] = byDate[op.dateKey] || []).push(op); });
-
-        for (const dateKey of Object.keys(byDate)) {
-          const base = habitsData[dateKey]
-            ? Object.assign({}, habitsData[dateKey])
-            : defaultEntry(dateKey);
-
-          byDate[dateKey].forEach((op) => {
-            if (COUNTER_FIELDS.includes(op.field)) {
-              base[op.field] = Math.max(0, (Number(base[op.field]) || 0) + op.value);
-            } else if (PIP_FIELDS.includes(op.field)) {
-              base[op.field] = Math.max(0, Math.min(3, (Number(base[op.field]) || 0) + op.value));
-            } else if (op.field === 'wokeAt5') {
-              base.wokeAt5 = !!op.value;
-            } else {
-              // free-text fields: append to any existing note rather than overwrite
-              base[op.field] = base[op.field] ? (base[op.field] + '; ' + op.value) : op.value;
-            }
-          });
-
-          await saveHabitData(dateKey, base);
-        }
-
-        // Refresh the month grid glow colors right away.
-        if (typeof renderCalendar === 'function') renderCalendar();
-      }
-
-
-      function openTextFallback() {
-        closeConfirm();
-        textInputEl.value = '';
-        textFallbackEl.classList.add('open');
-        textInputEl.focus();
-      }
-
-      function closeTextFallback() {
-        textFallbackEl.classList.remove('open');
-      }
-
-      function submitTextFallback() {
-        const text = textInputEl.value.trim();
-        closeTextFallback();
-        if (text) handleTranscript(text);
-      }
-
-      function init() {
-        if (!btn) return;
-        const voiceSupported = supported();
-        btn.title = voiceSupported
-          ? 'Tap: money calendar \u00B7 Hold 1 second: talk to add events'
-          : 'Tap: money calendar \u00B7 Hold 1 second: type to add events';
-
-        // TAP  -> flips the month calendar between normal and Money (see MoneyMode.tapToggle).
-        // HOLD (a full second) -> the voice feature (or the type-it box where voice isn't supported).
-        // While a voice session is listening, a tap still stops it, like before.
-        const HOLD_MS = 1000;
-        let holdTimer = 0, holdFired = false, hx = 0, hy = 0;
-        function startVoice() {
-          if (!voiceSupported) { openTextFallback(); return; }
-          if (!listening) startListening();
-        }
-        function clearHold() { clearTimeout(holdTimer); holdTimer = 0; btn.classList.remove('holding'); }
-        btn.addEventListener('pointerdown', (ev) => {
-          if (ev.pointerType === 'mouse' && ev.button !== 0) return;
-          clearHold();
-          holdFired = false; hx = ev.clientX; hy = ev.clientY;
-          btn.classList.add('holding');
-          holdTimer = setTimeout(() => {
-            holdTimer = 0; holdFired = true;
-            btn.classList.remove('holding');
-            startVoice();
-          }, HOLD_MS);
-        });
-        btn.addEventListener('pointermove', (ev) => {
-          if (holdTimer && Math.hypot(ev.clientX - hx, ev.clientY - hy) > 14) clearHold(); // finger slid away: not a hold
-        });
-        ['pointerup', 'pointercancel', 'pointerleave'].forEach((t) => btn.addEventListener(t, clearHold));
-        btn.addEventListener('contextmenu', (ev) => ev.preventDefault()); // no long-press menu on the button
-        btn.addEventListener('click', (ev) => {
-          if (holdFired) {
-            // this click is only the finger lifting after a hold - the voice feature is already open
-            holdFired = false; ev.preventDefault();
-            if (textFallbackEl.classList.contains('open')) textInputEl.focus(); // iOS only raises the keyboard inside a tap
-            return;
-          }
-          if (listening) { stopListening(); return; }
-          if (typeof MoneyMode !== 'undefined') MoneyMode.tapToggle();
-        });
-        confirmBtn.addEventListener('click', confirmPending);
-        cancelBtn.addEventListener('click', closeConfirm);
-        textSendBtn.addEventListener('click', submitTextFallback);
-        textCancelBtn.addEventListener('click', closeTextFallback);
-        liveDoneBtn.addEventListener('click', stopListening);
-        liveCancelBtn.addEventListener('click', cancelListening);
-        textInputEl.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submitTextFallback();
-        });
-      }
-
-      return { init };
-    })();
-    TalkAI.init();
 
     const WeekView = (() => {
       const cfg = {
@@ -13357,6 +12603,13 @@ const PIP_MAX = 3;
       }
       function paintAll() {
         document.querySelectorAll('#daysGrid .day-cell:not(.empty)').forEach((c) => decorate(c, parseInt(c.dataset.day, 10)));
+        if (window.__sdMoney) window.__sdMoney();
+      }
+      // the side day panel asks for one day's entries (null while that month is still loading)
+      function entriesFor(key) {
+        const mk = String(key).slice(0, 7);
+        if (!months[mk]) { if (!loading.has(mk)) fetchMonth(mk).then(() => { if (window.__sdMoney) window.__sdMoney(); }); return null; }
+        return months[mk].filter((e) => e.date === key);
       }
 
       const origFill = fillDayCell;
@@ -13875,7 +13128,7 @@ const PIP_MAX = 3;
         } else toggle();
       }
       (window.__liveHooks = window.__liveHooks || {}).money = function () { return load(); };   // live feed: re-read this month and repaint
-      return { toggle, tapToggle, isOn: () => on };
+      return { toggle, tapToggle, isOn: () => on, entriesFor };
     })();
   ;
 
@@ -14680,7 +13933,7 @@ window.__TEST_TAB_SRC = "/* test.js - the WHOLE Test tab in one file: its styles
 (function () {
   var panel = document.querySelector('.legend-panel'); if (!panel) return;
   var mq = window.matchMedia('(min-width:1000px) and (hover:hover) and (pointer:fine)');
-  var H = 44, SNAP = 15, COLORS = ['#ec4899', '#ef4444', '#78350f', '#86efac', '#22c55e', '#15803d', '#111827', '#3b82f6', '#8b5cf6', '#f59e0b', '#f97316', '#64748b']; /* pink reminder, red waste, brown chore, greens = productive (darker = better), black = best */
+  var H = 60, SNAP = 15, COLORS = ['#ec4899', '#ef4444', '#78350f', '#86efac', '#22c55e', '#15803d', '#111827', '#3b82f6', '#8b5cf6', '#f59e0b', '#f97316', '#64748b']; /* pink reminder, red waste, brown chore, greens = productive (darker = better), black = best */
   function el(tag, cls, txt) { var e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; }
   var p2 = function (n) { return String(n).padStart(2, '0'); }, hm = function (m) { m = Math.max(0, Math.min(1440, m)); return p2(Math.floor(m / 60) % 24) + ':' + p2(m % 60); };
   var toMin = function (s) { var m = /^(\d{1,2}):(\d{2})$/.exec(s || ''); return m ? (+m[1]) * 60 + (+m[2]) : null; };
@@ -14692,7 +13945,8 @@ window.__TEST_TAB_SRC = "/* test.js - the WHOLE Test tab in one file: its styles
   var dpick = el('input'); dpick.type = 'date'; dpick.style.cssText = 'position:absolute;opacity:0;pointer-events:none;width:0;height:0';
   head.append(prev, label, next, dpick);
   var sub = el('div', 'sd-sub'), todayB = el('button', 'sd-pill', 'Today'), addB = el('button', 'sd-pill pri', '+ New event'); todayB.type = addB.type = 'button'; sub.append(todayB, addB);
-  var scroll = el('div', 'sd-scroll'), grid = el('div', 'sd-grid'); scroll.appendChild(grid); sd.append(head, sub, scroll); panel.appendChild(sd);
+  var totalB = el('div', 'sd-total'); sub.appendChild(totalB); var mlist = el('div', 'sd-money');
+  var scroll = el('div', 'sd-scroll'), grid = el('div', 'sd-grid'); scroll.append(grid, mlist); sd.append(head, sub, scroll); panel.appendChild(sd);
   for (var h = 0; h < 24; h++) { var l = el('div', 'sd-hl'); l.style.top = (h * H) + 'px'; grid.appendChild(l); if (h) { var r = el('div', 'sd-hr', p2(h) + ':00'); r.style.top = (h * H) + 'px'; grid.appendChild(r); } var hf = el('div', 'sd-hl half'); hf.style.top = (h * H + H / 2) + 'px'; grid.appendChild(hf); }
   var layer = el('div'); layer.style.cssText = 'position:absolute;left:44px;right:6px;top:0;bottom:0'; grid.appendChild(layer);
   var nowLine = el('div', 'sd-now'); grid.appendChild(nowLine);
@@ -14720,6 +13974,8 @@ window.__TEST_TAB_SRC = "/* test.js - the WHOLE Test tab in one file: its styles
   }
   function render(flashId) {
     if (!ready || dragging) return;
+    var mm = document.body.classList.contains('money-mode'); sd.classList.toggle('sd-moneymode', mm);
+    if (mm) { prettyLabel(); renderMoney(); return; }
     prettyLabel(); var k = key(), list = EventStore.getForDate(k); layer.textContent = '';
     if (!list.length) layer.appendChild(el('div', 'sd-empty', 'Nothing planned. Press and hold to add.'));
     layout(list).forEach(function (e) {
@@ -14731,6 +13987,41 @@ window.__TEST_TAB_SRC = "/* test.js - the WHOLE Test tab in one file: its styles
     var n = new Date(), isToday = k === EventStore.dateKeyFor(n.getFullYear(), n.getMonth(), n.getDate()); nowLine.style.display = isToday ? '' : 'none'; if (isToday) nowLine.style.top = ((n.getHours() * 60 + n.getMinutes()) / 60 * H) + 'px';
     if (lastKey !== k) { lastKey = k; var first = list.length ? Math.min.apply(null, list.map(function (x) { return x.startMinutes; })) : null, target = isToday ? (n.getHours() * 60 + n.getMinutes()) - 90 : (first != null ? first - 60 : 7 * 60); scroll.scrollTop = Math.max(0, target / 60 * H); }
   }
+
+  /* ---------- Money view of the panel: only that day's purchases, empty stretches skipped ---------- */
+  function renderMoney() {
+    var k = key(), list = (typeof MoneyMode !== 'undefined' && MoneyMode.entriesFor) ? MoneyMode.entriesFor(k) : [];
+    mlist.textContent = ''; totalB.className = 'sd-total'; totalB.textContent = '';
+    if (list === null) { mlist.appendChild(el('div', 'sd-mnone', 'Loading...')); return; }
+    var items = list.map(function (e) {
+      var t = null; if (e.created_at) { var d = new Date(String(e.created_at).replace(' ', 'T') + 'Z'); if (!isNaN(d)) t = d.getHours() * 60 + d.getMinutes(); }
+      var title = e.store || e.note || ({ cash: 'Cash', card: 'Card', 'apple pay': 'Apple Pay', manual: 'Manual', claude: 'Claude', import: 'Imported', screenshot: 'Scanned' })[e.source] || 'Entry';
+      var more = [e.item, e.street, (e.note && e.note !== title) ? e.note : '', e.source].filter(Boolean).join(' · ');
+      return { t: t, amt: Number(e.amount) || 0, title: title, more: more };
+    }).sort(function (a, b) { return (a.t == null ? 1e9 : a.t) - (b.t == null ? 1e9 : b.t); });
+    var net = items.reduce(function (s, x) { return s + x.amt; }, 0);
+    totalB.textContent = items.length ? (net < 0 ? '\u2212' : '+') + '\u20AC' + (Math.abs(net) % 1 ? Math.abs(net).toFixed(2) : Math.abs(net)) : '\u20AC0'; totalB.classList.add(net < -0.004 ? 'neg' : net > 0.004 ? 'pos' : 'z');
+    if (!items.length) { mlist.appendChild(el('div', 'sd-mnone', 'No purchases this day.')); return; }
+    function gap(from, to) {
+      var g = to - from; if (g <= 0) return;
+      var r = el('div', 'sd-mrow sd-mgap'); r.appendChild(el('div', 'sd-mtime')); r.appendChild(el('div', 'sd-mspine'));
+      if (g <= 60) { var sp = el('div'); sp.style.height = Math.round(g * 0.6) + 'px'; r.appendChild(sp); } else r.appendChild(el('div', 'lbl', hm(from) + ' \u2192 ' + (to >= 1440 ? '24:00' : hm(to))));
+      mlist.appendChild(r);
+    }
+    var prev = 0, first = true;
+    items.forEach(function (x) {
+      if (x.t != null) { if (first && x.t > 0) gap(0, x.t); else if (!first) gap(prev, x.t); }
+      var c = x.amt < 0 ? '#ef4444' : '#22c55e', r = el('div', 'sd-mrow'); r.style.setProperty('--c', c);
+      r.appendChild(el('div', 'sd-mtime', x.t == null ? '' : hm(x.t)));
+      var sp = el('div', 'sd-mspine'); sp.appendChild(el('i')); r.appendChild(sp);
+      var card = el('div', 'sd-mcard'), top = el('div', 'top'); top.append(el('span', 't', x.title), el('span', 'a', (x.amt < 0 ? '\u2212' : '+') + '\u20AC' + (Math.abs(x.amt) % 1 ? Math.abs(x.amt).toFixed(2) : Math.abs(x.amt))));
+      card.appendChild(top); if (x.more) card.appendChild(el('div', 'm', x.more)); r.appendChild(card); mlist.appendChild(r);
+      if (x.t != null) { prev = x.t + 20; first = false; }
+    });
+    var lastT = items.length && items[items.length - 1].t; if (lastT != null && lastT < 1380) gap(lastT + 20, 1440);
+  }
+  window.__sdMoney = function () { if (ready && document.body.classList.contains('money-mode')) render(); };
+  new MutationObserver(function () { render(); }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
   function commit(r) { EventStore.save(r); try { if (typeof NotificationScheduler !== 'undefined') { r.notify ? NotificationScheduler.schedule(r) : NotificationScheduler.unschedule(r); } } catch (e) {} }
 
   function wire(b, r) {
@@ -14760,7 +14051,7 @@ window.__TEST_TAB_SRC = "/* test.js - the WHOLE Test tab in one file: its styles
   function hMove(e) { if (e.pointerId !== hId) return; if (Math.hypot(e.clientX - hx, e.clientY - hy) > 10) hEnd(true); }
   function hUp(e) { if (e.pointerId !== hId) return; hEnd(!!hT); }
   grid.addEventListener('pointerdown', function (e) {
-    if (hId !== null || (e.button !== undefined && e.button !== 0) || e.target.closest('.sd-ev')) return;
+    if (hId !== null || document.body.classList.contains('money-mode') || (e.button !== undefined && e.button !== 0) || e.target.closest('.sd-ev')) return;
     hId = e.pointerId; hx = e.clientX; hy = e.clientY; var m = hourAt(e.clientY);
     hold.classList.remove('ok'); hold.style.top = (m / 60 * H) + 'px'; hold.style.height = H + 'px'; hold.style.transition = 'none'; hold.style.opacity = '0'; void hold.offsetHeight; hold.style.transition = 'opacity 420ms linear'; hold.style.opacity = '1';
     document.addEventListener('pointermove', hMove); document.addEventListener('pointerup', hUp); document.addEventListener('pointercancel', hUp);
@@ -14838,6 +14129,35 @@ window.__TEST_TAB_SRC = "/* test.js - the WHOLE Test tab in one file: its styles
   new MutationObserver(sync).observe(document.body, { attributes: true, attributeFilter: ['class'] }); sync();
 })();
 </script>
+<script>
+/* PC: Settings lives in the top bar; month rows stretch to fill the window height (no page scrolling) */
+(function () {
+  var st = document.getElementById('globalTabSettings'); if (st) st.addEventListener('click', function () { var b = document.getElementById('openSettingsBtn'); if (b) b.click(); });
+  var mq = window.matchMedia('(min-width:1000px) and (hover:hover) and (pointer:fine)');
+  function fit() {
+    var g = document.getElementById('daysGrid'); if (!g || !mq.matches) return;
+    if (g.getBoundingClientRect().height === 0) return;
+    var top = g.getBoundingClientRect().top + window.scrollY, avail = window.innerHeight - top - 14, rows = 6, gap = 5;
+    var h = Math.max(44, Math.min(150, Math.floor((avail - gap * (rows - 1)) / rows)));
+    document.documentElement.style.setProperty('--cellh', h + 'px');
+  }
+  window.addEventListener('resize', fit); setInterval(fit, 700); setTimeout(fit, 300); fit();
+})();
+</script>
+<script>
+/* PC: the month arrows live in the middle of the top bar */
+(function () {
+  var nav = document.querySelector('.calendar-main .month-nav'), bar = document.getElementById('globalTopBar'); if (!nav || !bar) return;
+  var home = document.createComment('month-nav-home'); nav.parentNode.insertBefore(home, nav);
+  var mq = window.matchMedia('(min-width:1000px) and (hover:hover) and (pointer:fine)');
+  function place() { if (mq.matches) bar.appendChild(nav); else home.parentNode.insertBefore(nav, home.nextSibling); }
+  function flag() { var v = ''; try { v = GlobalTopBar.currentView(); } catch (e) {} document.body.classList.toggle('tb-month', v === 'month' && !document.body.classList.contains('test-mode')); }
+  if (mq.addEventListener) mq.addEventListener('change', place); place(); flag(); setInterval(flag, 250);
+  document.addEventListener('click', function () { setTimeout(flag, 50); }, true);
+})();
+</script>
+
+
 <script>
 /* LIVE FEED - when Claude (or anything) changes your data, this shows an animated card and updates the page in place.
    It asks /api/live every ~2.5 s while the page is on screen. The refresh hooks it calls live in window.__liveHooks
