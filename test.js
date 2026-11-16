@@ -88,7 +88,7 @@
       background: var(--card); box-shadow: 0 1.2em 3em var(--sh); }
     .au.working .au-frame { animation: auGlow 1.8s ease-in-out infinite; }
     /* left column = ONE grid, so every row uses the same columns: [check] [text] [button] [button] [button] */
-    .au-left { display: grid; grid-template-columns: 1.35em 11em 16em auto auto minmax(0, 1fr); grid-template-rows: repeat(5, auto) minmax(0, 1fr) auto auto; column-gap: .55em; row-gap: .75em; align-items: center; min-height: 0; min-width: 0; align-content: start; }
+    .au-left { display: grid; grid-template-columns: 1.35em 11em 16em auto auto minmax(0, 1fr); grid-template-rows: repeat(6, auto) minmax(0, 1fr) auto auto; column-gap: .55em; row-gap: .75em; align-items: center; min-height: 0; min-width: 0; align-content: start; }
     .au-left > .au-r { display: grid; grid-template-columns: subgrid; grid-column: 1 / -1; align-items: center; min-width: 0; }
     .au-left > .au-r > * { min-width: 0; justify-self: start; }
     .au-left .lb { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; font-size: 1.1em; font-weight: 800; margin-right: .9em; }
@@ -105,7 +105,7 @@
     .au.enter .au-step { animation: auUp .5s both; }
     .au.enter .au-frame { animation: auUp .55s .05s both; }
     .au.enter .au-left > *, .au.enter .au-right > * { animation: auUp .55s both; }
-    .au.enter .au-left > :nth-child(1) { animation-delay: .1s; } .au.enter .au-left > :nth-child(2) { animation-delay: .16s; } .au.enter .au-left > :nth-child(3) { animation-delay: .22s; } .au.enter .au-left > :nth-child(4) { animation-delay: .28s; } .au.enter .au-left > :nth-child(5) { animation-delay: .34s; } .au.enter .au-left > :nth-child(6) { animation-delay: .4s; } .au.enter .au-left > :nth-child(7) { animation-delay: .46s; } .au.enter .au-left > :nth-child(8) { animation-delay: .52s; }
+    .au.enter .au-left > :nth-child(1) { animation-delay: .1s; } .au.enter .au-left > :nth-child(2) { animation-delay: .16s; } .au.enter .au-left > :nth-child(3) { animation-delay: .22s; } .au.enter .au-left > :nth-child(4) { animation-delay: .28s; } .au.enter .au-left > :nth-child(5) { animation-delay: .34s; } .au.enter .au-left > :nth-child(6) { animation-delay: .4s; } .au.enter .au-left > :nth-child(7) { animation-delay: .46s; } .au.enter .au-left > :nth-child(8) { animation-delay: .52s; } .au.enter .au-left > :nth-child(9) { animation-delay: .58s; } .au.enter .au-left > :nth-child(8) { animation-delay: .52s; }
     .au.enter .au-right > :nth-child(1) { animation-delay: .14s; } .au.enter .au-right > :nth-child(2) { animation-delay: .22s; } .au.enter .au-right > :nth-child(3) { animation-delay: .3s; } .au.enter .au-right > :nth-child(4) { animation-delay: .38s; } .au.enter .au-right > :nth-child(5) { animation-delay: .46s; }
 
     /* round check marks (toggle) */
@@ -240,6 +240,14 @@
     .au-cd.today .dn { background: var(--btn); color: var(--btnt); border-radius: 1em; padding: 0 .55em; }
     .au-ev { display: flex; align-items: center; gap: .35em; flex: none; min-width: 0; font-size: .78em; font-weight: 700; line-height: 1.15; padding: .2em .4em; border-radius: .55em; background: var(--soft); border-left: .3em solid var(--evc, #111); }
     .au-ev[hidden] { display: none; }
+    .au-calgrid .au-ev { pointer-events: auto; }
+    .au-ev { cursor: pointer; transition: box-shadow .12s; } .au-ev:hover, .au-ev:focus-visible { box-shadow: 0 .15em .45em var(--sh); outline: none; }
+    .au-src-head { display: flex; flex-direction: column; gap: .15em; } .au-src-head b { font-size: 1.35em; } .au-src-sub { color: var(--mut); font-weight: 700; font-size: .9em; }
+    .au-src-box { display: flex; flex-direction: column; gap: .3em; } .au-src-lb { font-size: .78em; font-weight: 800; color: var(--mut); text-transform: uppercase; letter-spacing: .04em; }
+    .au-src-tx { font-weight: 600; line-height: 1.4; }
+    .au-src-ctx { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .82em; line-height: 1.45; background: var(--soft); border-radius: .7em; padding: .6em .75em; overflow-wrap: anywhere; max-height: 14em; overflow: auto; }
+    .au-src-ctx .ctx { color: var(--mut); } .au-src-ctx .hit { font-weight: 800; background: #fde68a; color: #111; border-radius: .3em; padding: .1em .3em; margin: .15em -.3em; animation: auPop .45s both; }
+    .au-src-link { font-size: .82em; font-weight: 700; color: inherit; overflow-wrap: anywhere; text-decoration: underline; }
     .au-calgrid.anim .au-ev { animation: auPop .45s both; }
     .au-ev .tm { color: var(--mut); flex: none; }
     .au-ev .tt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -251,6 +259,10 @@
     .au-allc { font-size: 1.2em; padding: .5em 1.7em; border-radius: 1em; font-weight: 800; animation: auUp .5s .2s both, auHop 1.8s 1s ease-in-out infinite; }
     .au-allc svg { width: 1.1em; height: 1.1em; }
     .au-tocal { margin-left: auto; align-self: center; }
+    .au-res { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; align-self: center; font-size: 1.05em; font-weight: 800; padding: .25em .85em; border-radius: 1em; background: var(--btn); color: var(--btnt); box-shadow: 0 .12em .3em var(--sh); }
+    .au-res[hidden] { display: none; }
+    .au-res.pop { animation: auPop .5s both; }
+    .au-res.none { background: var(--alt); color: var(--altt); }
     .au-head .au-b.sm { align-self: center; }
     /* bumping up and down while it works (uses "translate", so hover/press still work) */
     .au.working .au-tab { animation: auHop .9s ease-in-out infinite; }
@@ -298,6 +310,7 @@
         <div class="au-step" data-s="agent" data-st="idle"><span class="au-dot"></span><b>Run Agent</b></div><span class="au-arr"><svg viewBox="0 0 28 12" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6h23M19.5 1.5 25 6l-5.5 4.5"/></svg></span>
         <div class="au-step" data-s="cal" data-st="idle"><span class="au-dot"></span><b>Paste into calendar</b></div>
       </div>
+      <span class="au-res" id="auRes" hidden></span>
       <button type="button" class="au-b sm alt au-tocal" id="auClearTop" title="Clear events from the calendar (pick the dates)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/></svg>Clear</button>
       <button type="button" class="au-b sm alt" id="auToCal">Calendar</button>
       <div class="au-bar"><i></i></div>
@@ -333,6 +346,14 @@
           <span class="vl"><span id="auAllowName">Test 1</span> <span class="au-hint" id="auAllowInfo"></span></span>
           <span></span>
           <button type="button" class="au-b sm alt" id="auPickPages" title="Pick the pages a scan may read">Edit</button>
+          <span></span>
+        </div>
+        <div class="au-r">
+          <button type="button" class="au-chk" role="checkbox" aria-checked="false" id="auRangeOn" aria-label="Use my own dates when scanning"></button>
+          <span class="lb">Dates:</span>
+          <span class="vl" id="auRangeInfo">Diary's own dates</span>
+          <span></span>
+          <button type="button" class="au-b sm alt" id="auEditRange" title="Choose how far back and ahead a scan looks (the diary shows about 1 week back and 3 weeks ahead by itself)">Edit</button>
           <span></span>
         </div>
         <div class="au-r">
@@ -415,8 +436,8 @@
       const API = (part, qs) => '/api/automate?part=' + part + (qs ? '&' + String(qs).replace(/^\?/, '') : '');   // one server file: functions/api/automate.js
       const CFG_KEY = 'auCfg.v1', LISTS_KEY = 'testDelLists.v1', WORK_KEY = 'testWork.v1', RESP_KEY = 'auAgentResp.v1', OLD_AUTO_KEY = 'testDelAuto.v1';
       const STANDARD_WORDS = ["X", "menu", "Išbandykite", "planą „Šeima“", "Užsakyti", "school", "Pažymių", "knygelė", "bar_chart", "Analitika", "Individuali pažanga", "Fizinis pajėgumas", "Mokinio reitingas", "email", "1", "Pranešimai", "notifications", "Įvykiai", "help_outline", "Parašykite", "mums", "Kalba", "Pasirinkite", "kalbą", "Kristina Martinkevičienė", "Benas Martinkevičius", "Tėvas/Mama (Globėjas/Globėja)", "Kauno Vinco Kudirkos progimnazija", "notifications_active", "Rokas Martinkevičius", "Paskyros nustatymai", "Vartotojo vadovas", "Parašykite mums", "Atsijungti", "sports_basketball", "Sporto būreliai", "Korepetitoriai", "holiday_village", "Stovyklos", "audiotrack", "Muzikos būreliai", "accessibility", "Šokių būreliai", "language", "Kalbų mokymas", "home", "Įstaigos", "volunteer_activism", "Savanorystė", "Dienos vaizdas", "„Šeimos“ paslaugos", "Švietimo rodiklių švieslentė", "Pažymių knygelė", "Pažymiai", "Lankomumas", "Tvarkaraštis", "Klasės darbai", "Namų darbai", "Pagyrimai ir pastabos", "Atsiskaitomieji darbai", "Trimestrai, pusmečiai", "Tėvų susirinkimai", "Video pamokos", "Elektroninės paslaugos", "Kurti naują paslaugą", "Užsakytos paslaugos", "Pranešimai 1", "Rašyti naują pranešimą", "Gauti pranešimai 1", "Išsiųsti pranešimai", "Juodraščiai", "Svarbūs pranešimai", "Ištrinti pranešimai", "Kontaktų grupės", "Svarbi informacija", "Atostogų grafikas", "Mokyklos failai", "Apklausos", "Dokumentai", "Visi", "Laukiantys parašo", "Archyvas", "Ištrintos sutartys", "Sąskaitos", "Visos", "Laukiančios apmokėjimo", "Vėluojančios sąskaitos", "Ištrintos sąskaitos", "Pakvieskite šeimos narį", "Nustatymai", "Mokymosi resursai", "Svetainės medis", "cancel", "Parašyti mokyklos administracijai", "Tik vartotojai", "Parašyti Manodienynas.lt pagalbos tarnybai", "attach_file", "Pridėti pdf failą", "keyboard_arrow_right", "- Visi dalykai -", "Puslapiai:", "Mokėjimo būdai", "Klientams", "DUK", "Pirkimo taisyklės ir sąlygos", "Privatumo ir slapukų politika", "Sistemos naudojimo taisyklės", "Mano dienynas", "Kam skirta sistema", "Sistemos galimybės", "Reklamos galimybės", "Kontaktai", "Užsakyti šeimos planą", "Sekite mus", "Facebook", "Ⓒ Manodienynas.lt, .", "Visos teisės saugomos.", "check", "Patvirtinti", "Atšaukti", "Toliau", "Atmesti", "Ištrinti paskyrą", "Ar sutinkate perduoti Integrra sistemai", "El. pašto adresą, mokyklos pavadinimą", "sutinku su asmens duomenų tvarkymu", "identifikavimo tikslu", "Valdykite popierinių dokumentų srautą", "Sumažinkite spausdinimo išlaidas", "Nebegaiškite laiko ieškant dokumentų", "Valdykite užduočių srautą", "Pasirašyti dokumentus užtruksite tik akimirką", "Elektroninė dokumentų ir užduočių valdymo sistema INTEGRRA yra puikus sprendimas optimizuoti įstaigų ir įmonių dokumentų srautus bei elektronizuoti informacijos perdavimą."];   // the usual menu/footer lines of manodienynas.lt
-      const OLD_PROMPTS = ['You read text copied from a Lithuanian school e-diary (manodienynas.lt).\nFind every UPCOMING test or graded work (kontrolinis darbas, testas, atsiskaitymas, savarankiškas darbas, diktantas, apklausa...). Ignore homework without a test, marks, messages, payments and everything else.\nAnswer with ONLY a JSON array, no other words and no code fences. One item per test:\n{"date":"YYYY-MM-DD","title":"Subject: kind of work","description":"topic, if the text says it"}\nSkip dates that are already in the past. If there is nothing, answer [].'];
-      const DEF_PROMPT = 'You read text copied from a Lithuanian school e-diary (manodienynas.lt).\nFind every UPCOMING test, project or graded work (kontrolinis darbas, testas, atsiskaitymas, savarankiškas darbas, diktantas, apklausa, projektas, projektinis darbas, referatas, pristatymas...). Ignore homework without a test or project, marks, messages, payments and everything else.\nAnswer with ONLY a JSON array, no other words and no code fences. One item per entry:\n{"date":"YYYY-MM-DD","kind":"test or project","title":"Subject: kind of work","description":"topic, if the text says it"}\nUse "project" for a project, report or presentation, and "test" for everything else. Skip dates that are already in the past. If there is nothing, answer [].';
+      const OLD_PROMPTS = ['You read text copied from a Lithuanian school e-diary (manodienynas.lt).\nFind every UPCOMING test, project or graded work (kontrolinis darbas, testas, atsiskaitymas, savarankiškas darbas, diktantas, apklausa, projektas, projektinis darbas, referatas, pristatymas...). Ignore homework without a test or project, marks, messages, payments and everything else.\nAnswer with ONLY a JSON array, no other words and no code fences. One item per entry:\n{"date":"YYYY-MM-DD","kind":"test or project","title":"Subject: kind of work","description":"topic, if the text says it"}\nUse "project" for a project, report or presentation, and "test" for everything else. Skip dates that are already in the past. If there is nothing, answer [].', 'You read text copied from a Lithuanian school e-diary (manodienynas.lt).\nFind every UPCOMING test or graded work (kontrolinis darbas, testas, atsiskaitymas, savarankiškas darbas, diktantas, apklausa...). Ignore homework without a test, marks, messages, payments and everything else.\nAnswer with ONLY a JSON array, no other words and no code fences. One item per test:\n{"date":"YYYY-MM-DD","title":"Subject: kind of work","description":"topic, if the text says it"}\nSkip dates that are already in the past. If there is nothing, answer [].'];
+      const DEF_PROMPT = 'You read text copied from a Lithuanian school e-diary (manodienynas.lt).\nFind every UPCOMING test, project or graded work (kontrolinis darbas, testas, atsiskaitymas, savarankiškas darbas, diktantas, apklausa, projektas, projektinis darbas, referatas, pristatymas...). Ignore homework without a test or project, marks, messages, payments and everything else.\nAnswer with ONLY a JSON array, no other words and no code fences. One item per entry:\n{"date":"YYYY-MM-DD","kind":"test or project","title":"Subject: kind of work","description":"topic, if the text says it","source":"the exact line copied from the text that shows this entry"}\nUse "project" for a project, report or presentation, and "test" for everything else. Skip dates that are already in the past. If there is nothing, answer [].';
       const SPIN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 13c0-4.4 3.4-7.8 7.6-7.8 2.2 0 3.8.8 5 2.1"/><path d="M19.5 11c0 4.4-3.4 7.8-7.6 7.8-2.2 0-3.8-.8-5-2.1"/><path d="M17.6 3.4v4.2h-4.2"/><path d="M6.4 20.6v-4.2h4.2"/></svg>';
       const CAP = { maxLen: 120, maxWords: 1500, show: 40000, log: 400 };
       const STEPS = ['scan', 'del', 'agent', 'cal'];
@@ -449,7 +470,7 @@
       const stepState = { scan: 'idle', del: 'idle', agent: 'idle', cal: 'idle' };
       const conn = { d: 'none', a: 'none', dWhy: '' };
       let cfg = Object.assign({ runOn: false, every: 'daily', dow: 1, time: '08:00', delOn: true, delNames: null, repeatOn: true, repeatPct: 60,
-        allowName: 'Test 1', allowOn: true, allowKeep: [], agentOn: true, prompt: DEF_PROMPT, model: '', maxChars: 16000, lastAuto: '' }, lsGet(CFG_KEY, {}));
+        allowName: 'Test 1', allowOn: true, allowKeep: [], rangeOn: false, backDays: 7, aheadDays: 21, agentOn: true, prompt: DEF_PROMPT, model: '', maxChars: 16000, lastAuto: '' }, lsGet(CFG_KEY, {}));
       const upgradePrompt = () => { if (OLD_PROMPTS.includes(cfg.prompt)) { cfg.prompt = DEF_PROMPT; return true; } return false; };   // an unchanged old default becomes the new default (it now also finds projects)
       if (upgradePrompt()) lsSet(CFG_KEY, cfg);
       let lists = lsGet(LISTS_KEY, {});
@@ -539,13 +560,14 @@
       }
       function paintCfg() {
         const setChk = (id, v) => $(id).setAttribute('aria-checked', v ? 'true' : 'false');
-        setChk('auRunOn', cfg.runOn); setChk('auTopChk', cfg.runOn); setChk('auDelOn', cfg.delOn); setChk('auRepOn', cfg.repeatOn); setChk('auAgentOn', cfg.agentOn); setChk('auAllowOn', cfg.allowOn !== false);
+        setChk('auRunOn', cfg.runOn); setChk('auTopChk', cfg.runOn); setChk('auDelOn', cfg.delOn); setChk('auRepOn', cfg.repeatOn); setChk('auAgentOn', cfg.agentOn); setChk('auAllowOn', cfg.allowOn !== false); setChk('auRangeOn', !!cfg.rangeOn);
         $('auEvery').value = cfg.every; $('auDow').value = String(cfg.dow); $('auDow').hidden = cfg.every !== 'weekly'; $('auTime').value = cfg.time || '08:00';
         cfg.delNames = (cfg.delNames || []).filter((n) => lists[n]);
         $('auListNames').textContent = cfg.delNames.length ? cfg.delNames.join(', ') : '(none ticked)'; $('auListNames').title = $('auListNames').textContent;
         $('auAllowName').textContent = cfg.allowName || 'Test 1';
         const n = settings && settings.allowed ? settings.allowed.length : null;
         $('auAllowInfo').textContent = cfg.allowOn === false ? '(off: all pages)' : n == null ? '' : n ? '(' + n + ' page' + (n === 1 ? '' : 's') + ')' : '(all pages)';
+        $('auRangeInfo').textContent = cfg.rangeOn ? span(cfg.backDays) + ' back, ' + span(cfg.aheadDays) + ' ahead' : "Diary's own (about 1 week back, 3 weeks ahead)";
         $('auRepInfo').textContent = 'On ' + (cfg.repeatPct || 60) + '%+ of pages';
         $('auCodeInfo').textContent = cfg.agentOn ? 'In use' : 'Not used';
         if (document.activeElement !== $('auPrompt') && !codeDirty) $('auPrompt').value = cfg.prompt || '';
@@ -664,12 +686,12 @@
         return r;
       }
       async function stepScan() {
-        setStep('scan', 'run'); note('SCAN: started');
+        setStep('scan', 'run'); note('SCAN: started' + (cfg.rangeOn ? ' (dates ' + isoDay(-cfg.backDays) + ' to ' + isoDay(cfg.aheadDays) + ')' : ''));
         srvLog = ''; paintLog();
         const poll = setInterval(async () => { try { const d = await scanApi('?resource=latest'); lastData = d; srvLog = (d.run && d.run.log) || ''; paintLog(); paintPages(); } catch (e) {} }, 1000);
         let ok = false, msg = '', login = true;
         try {
-          const r = await scanPost('?resource=run');
+          const r = await scanPost('?resource=run', rangeNow());
           ok = r.status === 'ok';
           if (r.status === 'login-failed') login = false;
           msg = ok ? r.pages + ' page(s), ' + num(r.chars) + ' characters' : (r.status === 'login-failed' ? 'login failed' : 'scan failed (see the lines above)');
@@ -729,7 +751,32 @@
         let arr; try { arr = JSON.parse(t.slice(a, z + 1)); } catch (e) { return null; }
         if (!Array.isArray(arr)) return null;
         return arr.filter((e) => e && /^\d{4}-\d{2}-\d{2}$/.test(String(e.date || '')) && String(e.title || '').trim())
-          .map((e) => ({ date: String(e.date), title: String(e.title).trim().slice(0, 120), description: String(e.description || '').trim().slice(0, 400), kind: /proj/i.test(String(e.kind || '')) || /projekt|project|referat|prezentac/i.test(String(e.title || '')) ? 'project' : 'test' }));
+          .map((e) => ({ date: String(e.date), title: String(e.title).trim().slice(0, 120), description: String(e.description || '').trim().slice(0, 400), source: String(e.source || '').trim().slice(0, 500), kind: /proj/i.test(String(e.kind || '')) || /projekt|project|referat|prezentac/i.test(String(e.title || '')) ? 'project' : 'test' }));
+      }
+      /* ---------- Source: where in the diary text did this entry come from ---------- */
+      const SRC_KEY = 'auSources.v1';
+      let srcMap = lsGet(SRC_KEY, {});
+      const nz = (s) => String(s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+      function locate(e) {
+        const texts = [work.c || '', work.o || ''], q = nz(e.source), first = nz(e.title).split(/[:\s]/)[0];
+        for (const text of texts) {
+          if (!text) continue;
+          const L = text.split('\n'), N = L.map(nz);
+          let i = -1;
+          if (q.length >= 6) { i = N.findIndex((l) => l.includes(q) || (l.length >= 8 && q.includes(l))); if (i < 0) i = N.findIndex((l, k) => k < N.length - 1 && (l + ' ' + N[k + 1]).includes(q)); }
+          if (i < 0 && first) i = N.findIndex((l) => l.includes(e.date) && l.includes(first));
+          if (i < 0) continue;
+          let page = ''; for (let k = i; k >= 0; k--) { const m = /^=== (.+) ===$/.exec(L[k].trim()); if (m) { page = m[1]; break; } }
+          const a = Math.max(0, i - 2), z = Math.min(L.length, i + 3);
+          return { page, line: L[i].trim(), before: L.slice(a, i).map((x) => x.trim()).filter((x) => x && !/^=== /.test(x)), after: L.slice(i + 1, z).map((x) => x.trim()).filter((x) => x && !/^=== /.test(x)), exact: q.length >= 6 && N[i].includes(q) };
+        }
+        return null;
+      }
+      function rememberSource(id, e) {
+        const loc = locate(e);
+        srcMap[id] = { quote: e.source || '', loc: loc, note: e.description || '', at: Date.now() };
+        const keys = Object.keys(srcMap); if (keys.length > 400) keys.sort((a, b) => (srcMap[a].at || 0) - (srcMap[b].at || 0)).slice(0, keys.length - 400).forEach((k) => delete srcMap[k]);
+        lsSet(SRC_KEY, srcMap);
       }
       const hashOf = (s) => { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
       async function stepPaste() {
@@ -742,11 +789,13 @@
           let added = 0, updated = 0;
           ev.forEach((e) => {
             const id = (e.kind === 'project' ? 'mdproj-' : 'mdtest-') + e.date + '-' + hashOf(e.title.toLowerCase());
+            rememberSource(id, e);
             let rec = EventStore.getForDate(e.date).find((r) => r.id === id);
             if (rec) { if (rec.type !== e.title || (rec.description || '') !== e.description) { rec.type = e.title; rec.description = e.description; EventStore.save(rec); updated++; } }
             else { rec = EventStore.create(e.date, 8 * 60, 45); rec.id = id; rec.type = e.title; rec.color = e.kind === 'project' ? '#f59e0b' : '#ef4444'; rec.description = e.description; EventStore.save(rec); added++; }
           });
           await EventStore.flushNow();
+          lastPaste = { added, updated, same: ev.length - added - updated, found: ev.length, at: Date.now() }; lsSet(PASTE_KEY, lastPaste); paintRes(true);
           finalNote = 'Last run ' + hhmmss() + ': ' + ev.length + ' test(s), ' + added + ' new, ' + updated + ' changed.';
           note('CALENDAR: ' + ev.length + ' test(s) found, ' + added + ' added, ' + updated + ' updated, ' + (ev.length - added - updated) + ' already there.');
           setStep('cal', 'ok'); return true;
@@ -1013,13 +1062,39 @@
           cell.appendChild(el('span', 'dn', String(d.getDate())));
           (snap[key] || []).filter(isTestEv).sort((a, b) => (a.startMinutes || 0) - (b.startMinutes || 0)).forEach((r) => {
             const k = autoKind(r), e = el('div', 'au-ev'); e.style.setProperty('--evc', r.color || '#111'); e.dataset.id = r.id || '';
-            e.title = k + ': ' + (r.type || '') + (r.description ? ' - ' + r.description : '');
+            e.title = k + ': ' + (r.type || '') + (r.description ? ' - ' + r.description : '') + '  (click to see where it came from)';
+            e.tabIndex = 0; e.setAttribute('role', 'button'); e.addEventListener('click', () => openSource(r, key));
+            e.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openSource(r, key); } });
             e.append(el('span', 'tm', hm(r.startMinutes)), el('span', 'tt', r.type || '(no title)'), el('span', 'au-tag' + (k === 'Test' ? ' t' : ''), k));
             cell.appendChild(e);
           });
           grid.appendChild(cell);
         }
         requestAnimationFrame(fitChips);
+      }
+      function openSource(r, key) {
+        const k = autoKind(r), s = srcMap[r.id] || null, body = openDlg('Where this came from', true);
+        body.style.cssText = 'display:flex;flex-direction:column;gap:.8em';
+        const d = new Date(key + 'T12:00:00'), pretty = isNaN(d) ? key : d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+        const head = el('div', 'au-src-head'); head.append(el('b', '', r.type || '(no title)'), el('span', 'au-src-sub', k + '  \u00b7  ' + pretty));
+        body.appendChild(head);
+        const box = (label, node) => { const w = el('div', 'au-src-box'); w.appendChild(el('div', 'au-src-lb', label)); w.appendChild(node); body.appendChild(w); };
+        if (r.description) box('What the agent understood', el('div', 'au-src-tx', r.description));
+        const loc = s && s.loc;
+        if (loc) {
+          const pre = el('div', 'au-src-ctx');
+          loc.before.forEach((x) => pre.appendChild(el('div', 'ctx', x)));
+          pre.appendChild(el('div', 'hit', loc.line));
+          loc.after.forEach((x) => pre.appendChild(el('div', 'ctx', x)));
+          box(loc.exact ? 'The exact line in the diary text' : 'The closest line in the diary text', pre);
+          if (loc.page) { const a = el('a', 'au-src-link', loc.page); a.href = loc.page; a.target = '_blank'; a.rel = 'noopener'; box('On this diary page', a); }
+        } else if (s && s.quote) {
+          box('What the agent said it read', el('div', 'au-src-ctx', s.quote));
+          body.appendChild(el('div', 'au-hint', 'That line is NOT in the scanned text, so the agent may have guessed or changed it. Check this one by hand. (If the text was scanned again since, press Run agent to refresh.)'));
+        } else {
+          body.appendChild(el('div', 'au-hint', 'No source was saved for this one. It was made before this feature, or on another device. Press Run agent again and it will be saved.'));
+        }
+        if (s && s.at) body.appendChild(el('div', 'au-hint', 'Last seen by the agent: ' + new Date(s.at).toLocaleString()));
       }
       function fitChips() {
         if (!calVisible()) return;
@@ -1099,6 +1174,45 @@
       }
 
       /* ---------- turning the dashboard on / off ---------- */
+      /* ---------- Dates: how far back and ahead a scan looks (counted from today, so the window moves every day) ---------- */
+      const span = (d) => { d = Math.max(0, Math.round(+d || 0)); return d && d % 7 === 0 ? d / 7 + (d === 7 ? ' week' : ' weeks') : d + (d === 1 ? ' day' : ' days'); };
+      const isoDay = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()); };
+      const rangeNow = () => (cfg.rangeOn ? { range_from: isoDay(-cfg.backDays), range_to: isoDay(cfg.aheadDays) } : {});
+      function openRange() {
+        const body = openDlg('Dates to check', true); body.style.cssText = 'display:flex;flex-direction:column;gap:.9em';
+        const numIn = (v) => { const i = el('input', 'au-in'); i.type = 'number'; i.min = '0'; i.max = '400'; i.value = String(v); i.style.maxWidth = '8em'; return i; };
+        const bi = numIn(cfg.backDays), ai = numIn(cfg.aheadDays);
+        const mk = (label, input) => { const l = el('label', 'au-clr-f', label); l.appendChild(input); return l; };
+        const row = el('div', 'au-clr-row'); row.append(mk('Days back', bi), mk('Days ahead', ai));
+        const prev = el('div', 'au-clr-count');
+        const clamp = (v) => Math.min(400, Math.max(0, parseInt(v, 10) || 0));
+        const upd = () => { prev.textContent = 'Today a scan looks at ' + isoDay(-clamp(bi.value)) + '  to  ' + isoDay(clamp(ai.value)); prev.classList.remove('bump'); void prev.offsetWidth; prev.classList.add('bump'); };
+        bi.addEventListener('input', upd); ai.addEventListener('input', upd);
+        const quick = el('div', 'au-fl');
+        [['1 week back, 3 weeks ahead', 7, 21], ['1 month back, 2 months ahead', 30, 60], ['Whole school year', 180, 200]].forEach(([tx, b, a]) => { const x = el('button', 'au-b sm alt', tx); x.type = 'button'; x.addEventListener('click', () => { bi.value = b; ai.value = a; upd(); }); quick.appendChild(x); });
+        const save = el('button', 'au-b pri', 'Save and use these dates'), off = el('button', 'au-b', "Use the diary's own dates"), cancel = el('button', 'au-b', 'Cancel');
+        save.type = off.type = cancel.type = 'button';
+        save.addEventListener('click', () => { cfg.backDays = clamp(bi.value); cfg.aheadDays = clamp(ai.value); cfg.rangeOn = true; saveCfg(); paintCfg(); closeDlg(); note('DATES: a scan now looks ' + span(cfg.backDays) + ' back and ' + span(cfg.aheadDays) + ' ahead (counted from today).'); });
+        off.addEventListener('click', () => { cfg.rangeOn = false; saveCfg(); paintCfg(); closeDlg(); note("DATES: a scan uses the diary's own dates again."); });
+        cancel.addEventListener('click', closeDlg);
+        const bt = el('div', 'au-fl'); bt.append(save, off, cancel);
+        body.append(el('div', 'au-hint', 'The diary shows about 1 week back and 3 weeks ahead by itself. Here you choose your own window. It is counted from TODAY, so it moves forward every day by itself. It works on pages that have two date boxes; the log under Current work says what was found.'), row, quick, prev, bt);
+        upd();
+      }
+
+      /* ---------- the little result at the top: did the agent add something, or was it already there ---------- */
+      const PASTE_KEY = 'auLastPaste.v1';
+      let lastPaste = lsGet(PASTE_KEY, null);
+      function paintRes(pop) {
+        const b = $('auRes'); if (!b) return;
+        if (!lastPaste) { b.hidden = true; return; }
+        const a = lastPaste.added || 0, u = lastPaste.updated || 0, f = lastPaste.found || 0;
+        b.textContent = a ? '+' + a + ' added' + (u ? ' \u00b7 ' + u + ' updated' : '') : u ? u + ' updated' : f ? 'Already there' : 'Nothing found';
+        b.title = 'Last run: ' + f + ' found, ' + a + ' added, ' + u + ' updated, ' + (lastPaste.same || 0) + ' already there';
+        b.classList.toggle('none', !a && !u); b.hidden = false;
+        if (pop) { b.classList.remove('pop'); void b.offsetWidth; b.classList.add('pop'); }
+      }
+
       // the Allowed websites check: off = a scan reads every page (the ticked pages are remembered and come back when you switch it on again)
       async function syncAllowed() {
         try {
@@ -1135,7 +1249,7 @@
             .then(() => (typeof EventStore !== 'undefined' ? EventStore.whenReady() : null)).then(() => { if (on && calVisible() && JSON.stringify(evSnap()) !== calSig) paintCal(false); }).catch(() => {});
         }
       }
-      function paintAll() { paintCfg(); paintSteps(); paintFinal(); paintScanned(); paintAgent(); paintPages(); paintLog(); setConn('d', conn.d, conn.dWhy); setConn('a', conn.a); }
+      function paintAll() { paintRes(false); paintCfg(); paintSteps(); paintFinal(); paintScanned(); paintAgent(); paintPages(); paintLog(); setConn('d', conn.d, conn.dWhy); setConn('a', conn.a); }
 
       function link(id, fn) { $(id).addEventListener('click', fn); }
       function bigBox(id, title, getText) {
@@ -1172,7 +1286,7 @@
         document.querySelectorAll('.au-btns .au-b').forEach((b) => b.addEventListener('click', () => runOne(b.dataset.do)));
 
         // check marks
-        const tog = { auRunOn: 'runOn', auTopChk: 'runOn', auDelOn: 'delOn', auRepOn: 'repeatOn', auAgentOn: 'agentOn', auAllowOn: 'allowOn' };
+        const tog = { auRunOn: 'runOn', auTopChk: 'runOn', auDelOn: 'delOn', auRepOn: 'repeatOn', auAgentOn: 'agentOn', auAllowOn: 'allowOn', auRangeOn: 'rangeOn' };
         Object.keys(tog).forEach((id) => $(id).addEventListener('click', () => {
           const k = tog[id]; cfg[k] = !cfg[k];
           if ((id === 'auRunOn' || id === 'auTopChk') && cfg.runOn) { const s = lastSlot(); if (s && (!cfg.lastAuto || new Date(cfg.lastAuto) < s)) cfg.lastAuto = new Date().toISOString(); }   // starts at the NEXT slot
@@ -1191,7 +1305,7 @@
         // links
         link('auEditDel', () => openLists('lists'));
         link('auEditRep', () => openLists('rep'));
-        link('auPickPages', openPicker);
+        link('auPickPages', openPicker); link('auEditRange', openRange);
         link('auDTest', testDienynas); link('auDEdit', openDienynasEdit);
         link('auATest', testAgent); link('auAEdit', openAgentEdit);
 
