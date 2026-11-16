@@ -819,9 +819,21 @@ const autoPart = (() => {
     return ready;
   }
 
+  // ---- day summaries: ?resource=day&date=YYYY-MM-DD (GET reads, POST saves { summary }; an empty summary deletes it). Only the summary is stored. ----
+  let dayReady = null;
+  const ensureDay = (db) => (dayReady || (dayReady = db.prepare('CREATE TABLE IF NOT EXISTS au_day_summary (day TEXT PRIMARY KEY, summary TEXT, updated TEXT)').run()));
+  const dayOf = (request) => { const q = new URL(request.url).searchParams; return q.get('resource') === 'day' ? (/^\d{4}-\d{2}-\d{2}$/.test(q.get('date') || '') ? q.get('date') : false) : null; };
+
   async function onRequestGet({ request, env }) {
     try {
       if (!env.DB) return json({ error: 'D1 binding DB is missing.' }, 500);
+      const day = dayOf(request);
+      if (day === false) return json({ error: 'Bad date' }, 400);
+      if (day) {
+        await ensureDay(env.DB);
+        const row = await env.DB.prepare('SELECT summary, updated FROM au_day_summary WHERE day = ?').bind(day).first();
+        return json({ summary: row ? row.summary : null, updated: row ? row.updated : null });
+      }
       await ensure(env.DB);
       const key = new URL(request.url).searchParams.get('key');
       if (!KEYS.includes(key)) return json({ error: 'Unknown key' }, 400);
@@ -835,6 +847,17 @@ const autoPart = (() => {
   async function onRequestPost({ request, env }) {
     try {
       if (!env.DB) return json({ error: 'D1 binding DB is missing.' }, 500);
+      const day = dayOf(request);
+      if (day === false) return json({ error: 'Bad date' }, 400);
+      if (day) {
+        await ensureDay(env.DB);
+        const b = await request.json().catch(() => ({}));
+        const summary = String((b && b.summary) || '').trim().slice(0, 4000);
+        if (!summary) { await env.DB.prepare('DELETE FROM au_day_summary WHERE day = ?').bind(day).run(); return json({ ok: true, deleted: true }); }
+        await env.DB.prepare('INSERT INTO au_day_summary (day, summary, updated) VALUES (?,?,?) ON CONFLICT(day) DO UPDATE SET summary = excluded.summary, updated = excluded.updated')
+          .bind(day, summary, new Date().toISOString()).run();
+        return json({ ok: true });
+      }
       await ensure(env.DB);
       const key = new URL(request.url).searchParams.get('key');
       if (!KEYS.includes(key)) return json({ error: 'Unknown key' }, 400);
@@ -2790,7 +2813,6 @@ async function routeApi(ctx) {
   if (!handler) return reply(405, 'Method not allowed');
   return handler(ctx);
 }
-
 
 // ================================ SECTION: the code gate (runs first for everything) ================================
 // functions/_middleware.js  —  access-code gate for the WHOLE site (pages + /api/*)
