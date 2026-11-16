@@ -980,7 +980,10 @@ const agentPart = (() => {
           headers: { ...headers, 'Content-Type': 'application/json' },
           body: JSON.stringify({
             model,
-            temperature: 0.2,
+            temperature: 0,
+            // a "thinking" model (gpt-oss) can spend its whole answer budget on thinking and return an empty answer: keep the thinking short and leave room for the JSON
+            ...(/gpt-oss/i.test(model) ? { reasoning_effort: 'low' } : {}),
+            max_completion_tokens: Math.max(1500, Math.min(4000, 7500 - Math.ceil((prompt.length + text.length) / 2.5))),
             messages: [
               { role: 'system', content: prompt + '\n\nToday is ' + today + '.' },
               { role: 'user', content: text },
@@ -992,8 +995,10 @@ const agentPart = (() => {
           return json({ error: (r.status === 429 ? 'Groq says too many requests / tokens right now (429). Try again in a minute. ' : r.status === 413 ? 'The text is too big for Groq (413). Delete more words first. ' : 'Groq request failed: ' + r.status + '. ') + t.slice(0, 200) }, 502);
         }
         const d = await r.json();
-        const out = (d && d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content) || '';
-        return json({ text: out, model, usedChars: text.length, truncated });
+        const ch = d && d.choices && d.choices[0];
+        const out = (ch && ch.message && ch.message.content) || '';
+        const why = out ? '' : 'model ' + model + ', finish_reason ' + ((ch && ch.finish_reason) || 'none') + ', thinking ' + (((ch && ch.message && (ch.message.reasoning || ch.message.reasoning_content)) || '').length) + ' characters' + (d && d.usage ? ', tokens used ' + d.usage.total_tokens : '');
+        return json({ text: out, why, model, usedChars: text.length, truncated });
       }
       return json({ error: 'Unknown resource' }, 400);
     } catch (e) {
@@ -3291,7 +3296,7 @@ async function onRequest({ request, env }) {
 })();
 
 // version counter of THIS file (added into the number shown in the page corner; bump it only when this file changes)
-const FILE_VERSION = 2;
+const FILE_VERSION = 4;
 const M_version = { onRequest: () => new Response(JSON.stringify({ v: FILE_VERSION }), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } }) };
 
 // ================================ ROUTER ================================
