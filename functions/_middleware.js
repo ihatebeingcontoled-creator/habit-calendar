@@ -2793,7 +2793,8 @@ const M_mcp = (() => {
 // The key:  the Cloudflare variable MCP_TOKEN (any long random text, 16+ characters).
 //           Claude sends it as "Authorization: Bearer <MCP_TOKEN>" (connector setting: Request headers),
 //           or you can put it in the address instead:  https://<your site>/mcp?key=<MCP_TOKEN>
-// Tools:    get_current_time, list_events, add_event, add_reminder, set_notification, delete_event, get_day_summary
+// Tools:    time, calendar events + reminders + timers, daily habits and the three notes ("What productive did you do today" ...),
+//           money (spent / income), birthdays, ads days, files list, day summaries, and one "day overview" that shows everything for a day.
 // Times are Europe/Vilnius (the same zone the notification timer uses). A notification is sent AT the event's start time.
 const TZ = 'Europe/Vilnius';
 const PROTOCOLS = ['2025-06-18', '2025-03-26', '2024-11-05'];
@@ -2812,7 +2813,52 @@ function nowInTz() {
 const eq = (a, b) => { a = String(a); b = String(b); let d = a.length ^ b.length; for (let i = 0; i < Math.max(a.length, b.length); i++) d |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0); return d === 0; };
 const shape = (r) => ({ id: r.id, date: r.dateKey, time: hhmm(r.startMinutes), duration_minutes: r.durationMinutes, title: r.type, description: r.description || '', notification_on: !!r.notify });
 
+
+const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : null; };
+const clampC = (n) => Math.max(0, Math.trunc(Number.isFinite(+n) ? +n : 0));
+const clampP = (n) => Math.max(0, Math.min(3, Math.trunc(Number.isFinite(+n) ? +n : 0)));
+const dayOrToday = (d) => (d ? (DATE_RE.test(String(d)) && !isNaN(new Date(d + 'T12:00:00')) ? String(d) : null) : nowInTz().date);
+const HAB_COLS = ['pushupsCount', 'readPagesCount', 'pullupsCount', 'oneHandPushupsCount', 'breathHoldSeconds'];
+const HAB_PIPS = ['stretchPips', 'lSitPips', 'productivePips', 'cardTrickPips'];
+const habitShape = (r) => r ? ({ date: r.date, title: r.title || '', pushups: r.pushupsCount || 0, reading_pages: r.readPagesCount || 0, pullups: r.pullupsCount || 0, one_hand_pushups: r.oneHandPushupsCount || 0, breath_hold_seconds: r.breathHoldSeconds || 0, stretch_pips: r.stretchPips || 0, l_sit_pips: r.lSitPips || 0, productive_pips: r.productivePips || 0, card_trick_pips: r.cardTrickPips || 0, woke_at_5: !!r.wokeAt5, productive_note: r.nDay || '', reading_note: r.nRead || '', extra_note: r.nExtra || '' }) : null;
+let moneyReady = null, adsReady = null;
+const ensureMoney = (db) => moneyReady || (moneyReady = (async () => {
+  await db.prepare("CREATE TABLE IF NOT EXISTS money_entries (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT NOT NULL, amount REAL NOT NULL, note TEXT DEFAULT '', source TEXT DEFAULT 'manual', created_at TEXT DEFAULT CURRENT_TIMESTAMP)").run();
+  const { results } = await db.prepare('PRAGMA table_info(money_entries)').all(); const have = new Set(results.map((r) => r.name));
+  for (const c of ['store', 'street', 'item']) if (!have.has(c)) await db.prepare("ALTER TABLE money_entries ADD COLUMN " + c + " TEXT DEFAULT ''").run();
+  await db.prepare('CREATE INDEX IF NOT EXISTS idx_money_date ON money_entries(date)').run();
+})().catch((e) => { moneyReady = null; throw e; }));
+const ensureAds = (db) => adsReady || (adsReady = db.prepare('CREATE TABLE IF NOT EXISTS ads_days (date TEXT PRIMARY KEY, kind TEXT NOT NULL, count INTEGER NOT NULL DEFAULT 1)').run().catch((e) => { adsReady = null; throw e; }));
+const moneyShape = (r) => ({ id: r.id, date: r.date, amount: r.amount, kind: r.amount < 0 ? 'spent' : 'income', store: r.store || '', item: r.item || '', street: r.street || '', note: r.note || '', source: r.source });
+const moneyTotals = (rows) => { const spent = rows.filter((e) => e.amount < 0).reduce((s, e) => s - e.amount, 0), got = rows.filter((e) => e.amount > 0).reduce((s, e) => s + e.amount, 0); const r2 = (x) => Math.round(x * 100) / 100; return { spent: r2(spent), income: r2(got), net: r2(got - spent), entries: rows.length }; };
+async function getHabitRow(db, date) { return await db.prepare('SELECT * FROM habits WHERE date = ?').bind(date).first(); }
+async function saveHabitRow(db, h) {
+  await db.prepare('INSERT INTO habits (date, title, pushupsCount, readPagesCount, pullupsCount, oneHandPushupsCount, breathHoldSeconds, stretchPips, lSitPips, productivePips, cardTrickPips, wokeAt5, nDay, nRead, nExtra) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(date) DO UPDATE SET title=excluded.title, pushupsCount=excluded.pushupsCount, readPagesCount=excluded.readPagesCount, pullupsCount=excluded.pullupsCount, oneHandPushupsCount=excluded.oneHandPushupsCount, breathHoldSeconds=excluded.breathHoldSeconds, stretchPips=excluded.stretchPips, lSitPips=excluded.lSitPips, productivePips=excluded.productivePips, cardTrickPips=excluded.cardTrickPips, wokeAt5=excluded.wokeAt5, nDay=excluded.nDay, nRead=excluded.nRead, nExtra=excluded.nExtra')
+    .bind(h.date, h.title || '', clampC(h.pushupsCount), clampC(h.readPagesCount), clampC(h.pullupsCount), clampC(h.oneHandPushupsCount), clampC(h.breathHoldSeconds), clampP(h.stretchPips), clampP(h.lSitPips), clampP(h.productivePips), clampP(h.cardTrickPips), h.wokeAt5 ? 1 : 0, h.nDay || '', h.nRead || '', h.nExtra || '').run();
+}
+const EV_COLS = 'id, dateKey, startMinutes, durationMinutes, type, description, notify';
+async function insertEvent(db, { date, start, dur, title, color, description, notify }) {
+  const id = 'mcp-' + date + '-' + Math.random().toString(36).slice(2, 8);
+  await db.prepare('INSERT INTO habit_events (id, dateKey, startMinutes, durationMinutes, type, color, description, manualLeftPx, manualWidthPx, notify, locked) VALUES (?,?,?,?,?,?,?,NULL,NULL,?,0)').bind(id, date, start, dur, title, color, description || '', notify ? 1 : 0).run();
+  return { id, dateKey: date, startMinutes: start, durationMinutes: dur, type: title, description: description || '', notify: notify ? 1 : 0 };
+}
+
 const TOOLS = [
+  { name: 'get_day_overview', description: 'EVERYTHING saved for one day in one call: calendar events, the habit numbers and notes (including "What productive did you do today"), money spent/earned, the saved AI summary, the ads entry, and attached files. Defaults to today. Use it for "what did I do today?".', inputSchema: { type: 'object', properties: { date: { type: 'string', description: 'YYYY-MM-DD (default today)' } } } },
+  { name: 'get_habits', description: 'Reads the daily habit tracker (push-ups, pages read, pull-ups, breath hold, pips, woke at 5, and the three notes) for a date or a date range.', inputSchema: { type: 'object', properties: { from_date: { type: 'string', description: 'YYYY-MM-DD (default today)' }, to_date: { type: 'string', description: 'YYYY-MM-DD (default from_date)' } } } },
+  { name: 'update_habits', description: 'Writes to one day of the habit tracker (default today). Use productive_note for the box "What productive did you do today", reading_note for "What was today\'s reading about?", extra_note for "Anything else". Notes are APPENDED to what is already there unless note_mode is "replace". Counters (pushups, reading_pages, pullups, one_hand_pushups, breath_hold_seconds) are ADDED to the current number unless counter_mode is "set". Pips are 0 to 3. To fill the productive note from a conversation, write a short plain summary of what the owner got done.', inputSchema: { type: 'object', properties: { date: { type: 'string', description: 'YYYY-MM-DD (default today)' }, productive_note: { type: 'string' }, reading_note: { type: 'string' }, extra_note: { type: 'string' }, note_mode: { type: 'string', enum: ['append', 'replace'] }, title: { type: 'string', description: 'The day title' }, pushups: { type: 'integer' }, reading_pages: { type: 'integer' }, pullups: { type: 'integer' }, one_hand_pushups: { type: 'integer' }, breath_hold_seconds: { type: 'integer' }, counter_mode: { type: 'string', enum: ['add', 'set'] }, stretch_pips: { type: 'integer', description: '0-3' }, l_sit_pips: { type: 'integer', description: '0-3' }, productive_pips: { type: 'integer', description: '0-3' }, card_trick_pips: { type: 'integer', description: '0-3' }, woke_at_5: { type: 'boolean' } } } },
+  { name: 'get_money', description: 'Lists money entries (spent and income) between two dates with totals. Spent amounts are negative in the list. Defaults to today.', inputSchema: { type: 'object', properties: { from_date: { type: 'string', description: 'YYYY-MM-DD (default today)' }, to_date: { type: 'string', description: 'YYYY-MM-DD (default from_date)' } } } },
+  { name: 'add_expense', description: 'Records money the owner SPENT, e.g. "I spent 300 at Colnas on a new bike" -> amount 300, store "Colnas", item "new bike". amount is a positive number; it is saved as a negative entry. Defaults to today.', inputSchema: { type: 'object', properties: { amount: { type: 'number', description: 'Positive number' }, store: { type: 'string', description: 'Where it was spent' }, item: { type: 'string', description: 'What was bought' }, street: { type: 'string' }, note: { type: 'string' }, date: { type: 'string', description: 'YYYY-MM-DD (default today)' } }, required: ['amount'] } },
+  { name: 'add_income', description: 'Records money the owner RECEIVED (a positive entry). Defaults to today.', inputSchema: { type: 'object', properties: { amount: { type: 'number', description: 'Positive number' }, note: { type: 'string', description: 'Where it came from' }, date: { type: 'string', description: 'YYYY-MM-DD (default today)' } }, required: ['amount'] } },
+  { name: 'delete_money_entry', description: 'Deletes one money entry by its id (get ids from get_money). Ask the owner before deleting.', inputSchema: { type: 'object', properties: { id: { type: 'integer' } }, required: ['id'] } },
+  { name: 'set_timer', description: 'Sets a timer: after the given number of minutes the owner\'s phone gets a notification. It is saved as a calendar event named "Timer: <label>" and is accurate to about a minute.', inputSchema: { type: 'object', properties: { minutes: { type: 'integer', description: '1 to 1440' }, label: { type: 'string', description: 'What the timer is for' } }, required: ['minutes'] } },
+  { name: 'list_birthdays', description: 'Lists the saved birthdays.', inputSchema: { type: 'object', properties: {} } },
+  { name: 'add_birthday', description: 'Adds a birthday.', inputSchema: { type: 'object', properties: { name: { type: 'string' }, month: { type: 'integer', description: '1-12' }, day: { type: 'integer', description: '1-31' }, year: { type: 'integer', description: 'Birth year (optional)' }, repeat_yearly: { type: 'boolean', description: 'Default true' } }, required: ['name', 'month', 'day'] } },
+  { name: 'delete_birthday', description: 'Deletes a birthday by id (get ids from list_birthdays).', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
+  { name: 'get_ads', description: 'Reads the Ads calendar (what kind of ad was done on each date: poster or video, and how many).', inputSchema: { type: 'object', properties: { from_date: { type: 'string' }, to_date: { type: 'string' } }, required: ['from_date'] } },
+  { name: 'set_ads_day', description: 'Sets what ad was done on a date. kind is poster, video, or none (none clears the day).', inputSchema: { type: 'object', properties: { date: { type: 'string', description: 'YYYY-MM-DD (default today)' }, kind: { type: 'string', enum: ['poster', 'video', 'none'] }, count: { type: 'integer', description: 'Default 1' } }, required: ['kind'] } },
+  { name: 'list_files', description: 'Lists files attached to calendar days (names, types, sizes; not the contents). Optionally for one date.', inputSchema: { type: 'object', properties: { date: { type: 'string', description: 'YYYY-MM-DD (optional)' } } } },
+  { name: 'save_day_summary', description: 'Saves a short summary text for a school day (the same box the Test tab\'s "Run the agent" fills). An empty summary deletes it.', inputSchema: { type: 'object', properties: { date: { type: 'string' }, summary: { type: 'string' } }, required: ['date', 'summary'] } },
   { name: 'get_current_time', description: 'Returns the current date, time and weekday in the calendar owner\'s time zone (Europe/Vilnius). Call this first to work out words like "today", "tomorrow" or "on Friday".', inputSchema: { type: 'object', properties: {} } },
   { name: 'list_events', description: 'Lists calendar events between two dates (inclusive). Includes tests and projects the Automate tab found (ids start with mdtest- or mdproj-).', inputSchema: { type: 'object', properties: { from_date: { type: 'string', description: 'YYYY-MM-DD' }, to_date: { type: 'string', description: 'YYYY-MM-DD (defaults to from_date)' } }, required: ['from_date'] } },
   { name: 'add_event', description: 'Adds an event to the calendar. If notify is true, a phone notification is sent at the start time.', inputSchema: { type: 'object', properties: { date: { type: 'string', description: 'YYYY-MM-DD' }, time: { type: 'string', description: 'Start time, 24h HH:MM' }, title: { type: 'string' }, duration_minutes: { type: 'integer', description: 'Default 45' }, description: { type: 'string' }, notify: { type: 'boolean', description: 'Send a phone notification at the start time (default false)' } }, required: ['date', 'time', 'title'] } },
@@ -2865,6 +2911,121 @@ async function callTool(name, a, env) {
     const { results } = await db.prepare('SELECT id, dateKey, startMinutes, durationMinutes, type, description, notify FROM habit_events WHERE dateKey = ? ORDER BY startMinutes').bind(d).all();
     return say({ date: d, summary: sum ? sum.summary : null, summary_made: sum ? sum.updated : null, events: results.map(shape), hint: sum ? undefined : 'No summary was saved for this day. The owner can make one with "Run the agent" in the Test tab.' });
   }
+
+  if (name === 'get_day_overview') {
+    const d = dayOrToday(a.date); if (!d) return say('date must look like 2026-11-20.', true);
+    const out = { date: d };
+    const q = async (fn) => { try { return await fn(); } catch (e) { return null; } };
+    out.events = (await db.prepare('SELECT ' + EV_COLS + ' FROM habit_events WHERE dateKey = ? ORDER BY startMinutes').bind(d).all()).results.map(shape);
+    out.habits = habitShape(await q(() => getHabitRow(db, d)));
+    out.money = await q(async () => { await ensureMoney(db); const rows = (await db.prepare('SELECT * FROM money_entries WHERE date = ? ORDER BY id').bind(d).all()).results; return { totals: moneyTotals(rows), entries: rows.map(moneyShape) }; });
+    out.saved_day_summary = await q(async () => { const s = await db.prepare('SELECT summary, updated FROM au_day_summary WHERE day = ?').bind(d).first(); return s ? s.summary : null; });
+    out.ads = await q(async () => { await ensureAds(db); return await db.prepare('SELECT kind, count FROM ads_days WHERE date = ?').bind(d).first(); });
+    out.files = await q(async () => (await db.prepare('SELECT id, name, type, size FROM files WHERE date = ?').bind(d).all()).results);
+    return say(out);
+  }
+  if (name === 'get_habits') {
+    const from = dayOrToday(a.from_date), to = dayOrToday(a.to_date || a.from_date || undefined);
+    if (!from || !to) return say('Dates must look like 2026-11-20.', true);
+    const { results } = await db.prepare('SELECT * FROM habits WHERE date >= ? AND date <= ? ORDER BY date LIMIT 400').bind(from, to).all();
+    return say(results.length ? results.map(habitShape) : 'No habit entries between ' + from + ' and ' + to + '.');
+  }
+  if (name === 'update_habits') {
+    const d = dayOrToday(a.date); if (!d) return say('date must look like 2026-11-20.', true);
+    const row = (await getHabitRow(db, d)) || { date: d };
+    const h = { ...row, date: d };
+    const append = a.note_mode !== 'replace', add = a.counter_mode !== 'set';
+    const noteMap = [['productive_note', 'nDay'], ['reading_note', 'nRead'], ['extra_note', 'nExtra']];
+    for (const [k, col] of noteMap) if (typeof a[k] === 'string') { const v = a[k].trim().slice(0, 4000); h[col] = append && h[col] ? (v ? h[col] + '\n' + v : h[col]) : v; }
+    if (typeof a.title === 'string') h.title = a.title.slice(0, 200);
+    const cm = { pushups: 'pushupsCount', reading_pages: 'readPagesCount', pullups: 'pullupsCount', one_hand_pushups: 'oneHandPushupsCount', breath_hold_seconds: 'breathHoldSeconds' };
+    for (const [k, col] of Object.entries(cm)) if (num(a[k]) !== null) h[col] = clampC(add ? (num(h[col]) || 0) + num(a[k]) : num(a[k]));
+    const pm = { stretch_pips: 'stretchPips', l_sit_pips: 'lSitPips', productive_pips: 'productivePips', card_trick_pips: 'cardTrickPips' };
+    for (const [k, col] of Object.entries(pm)) if (num(a[k]) !== null) h[col] = clampP(num(a[k]));
+    if (typeof a.woke_at_5 === 'boolean') h.wokeAt5 = a.woke_at_5;
+    await saveHabitRow(db, h);
+    return say({ done: true, habits: habitShape(await getHabitRow(db, d)), note: 'Saved. If the calendar site is open, reload it to see the change.' });
+  }
+  if (name === 'get_money') {
+    const from = dayOrToday(a.from_date), to = dayOrToday(a.to_date || a.from_date || undefined);
+    if (!from || !to) return say('Dates must look like 2026-11-20.', true);
+    await ensureMoney(db);
+    const rows = (await db.prepare('SELECT * FROM money_entries WHERE date >= ? AND date <= ? ORDER BY date, id LIMIT 500').bind(from, to).all()).results;
+    return say({ from, to, totals: moneyTotals(rows), entries: rows.map(moneyShape) });
+  }
+  if (name === 'add_expense' || name === 'add_income') {
+    const inc = name === 'add_income', amt = Math.abs(num(a.amount) ?? NaN), d = dayOrToday(a.date);
+    if (!(amt > 0)) return say('amount must be a number above zero.', true);
+    if (!d) return say('date must look like 2026-11-20.', true);
+    await ensureMoney(db);
+    const store = inc ? '' : String(a.store || '').trim().slice(0, 120), item = inc ? '' : String(a.item || '').trim().slice(0, 200), street = inc ? '' : String(a.street || '').trim().slice(0, 150);
+    const note = String(a.note || (inc ? 'Income' : store || item || 'Spent')).slice(0, 200);
+    const res = await db.prepare('INSERT INTO money_entries (date, amount, note, source, store, street, item) VALUES (?,?,?,?,?,?,?)').bind(d, inc ? amt : -amt, note, 'claude', store, street, item).run();
+    return say({ done: true, id: res && res.meta ? res.meta.last_row_id : undefined, date: d, amount: inc ? amt : -amt, kind: inc ? 'income' : 'spent', store, item, note: 'Saved. Reload the calendar site to see it in the money page.' });
+  }
+  if (name === 'delete_money_entry') {
+    await ensureMoney(db);
+    const row = await db.prepare('SELECT * FROM money_entries WHERE id = ?').bind(parseInt(a.id, 10) || 0).first();
+    if (!row) return say('No money entry with that id.', true);
+    await db.prepare('DELETE FROM money_entries WHERE id = ?').bind(row.id).run();
+    return say({ deleted: true, was: moneyShape(row) });
+  }
+  if (name === 'set_timer') {
+    const m = parseInt(a.minutes, 10);
+    if (!(m >= 1 && m <= 1440)) return say('minutes must be between 1 and 1440.', true);
+    const target = new Date(Math.ceil((Date.now() + m * 60000) / 60000) * 60000);
+    const map = {}; for (const p of new Intl.DateTimeFormat('en-US', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(target)) map[p.type] = p.value;
+    const date = map.year + '-' + map.month + '-' + map.day, start = (+(map.hour === '24' ? '0' : map.hour)) * 60 + (+map.minute);
+    const label = String(a.label || '').trim().slice(0, 100);
+    const ev = await insertEvent(db, { date, start, dur: 5, title: 'Timer: ' + (label || m + ' min'), color: '#f59e0b', description: '', notify: true });
+    return say({ done: true, rings_at: date + ' ' + hhmm(start) + ' (Vilnius time)', ...shape(ev), note: 'The phone notification arrives at about ' + hhmm(start) + ', accurate to roughly a minute. It also shows on the calendar.' });
+  }
+  if (name === 'list_birthdays') {
+    const { results } = await db.prepare('SELECT id, name, month, day, year, repeatYearly FROM habit_birthdays ORDER BY month ASC, day ASC').all();
+    return say(results.length ? results.map((b) => ({ id: b.id, name: b.name, month: b.month, day: b.day, year: b.year, repeats_yearly: !!b.repeatYearly })) : 'No birthdays saved.');
+  }
+  if (name === 'add_birthday') {
+    const nm = String(a.name || '').trim().slice(0, 120), mo = parseInt(a.month, 10), dy = parseInt(a.day, 10);
+    if (!nm || !(mo >= 1 && mo <= 12) || !(dy >= 1 && dy <= 31)) return say('Need a name, a month (1-12) and a day (1-31).', true);
+    const id = crypto.randomUUID();
+    await db.prepare('INSERT INTO habit_birthdays (id, name, month, day, year, repeatYearly) VALUES (?,?,?,?,?,?)').bind(id, nm, mo, dy, parseInt(a.year, 10) || null, a.repeat_yearly === false ? 0 : 1).run();
+    return say({ done: true, id, name: nm, month: mo, day: dy });
+  }
+  if (name === 'delete_birthday') {
+    const row = await db.prepare('SELECT id, name, month, day FROM habit_birthdays WHERE id = ?').bind(String(a.id || '')).first();
+    if (!row) return say('No birthday with that id.', true);
+    await db.prepare('DELETE FROM habit_birthdays WHERE id = ?').bind(row.id).run();
+    return say({ deleted: true, was: row });
+  }
+  if (name === 'get_ads') {
+    const from = needDate(a.from_date), to = needDate(a.to_date || a.from_date); if (!from || !to) return say('Dates must look like 2026-11-20.', true);
+    await ensureAds(db);
+    const { results } = await db.prepare('SELECT date, kind, count FROM ads_days WHERE date >= ? AND date <= ? ORDER BY date').bind(from, to).all();
+    return say(results.length ? results : 'No ads recorded between ' + from + ' and ' + to + '.');
+  }
+  if (name === 'set_ads_day') {
+    const d = dayOrToday(a.date); if (!d) return say('date must look like 2026-11-20.', true);
+    if (!['poster', 'video', 'none'].includes(a.kind)) return say('kind must be poster, video or none.', true);
+    await ensureAds(db);
+    if (a.kind === 'none') { await db.prepare('DELETE FROM ads_days WHERE date = ?').bind(d).run(); return say({ done: true, date: d, kind: 'none (cleared)' }); }
+    const c = Math.max(1, Math.min(99, parseInt(a.count, 10) || 1));
+    await db.prepare('INSERT INTO ads_days (date, kind, count) VALUES (?,?,?) ON CONFLICT(date) DO UPDATE SET kind = excluded.kind, count = excluded.count').bind(d, a.kind, c).run();
+    return say({ done: true, date: d, kind: a.kind, count: c });
+  }
+  if (name === 'list_files') {
+    const d = a.date ? needDate(a.date) : null; if (a.date && !d) return say('date must look like 2026-11-20.', true);
+    const q = d ? db.prepare('SELECT id, date, name, type, size, uploaded FROM files WHERE date = ? ORDER BY id').bind(d) : db.prepare('SELECT id, date, name, type, size, uploaded FROM files ORDER BY date DESC, id DESC LIMIT 100');
+    const { results } = await q.all();
+    return say(results.length ? results : 'No files.');
+  }
+  if (name === 'save_day_summary') {
+    const d = needDate(a.date); if (!d) return say('date must look like 2026-11-20.', true);
+    await db.prepare('CREATE TABLE IF NOT EXISTS au_day_summary (day TEXT PRIMARY KEY, summary TEXT, updated TEXT)').run();
+    const s = String(a.summary || '').trim().slice(0, 4000);
+    if (!s) { await db.prepare('DELETE FROM au_day_summary WHERE day = ?').bind(d).run(); return say({ done: true, deleted: true }); }
+    await db.prepare('INSERT INTO au_day_summary (day, summary, updated) VALUES (?,?,?) ON CONFLICT(day) DO UPDATE SET summary = excluded.summary, updated = excluded.updated').bind(d, s, new Date().toISOString()).run();
+    return say({ done: true, date: d });
+  }
   return say('Unknown tool ' + name, true);
 }
 
@@ -2874,7 +3035,7 @@ async function handle(msg, env) {
   if (id === undefined) return null;                                                   // a notification: no answer
   if (msg.method === 'initialize') {
     const want = msg.params && msg.params.protocolVersion;
-    return ok(id, { protocolVersion: PROTOCOLS.includes(want) ? want : PROTOCOLS[1], capabilities: { tools: { listChanged: false } }, serverInfo: { name: 'habit-calendar', version: '1.0.0' }, instructions: 'Tools for the owner\'s calendar. Times are Europe/Vilnius. Call get_current_time first to resolve "today"/"tomorrow". Use add_reminder for reminders.' });
+    return ok(id, { protocolVersion: PROTOCOLS.includes(want) ? want : PROTOCOLS[1], capabilities: { tools: { listChanged: false } }, serverInfo: { name: 'habit-calendar', version: '1.0.0' }, instructions: 'Tools for the owner\'s whole calendar site: events, reminders, timers, daily habits and notes, money, birthdays, ads, files. Times are Europe/Vilnius. Call get_current_time first to resolve "today"/"tomorrow". For "what did I do today" use get_day_overview. To fill the "What productive did you do today" box use update_habits with productive_note. Money spent uses add_expense (positive amount). Reminders use add_reminder, timers use set_timer. Do not delete anything without asking the owner first.' });
   }
   if (msg.method === 'ping') return ok(id, {});
   if (msg.method === 'tools/list') return ok(id, { tools: TOOLS });
