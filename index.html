@@ -14190,7 +14190,7 @@ window.__TEST_TAB_SRC = "/* test.js - the WHOLE Test tab in one file: its styles
     document.addEventListener('click', function (ev) {
       if (pass) return;
       var c = ev.target.closest && ev.target.closest('#daysGrid .day-cell:not(.empty)'); if (!c || !c.dataset.day) return;
-      var bc = document.body.classList; if (bc.contains('money-mode') || bc.contains('ads-mode') || bc.contains('test-mode')) return;
+      var bc = document.body.classList; if (bc.contains('ads-mode') || bc.contains('test-mode')) return;
       ev.stopImmediatePropagation(); ev.preventDefault();
       if (pend && pend.c === c) { clearTimeout(pend.t); pend = null; showDay(c); return; }
       if (pend) { clearTimeout(pend.t); var old = pend.c; pend = null; fire(old); }
