@@ -481,7 +481,7 @@ const scanPart = (() => {
   }
   function findDateForm(html) {
     for (const f of parseForms(html)) {
-      const ds = f.inputs.filter((i) => i.name && ['text', 'date', 'search', ''].includes((i.type || 'text').toLowerCase()) && ((i.type || '').toLowerCase() === 'date' || dateKind(i.value)));
+      const ds = f.inputs.filter((i) => i.name && ['text', 'date', 'search', ''].includes((i.type || 'text').toLowerCase()) && ((i.type || '').toLowerCase() === 'date' || dateKind(i.value) || /(^|[_\-\[])(date|data|nuo|iki|from|to|dt)([_\-\]]|$)/i.test(i.name)));
       if (ds.length < 2) continue;
       let [a, b] = ds;
       if (/iki|\bto\b|_to|end|till/i.test(a.name) && /nuo|from|start|begin/i.test(b.name)) [a, b] = [b, a];   // the box named "to" comes second
@@ -492,7 +492,11 @@ const scanPart = (() => {
   async function submitRange(http, host, pageUrl, html, range, log) {
     const d = findDateForm(html);
     const path = (() => { try { return new URL(pageUrl).pathname; } catch (e) { return pageUrl; } })();
-    if (!d) { await log('Dates: no date boxes on ' + path + ' (it shows the diary\'s own dates).'); return null; }
+    if (!d) {
+      const fs = parseForms(html).map((f) => '[' + f.inputs.filter((i) => i.name).map((i) => i.name + (i.type ? ':' + i.type : '') + (i.value ? '=' + String(i.value).slice(0, 12) : '')).join(', ') + ']').slice(0, 4).join(' ');
+      await log('Dates: no date boxes on ' + path + ' (it shows the diary\'s own dates). Forms there: ' + (fs || 'none') + '.');
+      return null;
+    }
     const p = new URLSearchParams(); let submitSet = false;
     for (const el of d.form.inputs) {
       if (!el.name) continue;
@@ -602,14 +606,40 @@ const scanPart = (() => {
           const body = dropIgnored(htmlToText(html), ignore).slice(0, MAX_BODY);
           pages.push({ url, title: titleOf(html, url), chars: body.length, body });
         };
+        let extraLeft = 14;
+        const extraDates = async (url, html) => {      // no date boxes: read the page's own links that carry a date inside your window
+          if (!range || extraLeft <= 0) return;
+          const here = (() => { try { return new URL(url).pathname; } catch (e) { return url; } })();
+          const cands = [];
+          for (const l of extractLinks(html)) {
+            try {
+              const u = new URL(l.href, url); u.hash = ''; if (u.protocol === 'http:') u.protocol = 'https:'; if (u.protocol !== 'https:') continue;
+              if (u.hostname.replace(/^www\./, '') !== host || u.pathname !== here) continue;
+              if (SKIP.test(u.href) || FILE.test(u.pathname) || seen.has(u.href)) continue;
+              const m = /(\d{4})[-.\/_](\d{2})[-.\/_](\d{2})/.exec(decodeURIComponent(u.search + u.pathname)); if (!m) continue;
+              const iso = m[1] + '-' + m[2] + '-' + m[3]; if (iso < range.from || iso > range.to) continue;
+              cands.push([iso, u.href]);
+            } catch (e) {}
+          }
+          cands.sort();
+          if (!cands.length) { await log('Dates: no links with dates inside ' + range.from + ' to ' + range.to + ' on ' + here + ' either.'); return; }
+          await log('Dates: no date boxes, but ' + here + ' has ' + cands.length + ' link(s) with dates in your window; reading up to ' + extraLeft + '.');
+          for (const [iso, href] of cands) {
+            if (extraLeft <= 0 || st.requests >= MAX_REQUESTS || pages.length >= MAX_PAGES) break;
+            seen.add(href); extraLeft--;
+            const p = await http(href);
+            if (!p.text || (hasPasswordBox(p.text) && !isLoggedIn(p.text))) continue;
+            record(p.url, p.text); await log('Read [' + pages.length + '] (date ' + iso + ') ' + p.url);
+          }
+        };
         const ranged = async (url, html) => {
           if (!range) return { url, html };
-          try { const r = await submitRange(http, host, url, html, range, log); if (r) return { url: r.url, html: r.text }; }
+          try { const r = await submitRange(http, host, url, html, range, log); if (r) return { url: r.url, html: r.text, viaForm: true }; }
           catch (e) { await log('Dates: could not use your dates (' + (e && e.message || e) + ').'); }
           return { url, html };
         };
         addLinks(first.text, first.url);
-        if (allowedBy(allowed, first.url)) { const r = await ranged(first.url, first.text); record(r.url, r.html); }
+        if (allowedBy(allowed, first.url)) { const r = await ranged(first.url, first.text); record(r.url, r.html); if (!r.viaForm) await extraDates(r.url, r.html); }
         await log('STEP 4: reading pages. Found ' + queue.length + ' links on the first page' + (allowed.length ? ' (only ' + allowed.length + ' allowed address part(s) are kept).' : '.'));
         for (let i = 0; i < queue.length && pages.length < MAX_PAGES; i++) {
           if (st.requests >= MAX_REQUESTS) { await log('Stopped: reached the request limit for one scan (' + MAX_REQUESTS + ').'); break; }
@@ -619,8 +649,7 @@ const scanPart = (() => {
           if (hasPasswordBox(p.text) && !isLoggedIn(p.text)) { await log('Asked to log in: ' + url); continue; }
           addLinks(p.text, p.url);
           if (!allowedBy(allowed, p.url)) continue;
-          { const r = await ranged(p.url, p.text); record(r.url, r.html); }
-          await log('Read [' + pages.length + '] ' + p.url);
+          { const r = await ranged(p.url, p.text); record(r.url, r.html); await log('Read [' + pages.length + '] ' + p.url); if (!r.viaForm) await extraDates(r.url, r.html); }
         }
       }
     } catch (e) {
