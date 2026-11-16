@@ -1,4 +1,4 @@
-/* test.js - the WHOLE Test tab in one file: its styles, its page and its code.
+`/* test.js - the WHOLE Test tab in one file: its styles, its page and its code.
    Loaded by app.js ONLY when you press the Test tab (or when a scheduled automation is due), never on a normal page load.
    To change the Test tab, change this file only (the service worker always fetches it fresh). Server part: functions/api/automate.js. */
 (() => {
@@ -251,13 +251,11 @@
     .au-allc { font-size: 1.2em; padding: .5em 1.7em; border-radius: 1em; font-weight: 800; animation: auUp .5s .2s both, auHop 1.8s 1s ease-in-out infinite; }
     .au-allc svg { width: 1.1em; height: 1.1em; }
     .au-tocal { margin-left: auto; align-self: center; }
+    .au-head .au-b.sm { align-self: center; }
     /* bumping up and down while it works (uses "translate", so hover/press still work) */
     .au.working .au-tab { animation: auHop .9s ease-in-out infinite; }
     .au-step[data-st=run] { animation: auHop .9s ease-in-out infinite; }
     /* Clear button (top right, only on the Test tab) + its dialog */
-    #auClearTop { display: none; }
-    body.test-mode #auClearTop { display: flex; animation: auPop .5s both; }
-    #auClearTop:hover { background: #111; color: #fff; border-color: #111; }
     .au-clr-row { display: flex; gap: 1em; flex-wrap: wrap; align-items: end; }
     .au-clr-f { display: flex; flex-direction: column; gap: .3em; font-weight: 800; font-size: .9em; }
     .au-clr-count { font-size: 1.3em; font-weight: 800; min-height: 1.4em; }
@@ -282,7 +280,8 @@
         <button type="button" class="au-b sm alt" id="auCalNext" aria-label="Next month">&#8594;</button>
         <button type="button" class="au-b sm alt" id="auCalToday">Today</button>
         <span class="au-calbusy" id="auCalBusy" hidden>Automation is running...</span>
-        <span class="au-legend"><span class="au-tag t">Test</span> made by Automate <span class="au-tag">Other</span> everything else</span>
+        <span class="au-legend"><span class="au-tag t">Test</span> <span class="au-tag">Project</span> made by Automate</span>
+        <button type="button" class="au-b sm alt" id="auClearCal" title="Clear events from the calendar (pick the dates)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/></svg>Clear</button>
       </div>
       <div class="au-calwd"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div>
       <div class="au-calgrid" id="auCalGrid"></div>
@@ -299,7 +298,8 @@
         <div class="au-step" data-s="agent" data-st="idle"><span class="au-dot"></span><b>Run Agent</b></div><span class="au-arr"><svg viewBox="0 0 28 12" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6h23M19.5 1.5 25 6l-5.5 4.5"/></svg></span>
         <div class="au-step" data-s="cal" data-st="idle"><span class="au-dot"></span><b>Paste into calendar</b></div>
       </div>
-      <button type="button" class="au-b sm alt au-tocal" id="auToCal">Calendar</button>
+      <button type="button" class="au-b sm alt au-tocal" id="auClearTop" title="Clear events from the calendar (pick the dates)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/></svg>Clear</button>
+      <button type="button" class="au-b sm alt" id="auToCal">Calendar</button>
       <div class="au-bar"><i></i></div>
     </div>
     <div class="au-frame">
@@ -399,16 +399,8 @@
   </div>
 `;
 
-  /* ---------- the Clear button, top right ---------- */
-  const CLEAR_BTN = String.raw`<button type="button" class="global-topbar-selectday" id="auClearTop" title="Clear events from the calendar (pick the dates)">
-        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/></svg>
-        <span>Clear</span>
-      </button>`;
-
   const style = document.createElement('style'); style.id = 'testTabCss'; style.textContent = CSS; document.head.appendChild(style);
   const holder = document.createElement('div'); holder.innerHTML = HTML; while (holder.firstChild) document.body.appendChild(holder.firstChild);
-  const topRight = document.querySelector('.global-topbar-right');
-  if (topRight) { const h = document.createElement('div'); h.innerHTML = CLEAR_BTN; topRight.appendChild(h.firstElementChild); }
 
   /* ───────────────────────── TEST TAB = "Automate" dashboard ─────────────────────────
        One fixed page (see the CSS block "TEST TAB"). Server part: functions/api/automate.js (diary login + crawl, the AI step, and saving your settings + word lists in D1).
@@ -423,7 +415,8 @@
       const API = (part, qs) => '/api/automate?part=' + part + (qs ? '&' + String(qs).replace(/^\?/, '') : '');   // one server file: functions/api/automate.js
       const CFG_KEY = 'auCfg.v1', LISTS_KEY = 'testDelLists.v1', WORK_KEY = 'testWork.v1', RESP_KEY = 'auAgentResp.v1', OLD_AUTO_KEY = 'testDelAuto.v1';
       const STANDARD_WORDS = ["X", "menu", "Išbandykite", "planą „Šeima“", "Užsakyti", "school", "Pažymių", "knygelė", "bar_chart", "Analitika", "Individuali pažanga", "Fizinis pajėgumas", "Mokinio reitingas", "email", "1", "Pranešimai", "notifications", "Įvykiai", "help_outline", "Parašykite", "mums", "Kalba", "Pasirinkite", "kalbą", "Kristina Martinkevičienė", "Benas Martinkevičius", "Tėvas/Mama (Globėjas/Globėja)", "Kauno Vinco Kudirkos progimnazija", "notifications_active", "Rokas Martinkevičius", "Paskyros nustatymai", "Vartotojo vadovas", "Parašykite mums", "Atsijungti", "sports_basketball", "Sporto būreliai", "Korepetitoriai", "holiday_village", "Stovyklos", "audiotrack", "Muzikos būreliai", "accessibility", "Šokių būreliai", "language", "Kalbų mokymas", "home", "Įstaigos", "volunteer_activism", "Savanorystė", "Dienos vaizdas", "„Šeimos“ paslaugos", "Švietimo rodiklių švieslentė", "Pažymių knygelė", "Pažymiai", "Lankomumas", "Tvarkaraštis", "Klasės darbai", "Namų darbai", "Pagyrimai ir pastabos", "Atsiskaitomieji darbai", "Trimestrai, pusmečiai", "Tėvų susirinkimai", "Video pamokos", "Elektroninės paslaugos", "Kurti naują paslaugą", "Užsakytos paslaugos", "Pranešimai 1", "Rašyti naują pranešimą", "Gauti pranešimai 1", "Išsiųsti pranešimai", "Juodraščiai", "Svarbūs pranešimai", "Ištrinti pranešimai", "Kontaktų grupės", "Svarbi informacija", "Atostogų grafikas", "Mokyklos failai", "Apklausos", "Dokumentai", "Visi", "Laukiantys parašo", "Archyvas", "Ištrintos sutartys", "Sąskaitos", "Visos", "Laukiančios apmokėjimo", "Vėluojančios sąskaitos", "Ištrintos sąskaitos", "Pakvieskite šeimos narį", "Nustatymai", "Mokymosi resursai", "Svetainės medis", "cancel", "Parašyti mokyklos administracijai", "Tik vartotojai", "Parašyti Manodienynas.lt pagalbos tarnybai", "attach_file", "Pridėti pdf failą", "keyboard_arrow_right", "- Visi dalykai -", "Puslapiai:", "Mokėjimo būdai", "Klientams", "DUK", "Pirkimo taisyklės ir sąlygos", "Privatumo ir slapukų politika", "Sistemos naudojimo taisyklės", "Mano dienynas", "Kam skirta sistema", "Sistemos galimybės", "Reklamos galimybės", "Kontaktai", "Užsakyti šeimos planą", "Sekite mus", "Facebook", "Ⓒ Manodienynas.lt, .", "Visos teisės saugomos.", "check", "Patvirtinti", "Atšaukti", "Toliau", "Atmesti", "Ištrinti paskyrą", "Ar sutinkate perduoti Integrra sistemai", "El. pašto adresą, mokyklos pavadinimą", "sutinku su asmens duomenų tvarkymu", "identifikavimo tikslu", "Valdykite popierinių dokumentų srautą", "Sumažinkite spausdinimo išlaidas", "Nebegaiškite laiko ieškant dokumentų", "Valdykite užduočių srautą", "Pasirašyti dokumentus užtruksite tik akimirką", "Elektroninė dokumentų ir užduočių valdymo sistema INTEGRRA yra puikus sprendimas optimizuoti įstaigų ir įmonių dokumentų srautus bei elektronizuoti informacijos perdavimą."];   // the usual menu/footer lines of manodienynas.lt
-      const DEF_PROMPT = 'You read text copied from a Lithuanian school e-diary (manodienynas.lt).\nFind every UPCOMING test or graded work (kontrolinis darbas, testas, atsiskaitymas, savarankiškas darbas, diktantas, apklausa...). Ignore homework without a test, marks, messages, payments and everything else.\nAnswer with ONLY a JSON array, no other words and no code fences. One item per test:\n{"date":"YYYY-MM-DD","title":"Subject: kind of work","description":"topic, if the text says it"}\nSkip dates that are already in the past. If there is nothing, answer [].';
+      const OLD_PROMPTS = ['You read text copied from a Lithuanian school e-diary (manodienynas.lt).\nFind every UPCOMING test or graded work (kontrolinis darbas, testas, atsiskaitymas, savarankiškas darbas, diktantas, apklausa...). Ignore homework without a test, marks, messages, payments and everything else.\nAnswer with ONLY a JSON array, no other words and no code fences. One item per test:\n{"date":"YYYY-MM-DD","title":"Subject: kind of work","description":"topic, if the text says it"}\nSkip dates that are already in the past. If there is nothing, answer [].'];
+      const DEF_PROMPT = 'You read text copied from a Lithuanian school e-diary (manodienynas.lt).\nFind every UPCOMING test, project or graded work (kontrolinis darbas, testas, atsiskaitymas, savarankiškas darbas, diktantas, apklausa, projektas, projektinis darbas, referatas, pristatymas...). Ignore homework without a test or project, marks, messages, payments and everything else.\nAnswer with ONLY a JSON array, no other words and no code fences. One item per entry:\n{"date":"YYYY-MM-DD","kind":"test or project","title":"Subject: kind of work","description":"topic, if the text says it"}\nUse "project" for a project, report or presentation, and "test" for everything else. Skip dates that are already in the past. If there is nothing, answer [].';
       const SPIN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 13c0-4.4 3.4-7.8 7.6-7.8 2.2 0 3.8.8 5 2.1"/><path d="M19.5 11c0 4.4-3.4 7.8-7.6 7.8-2.2 0-3.8-.8-5-2.1"/><path d="M17.6 3.4v4.2h-4.2"/><path d="M6.4 20.6v-4.2h4.2"/></svg>';
       const CAP = { maxLen: 120, maxWords: 1500, show: 40000, log: 400 };
       const STEPS = ['scan', 'del', 'agent', 'cal'];
@@ -457,6 +450,8 @@
       const conn = { d: 'none', a: 'none', dWhy: '' };
       let cfg = Object.assign({ runOn: false, every: 'daily', dow: 1, time: '08:00', delOn: true, delNames: null, repeatOn: true, repeatPct: 60,
         allowName: 'Test 1', allowOn: true, allowKeep: [], agentOn: true, prompt: DEF_PROMPT, model: '', maxChars: 16000, lastAuto: '' }, lsGet(CFG_KEY, {}));
+      const upgradePrompt = () => { if (OLD_PROMPTS.includes(cfg.prompt)) { cfg.prompt = DEF_PROMPT; return true; } return false; };   // an unchanged old default becomes the new default (it now also finds projects)
+      if (upgradePrompt()) lsSet(CFG_KEY, cfg);
       let lists = lsGet(LISTS_KEY, {});
       if (!lists || typeof lists !== 'object' || !Object.keys(lists).length) lists = { 'Main keywords': STANDARD_WORDS.map((w) => 'L:' + w), 'Test 1': [] };
       let work = lsGet(WORK_KEY, { o: '', c: '' });
@@ -480,7 +475,7 @@
           const [c, l] = await Promise.all([jf(API('auto', '?key=cfg')), jf(API('auto', '?key=lists'))]);
           remoteLoaded = true;
           let need = false;
-          if (c.value && typeof c.value === 'object') cfg = Object.assign(cfg, c.value); else need = true;
+          if (c.value && typeof c.value === 'object') { cfg = Object.assign(cfg, c.value); upgradePrompt(); } else need = true;
           if (l.value && typeof l.value === 'object' && Object.keys(l.value).length) lists = l.value; else need = true;
           if (!Array.isArray(cfg.delNames)) cfg.delNames = Object.keys(lists).slice(0, 1);
           lsSet(CFG_KEY, cfg); lsSet(LISTS_KEY, lists);
@@ -734,7 +729,7 @@
         let arr; try { arr = JSON.parse(t.slice(a, z + 1)); } catch (e) { return null; }
         if (!Array.isArray(arr)) return null;
         return arr.filter((e) => e && /^\d{4}-\d{2}-\d{2}$/.test(String(e.date || '')) && String(e.title || '').trim())
-          .map((e) => ({ date: String(e.date), title: String(e.title).trim().slice(0, 120), description: String(e.description || '').trim().slice(0, 400) }));
+          .map((e) => ({ date: String(e.date), title: String(e.title).trim().slice(0, 120), description: String(e.description || '').trim().slice(0, 400), kind: /proj/i.test(String(e.kind || '')) || /projekt|project|referat|prezentac/i.test(String(e.title || '')) ? 'project' : 'test' }));
       }
       const hashOf = (s) => { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
       async function stepPaste() {
@@ -746,10 +741,10 @@
           await EventStore.whenReady();
           let added = 0, updated = 0;
           ev.forEach((e) => {
-            const id = 'mdtest-' + e.date + '-' + hashOf(e.title.toLowerCase());
+            const id = (e.kind === 'project' ? 'mdproj-' : 'mdtest-') + e.date + '-' + hashOf(e.title.toLowerCase());
             let rec = EventStore.getForDate(e.date).find((r) => r.id === id);
             if (rec) { if (rec.type !== e.title || (rec.description || '') !== e.description) { rec.type = e.title; rec.description = e.description; EventStore.save(rec); updated++; } }
-            else { rec = EventStore.create(e.date, 8 * 60, 45); rec.id = id; rec.type = e.title; rec.color = '#ef4444'; rec.description = e.description; EventStore.save(rec); added++; }
+            else { rec = EventStore.create(e.date, 8 * 60, 45); rec.id = id; rec.type = e.title; rec.color = e.kind === 'project' ? '#f59e0b' : '#ef4444'; rec.description = e.description; EventStore.save(rec); added++; }
           });
           await EventStore.flushNow();
           finalNote = 'Last run ' + hhmmss() + ': ' + ev.length + ' test(s), ' + added + ' new, ' + updated + ' changed.';
@@ -999,7 +994,8 @@
       const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
       let calY = null, calM = null, enterT = 0, calSig = '';
       const dkey = (y, m, d) => y + '-' + p2(m + 1) + '-' + p2(d);
-      const isTestEv = (r) => String(r && r.id || '').indexOf('mdtest-') === 0;
+      const autoKind = (r) => { const id = String(r && r.id || ''); return id.indexOf('mdtest-') === 0 ? 'Test' : id.indexOf('mdproj-') === 0 ? 'Project' : ''; };
+      const isTestEv = (r) => !!autoKind(r);          // made by the Automate button (a test or a project); your normal events are never shown here
       const hm = (min) => p2(Math.floor((min || 0) / 60) % 24) + ':' + p2((min || 0) % 60);
       const evSnap = () => { try { return typeof EventStore !== 'undefined' ? EventStore.getAllSnapshot() : {}; } catch (e) { return {}; } };
       const calVisible = () => !$('testPanel').hidden && $('testPanel').classList.contains('show-cal');
@@ -1015,10 +1011,10 @@
           const d = new Date(calY, calM, 1 - lead + i), key = dkey(d.getFullYear(), d.getMonth(), d.getDate());
           const cell = el('div', 'au-cd' + (d.getMonth() !== calM ? ' out' : '') + (key === todayKey ? ' today' : '')); cell.style.setProperty('--i', i);
           cell.appendChild(el('span', 'dn', String(d.getDate())));
-          (snap[key] || []).slice().sort((a, b) => (a.startMinutes || 0) - (b.startMinutes || 0)).forEach((r) => {
-            const t = isTestEv(r), e = el('div', 'au-ev'); e.style.setProperty('--evc', r.color || '#111'); e.dataset.id = r.id || '';
-            e.title = (t ? 'Test' : 'Other') + ': ' + (r.type || '') + (r.description ? ' - ' + r.description : '');
-            e.append(el('span', 'tm', hm(r.startMinutes)), el('span', 'tt', r.type || '(no title)'), el('span', 'au-tag' + (t ? ' t' : ''), t ? 'Test' : 'Other'));
+          (snap[key] || []).filter(isTestEv).sort((a, b) => (a.startMinutes || 0) - (b.startMinutes || 0)).forEach((r) => {
+            const k = autoKind(r), e = el('div', 'au-ev'); e.style.setProperty('--evc', r.color || '#111'); e.dataset.id = r.id || '';
+            e.title = k + ': ' + (r.type || '') + (r.description ? ' - ' + r.description : '');
+            e.append(el('span', 'tm', hm(r.startMinutes)), el('span', 'tt', r.type || '(no title)'), el('span', 'au-tag' + (k === 'Test' ? ' t' : ''), k));
             cell.appendChild(e);
           });
           grid.appendChild(cell);
@@ -1065,13 +1061,13 @@
          ['Next 30 days', () => setRange(tdk, addDays(30))],
          ['Everything', () => setRange('0000-01-01', '9999-12-31')]].forEach(([t, fn]) => { const b = el('button', 'au-b sm alt', t); b.type = 'button'; b.addEventListener('click', fn); quick.appendChild(b); });
         let only = true;
-        const seg = el('div', 'au-fl'); const b1 = el('button', 'au-b sm sel', 'Only test events'), b2 = el('button', 'au-b sm', 'All events'); b1.type = b2.type = 'button';
+        const seg = el('div', 'au-fl'); const b1 = el('button', 'au-b sm sel', 'Only Automate events'), b2 = el('button', 'au-b sm', 'All events (also my normal ones)'); b1.type = b2.type = 'button';
         const setOnly = (v) => { only = v; b1.classList.toggle('sel', v); b2.classList.toggle('sel', !v); upd(); };
         b1.addEventListener('click', () => setOnly(true)); b2.addEventListener('click', () => setOnly(false)); seg.append(b1, b2);
         const count = el('div', 'au-clr-count');
         const go = el('button', 'au-b pri', 'Clear'), cancel = el('button', 'au-b', 'Cancel'); go.type = cancel.type = 'button';
         const bt = el('div', 'au-fl'); bt.append(go, cancel);
-        body.append(el('div', 'au-hint', 'Pick the dates. Every event inside them is taken off the calendar. "Only test events" keeps everything the Automate button did not make.'), row, quick, seg, count, bt);
+        body.append(el('div', 'au-hint', 'Pick the dates. Every event inside them is taken off the calendar. "Only Automate events" keeps your normal events (sleep, reading and so on); "All events" removes those too.'), row, quick, seg, count, bt);
         let items = [];
         function upd() {
           const snap = evSnap(); items = [];
@@ -1169,6 +1165,7 @@
         $('auCalNext').addEventListener('click', () => calStep(1));
         $('auCalToday').addEventListener('click', () => calStep(0));
         $('auClearTop').addEventListener('click', () => { if (on) openClear(); });
+        $('auClearCal').addEventListener('click', () => { if (on) openClear(); });
         window.addEventListener('resize', () => { if (calVisible()) fitChips(); });
         // top: Automate + the four buttons
         $('auGo').addEventListener('click', () => runAll(false));
@@ -1226,7 +1223,7 @@
         const tipHide = () => { tipEl = null; tip.classList.remove('show'); };
         document.addEventListener('pointerover', (e) => {
           if (e.pointerType === 'touch') return;
-          const t = e.target.closest ? e.target.closest('#testPanel [title], #testPanel [data-tip], .au-modal [title], .au-modal [data-tip], #auClearTop') : null;
+          const t = e.target.closest ? e.target.closest('#testPanel [title], #testPanel [data-tip], .au-modal [title], .au-modal [data-tip]') : null;
           if (!t || t === tipEl) return;
           if (t.hasAttribute('title')) { t.dataset.tip = t.getAttribute('title'); t.removeAttribute('title'); }
           if (!t.dataset.tip) return;
