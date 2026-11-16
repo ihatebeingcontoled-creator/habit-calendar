@@ -1,3 +1,6 @@
+/* version counter of THIS file (added into the number shown in the page corner; bump it only when this file changes) */
+const FILE_VERSION = 1;
+
 /* ── Push notifications (unchanged) ── */
 self.addEventListener('push', (event) => {
   let data = {};
