@@ -2840,9 +2840,15 @@ function nowInTz() {
   return { date: map.year + '-' + map.month + '-' + map.day, time: (map.hour === '24' ? '00' : map.hour) + ':' + map.minute, weekday: map.weekday, timezone: TZ };
 }
 const eq = (a, b) => { a = String(a); b = String(b); let d = a.length ^ b.length; for (let i = 0; i < Math.max(a.length, b.length); i++) d |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0); return d === 0; };
-const shape = (r) => ({ id: r.id, date: r.dateKey, time: hhmm(r.startMinutes), duration_minutes: r.durationMinutes, title: r.type, description: r.description || '', notification_on: !!r.notify });
+const shape = (r) => ({ id: r.id, color: r.color || undefined, date: r.dateKey, time: hhmm(r.startMinutes), duration_minutes: r.durationMinutes, title: r.type, description: r.description || '', notification_on: !!r.notify });
 
 
+const COLORS = { red: '#ef4444', orange: '#f97316', amber: '#f59e0b', yellow: '#eab308', lime: '#84cc16', green: '#22c55e', teal: '#14b8a6', cyan: '#06b6d4', blue: '#3b82f6', indigo: '#6366f1', purple: '#8b5cf6', violet: '#8b5cf6', pink: '#ec4899', brown: '#92400e', gray: '#6b7280', grey: '#6b7280', black: '#111111', white: '#ffffff' };
+// The owner's color rules (what the box IS decides its color). Claude should pass `category` whenever it adds a box.
+const CATEGORY_COLORS = { reminder: '#ec4899', waste: '#ef4444', chore: '#78350f', learning: '#86efac', productive: '#22c55e', deep_work: '#15803d', best: '#111827' };
+const CATEGORY_HELP = 'category picks the color by what the box is: reminder = pink; waste (scrolling, watching videos, wasting time) = red; chore (mandatory but boring: mowing the lawn, things with parents) = brown; learning (educational video, light green); productive (green); deep_work (dark green: working with Claude, building, studying hard); best (black: the very best use of time, like cold-calling businesses). Darker green = better. An explicit color overrides the category.';
+function pickColor(a, fallback) { const c = colorOf(a && a.color, null); if (c) return c; const k = String((a && a.category) || '').toLowerCase(); return CATEGORY_COLORS[k] || fallback; }
+function colorOf(v, fallback) { const s = String(v || '').trim().toLowerCase(); if (!s) return fallback; if (COLORS[s]) return COLORS[s]; if (/^#[0-9a-f]{6}$/.test(s)) return s; if (/^#[0-9a-f]{3}$/.test(s)) return '#' + s[1] + s[1] + s[2] + s[2] + s[3] + s[3]; return fallback; }
 const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : null; };
 const clampC = (n) => Math.max(0, Math.trunc(Number.isFinite(+n) ? +n : 0));
 const clampP = (n) => Math.max(0, Math.min(3, Math.trunc(Number.isFinite(+n) ? +n : 0)));
@@ -2865,7 +2871,7 @@ async function saveHabitRow(db, h) {
   await db.prepare('INSERT INTO habits (date, title, pushupsCount, readPagesCount, pullupsCount, oneHandPushupsCount, breathHoldSeconds, stretchPips, lSitPips, productivePips, cardTrickPips, wokeAt5, nDay, nRead, nExtra) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(date) DO UPDATE SET title=excluded.title, pushupsCount=excluded.pushupsCount, readPagesCount=excluded.readPagesCount, pullupsCount=excluded.pullupsCount, oneHandPushupsCount=excluded.oneHandPushupsCount, breathHoldSeconds=excluded.breathHoldSeconds, stretchPips=excluded.stretchPips, lSitPips=excluded.lSitPips, productivePips=excluded.productivePips, cardTrickPips=excluded.cardTrickPips, wokeAt5=excluded.wokeAt5, nDay=excluded.nDay, nRead=excluded.nRead, nExtra=excluded.nExtra')
     .bind(h.date, h.title || '', clampC(h.pushupsCount), clampC(h.readPagesCount), clampC(h.pullupsCount), clampC(h.oneHandPushupsCount), clampC(h.breathHoldSeconds), clampP(h.stretchPips), clampP(h.lSitPips), clampP(h.productivePips), clampP(h.cardTrickPips), h.wokeAt5 ? 1 : 0, h.nDay || '', h.nRead || '', h.nExtra || '').run();
 }
-const EV_COLS = 'id, dateKey, startMinutes, durationMinutes, type, description, notify';
+const EV_COLS = 'id, dateKey, startMinutes, durationMinutes, type, color, description, notify';
 async function insertEvent(db, { date, start, dur, title, color, description, notify }) {
   const id = 'mcp-' + date + '-' + Math.random().toString(36).slice(2, 8);
   await db.prepare('INSERT INTO habit_events (id, dateKey, startMinutes, durationMinutes, type, color, description, manualLeftPx, manualWidthPx, notify, locked) VALUES (?,?,?,?,?,?,?,NULL,NULL,?,0)').bind(id, date, start, dur, title, color, description || '', notify ? 1 : 0).run();
@@ -2888,10 +2894,15 @@ const TOOLS = [
   { name: 'set_ads_day', description: 'Sets what ad was done on a date. kind is poster, video, or none (none clears the day).', inputSchema: { type: 'object', properties: { date: { type: 'string', description: 'YYYY-MM-DD (default today)' }, kind: { type: 'string', enum: ['poster', 'video', 'none'] }, count: { type: 'integer', description: 'Default 1' } }, required: ['kind'] } },
   { name: 'list_files', description: 'Lists files attached to calendar days (names, types, sizes; not the contents). Optionally for one date.', inputSchema: { type: 'object', properties: { date: { type: 'string', description: 'YYYY-MM-DD (optional)' } } } },
   { name: 'save_day_summary', description: 'Saves a short summary text for a school day (the same box the Test tab\'s "Run the agent" fills). An empty summary deletes it.', inputSchema: { type: 'object', properties: { date: { type: 'string' }, summary: { type: 'string' } }, required: ['date', 'summary'] } },
+  { name: 'add_events', description: 'Adds MANY calendar boxes in one call (up to 30). Each item can have its own date, time, duration_minutes, color, description, notify and kind (event, reminder, test, project). Use this whenever the owner wants more than one box, e.g. a whole week of lessons or a list of tests. Colors: red, orange, amber, yellow, lime, green, teal, cyan, blue, indigo, purple, pink, brown, gray, black, white, or a hex like #ff8800.', inputSchema: { type: 'object', properties: { events: { type: 'array', maxItems: 30, items: { type: 'object', properties: { title: { type: 'string' }, date: { type: 'string', description: 'YYYY-MM-DD' }, time: { type: 'string', description: '24h HH:MM' }, duration_minutes: { type: 'integer' }, color: { type: 'string' }, category: { type: 'string', enum: ['reminder', 'waste', 'chore', 'learning', 'productive', 'deep_work', 'best'], description: 'Picks the color by what the box is (see add_event).' }, description: { type: 'string' }, notify: { type: 'boolean' }, kind: { type: 'string', enum: ['event', 'reminder', 'test', 'project'] } }, required: ['title', 'date', 'time'] } } }, required: ['events'] } },
+  { name: 'update_event', description: 'Changes an existing calendar box (get its id from list_events): title, date, time, duration_minutes, color, description, notify, locked. Only the fields you pass are changed. Use it to move, recolor, rename or resize a box.', inputSchema: { type: 'object', properties: { id: { type: 'string' }, title: { type: 'string' }, date: { type: 'string', description: 'YYYY-MM-DD' }, time: { type: 'string', description: '24h HH:MM' }, duration_minutes: { type: 'integer' }, color: { type: 'string', description: 'Color name or #hex' }, description: { type: 'string' }, notify: { type: 'boolean' }, locked: { type: 'boolean' } }, required: ['id'] } },
+  { name: 'delete_events', description: 'Deletes MANY calendar boxes by id in one call (up to 30). Ask the owner first.', inputSchema: { type: 'object', properties: { ids: { type: 'array', items: { type: 'string' }, maxItems: 30 } }, required: ['ids'] } },
+  { name: 'add_expenses', description: 'Records MANY money entries in one call (up to 30). Each item: amount (positive), store, item, street, payment (cash/card/apple pay/manual), time (HH:MM), date, note, and income (true if it is money received instead of spent).', inputSchema: { type: 'object', properties: { expenses: { type: 'array', maxItems: 30, items: { type: 'object', properties: { amount: { type: 'number' }, store: { type: 'string' }, item: { type: 'string' }, street: { type: 'string' }, payment: { type: 'string', enum: ['cash', 'card', 'apple pay', 'manual'] }, time: { type: 'string' }, date: { type: 'string' }, note: { type: 'string' }, income: { type: 'boolean' } }, required: ['amount'] } } }, required: ['expenses'] } },
+  { name: 'update_money_entry', description: 'Edits one money entry (get its id from get_money): amount, store, item, street, payment, time, date, note. Only the fields you pass are changed; spent stays spent unless you pass kind.', inputSchema: { type: 'object', properties: { id: { type: 'integer' }, amount: { type: 'number', description: 'Positive number' }, kind: { type: 'string', enum: ['spent', 'income'] }, store: { type: 'string' }, item: { type: 'string' }, street: { type: 'string' }, payment: { type: 'string', enum: ['cash', 'card', 'apple pay', 'manual'] }, time: { type: 'string', description: 'HH:MM' }, date: { type: 'string' }, note: { type: 'string' } }, required: ['id'] } },
   { name: 'add_test', description: 'Adds a school TEST (red) or PROJECT/homework deadline (amber) to the calendar, the same kind the Test tab creates. e.g. "add a math test on Thursday" -> use get_current_time to find the date, then call this with title "Math test". Defaults to 08:00. Set notify true to get a phone notification ONE DAY BEFORE at the same clock time.', inputSchema: { type: 'object', properties: { date: { type: 'string', description: 'YYYY-MM-DD' }, title: { type: 'string', description: 'e.g. "Math test"' }, kind: { type: 'string', enum: ['test', 'project'], description: 'Default test' }, time: { type: 'string', description: '24h HH:MM, default 08:00' }, description: { type: 'string' }, notify: { type: 'boolean', description: 'Notify one day before (default false)' } }, required: ['date', 'title'] } },
   { name: 'get_current_time', description: 'Returns the current date, time and weekday in the calendar owner\'s time zone (Europe/Vilnius). Call this first to work out words like "today", "tomorrow" or "on Friday".', inputSchema: { type: 'object', properties: {} } },
   { name: 'list_events', description: 'Lists calendar events between two dates (inclusive). Includes tests and projects the Automate tab found (ids start with mdtest- or mdproj-).', inputSchema: { type: 'object', properties: { from_date: { type: 'string', description: 'YYYY-MM-DD' }, to_date: { type: 'string', description: 'YYYY-MM-DD (defaults to from_date)' } }, required: ['from_date'] } },
-  { name: 'add_event', description: 'Adds an event to the calendar. If notify is true, a phone notification is sent at the start time.', inputSchema: { type: 'object', properties: { date: { type: 'string', description: 'YYYY-MM-DD' }, time: { type: 'string', description: 'Start time, 24h HH:MM' }, title: { type: 'string' }, duration_minutes: { type: 'integer', description: 'Default 45' }, description: { type: 'string' }, notify: { type: 'boolean', description: 'Send a phone notification at the start time (default false)' } }, required: ['date', 'time', 'title'] } },
+  { name: 'add_event', description: 'ALWAYS pass category (the color is chosen from what the event is; see category). Adds an event to the calendar. If notify is true, a phone notification is sent at the start time.', inputSchema: { type: 'object', properties: { date: { type: 'string', description: 'YYYY-MM-DD' }, time: { type: 'string', description: 'Start time, 24h HH:MM' }, title: { type: 'string' }, duration_minutes: { type: 'integer', description: 'Default 45' }, description: { type: 'string' }, notify: { type: 'boolean', description: 'Send a phone notification at the start time (default false)' } }, required: ['date', 'time', 'title'] } },
   { name: 'add_reminder', description: 'Sets a reminder: a short calendar event that sends a phone notification at exactly the given date and time. Use this for "remind me to ... at ...".', inputSchema: { type: 'object', properties: { date: { type: 'string', description: 'YYYY-MM-DD' }, time: { type: 'string', description: '24h HH:MM' }, text: { type: 'string', description: 'What to be reminded of' } }, required: ['date', 'time', 'text'] } },
   { name: 'set_notification', description: 'Turns the phone notification of an existing event on or off (it is sent at the event\'s start time).', inputSchema: { type: 'object', properties: { id: { type: 'string' }, on: { type: 'boolean' } }, required: ['id', 'on'] } },
   { name: 'delete_event', description: 'Deletes an event by its id (get ids from list_events). Ask the owner before deleting.', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
@@ -2912,9 +2923,24 @@ async function logChange(db, kind, date, label, data) {
   await db.prepare('DELETE FROM live_changes WHERE id < (SELECT MAX(id) FROM live_changes) - 200').run();
 }
 const HAB_LABELS = { pushupsCount: 'Push-ups', readPagesCount: 'Pages read', pullupsCount: 'Pull-ups', oneHandPushupsCount: 'One-hand push-ups', breathHoldSeconds: 'Breath hold (sec)', stretchPips: 'Stretch', lSitPips: 'L-sit', productivePips: 'Productive', cardTrickPips: 'Card trick', wokeAt5: 'Woke at 5', nDay: 'Productive note', nRead: 'Reading note', nExtra: 'Extra note' };
-const WRITES = new Set(['add_event', 'add_reminder', 'add_test', 'set_timer', 'delete_event', 'set_notification', 'update_habits', 'add_expense', 'add_income', 'delete_money_entry', 'set_ads_day', 'save_day_summary', 'add_birthday', 'delete_birthday']);
+const WRITES = new Set(['update_event', 'update_money_entry', 'add_event', 'add_reminder', 'add_test', 'set_timer', 'delete_event', 'set_notification', 'update_habits', 'add_expense', 'add_income', 'delete_money_entry', 'set_ads_day', 'save_day_summary', 'add_birthday', 'delete_birthday']);
 async function callTool(name, a, env) {
   const db = env.DB; a = a || {};
+  if (db && (name === 'add_events' || name === 'add_expenses' || name === 'delete_events')) {
+    const list = name === 'add_events' ? a.events : name === 'add_expenses' ? a.expenses : a.ids;
+    if (!Array.isArray(list) || !list.length) return say((name === 'delete_events' ? 'ids' : name === 'add_events' ? 'events' : 'expenses') + ' must be a non-empty list.', true);
+    const results = []; let good = 0;
+    for (const item of list.slice(0, 30)) {
+      let r;
+      if (name === 'add_events') { const k = item && item.kind; r = k === 'reminder' ? await callTool('add_reminder', { date: item.date, time: item.time, text: item.title, color: item.color, category: item.category }, env) : (k === 'test' || k === 'project') ? await callTool('add_test', item, env) : await callTool('add_event', item, env); }
+      else if (name === 'add_expenses') r = await callTool(item && item.income ? 'add_income' : 'add_expense', item || {}, env);
+      else r = await callTool('delete_event', { id: item }, env);
+      let out = null; try { out = JSON.parse(r.content[0].text); } catch (e) { out = r.content[0].text; }
+      if (!r.isError) good++;
+      results.push(r.isError ? { ok: false, error: out } : { ok: true, ...(typeof out === 'object' ? out : { result: out }), note: undefined });
+    }
+    return say({ done: good > 0, added_or_changed: good, failed: results.length - good, ignored_over_limit: Math.max(0, list.length - 30), results });
+  }
   if (!db || !WRITES.has(name)) return callToolInner(name, a, env);
   const pre = {};
   try {
@@ -2933,9 +2959,11 @@ async function recordLive(name, a, db, res, pre) {
   if (!out.done && !out.deleted) return;
   if (name === 'add_event' || name === 'add_reminder' || name === 'add_test' || name === 'set_timer') {
     const tag = name === 'add_reminder' ? 'Reminder' : name === 'set_timer' ? 'Timer' : name === 'add_test' ? (out.kind === 'project' ? 'Project' : 'Test') : 'Event';
-    const color = { Reminder: '#8b5cf6', Timer: '#f59e0b', Test: '#ef4444', Project: '#f59e0b', Event: '#3b82f6' }[tag];
+    const color = out.color || { Reminder: '#8b5cf6', Timer: '#f59e0b', Test: '#ef4444', Project: '#f59e0b', Event: '#3b82f6' }[tag];
     return logChange(db, 'event', out.date, out.title, { action: 'add', tag, color, time: out.time, id: out.id, notify: !!out.notification_on });
   }
+  if (name === 'update_event') { const id = String(out.id || ''); const tag = /^mdtest-/.test(id) ? 'Test' : /^mdproj-/.test(id) ? 'Project' : 'Event'; return logChange(db, 'event', out.date, out.title, { action: 'update', tag, color: out.color || '#3b82f6', time: out.time, id, notify: !!out.notification_on }); }
+  if (name === 'update_money_entry') return logChange(db, 'money', out.date, out.store || out.item || out.note || 'Entry', { action: 'update', amount: out.amount, store: out.store || '', item: out.item || '', street: out.street || '', paid_with: out.source || '', time: out.time || '' });
   if (name === 'delete_event') return logChange(db, 'event', pre.ev ? pre.ev.dateKey : '', pre.ev ? pre.ev.type : '', { action: 'delete', tag: 'Event', time: pre.ev ? hhmm(pre.ev.startMinutes) : '' });
   if (name === 'set_notification') return logChange(db, 'event', pre.ev ? pre.ev.dateKey : '', pre.ev ? pre.ev.type : '', { action: 'notify', tag: 'Event', on: !!a.on });
   if (name === 'update_habits') {
@@ -2956,16 +2984,50 @@ async function recordLive(name, a, db, res, pre) {
   if (name === 'add_birthday' || name === 'delete_birthday') return logChange(db, 'birthday', '', (out.name || (out.was && out.was.name) || 'Birthday'), { action: name === 'add_birthday' ? 'add' : 'delete', month: out.month || (out.was && out.was.month), day: out.day || (out.was && out.was.day) });
 }
 
+for (const n of ['add_event', 'add_reminder', 'add_test', 'update_event']) { const d = TOOLS.find((x) => x.name === n); if (d) d.inputSchema.properties.category = { type: 'string', enum: Object.keys(CATEGORY_COLORS), description: CATEGORY_HELP }; if (d) d.inputSchema.properties.color = { type: 'string', description: 'Color name (red, orange, amber, yellow, lime, green, teal, cyan, blue, indigo, purple, pink, brown, gray, black, white) or a #hex' }; }
+
 async function callToolInner(name, a, env) {
   const db = env.DB; if (!db) return say('The D1 binding DB is missing.', true);
   a = a || {};
+  if ((name === 'add_event' || name === 'add_reminder' || name === 'add_test') && a.color !== undefined && a.color !== '' && !colorOf(a.color, null)) return say('Unknown color "' + a.color + '". Use a name like red, orange, green, blue, purple, pink, gray or a hex like #ff8800.', true);
+  if ((name === 'add_event' || name === 'add_reminder' || name === 'add_test') && a.category !== undefined && a.category !== '' && !CATEGORY_COLORS[String(a.category).toLowerCase()]) return say('Unknown category "' + a.category + '". Use reminder, waste, chore, learning, productive, deep_work or best.', true);
   const needDate = (d) => (DATE_RE.test(String(d || '')) && !isNaN(new Date(d + 'T12:00:00')) ? String(d) : null);
   if (name === 'get_current_time') return say(nowInTz());
   if (name === 'list_events') {
     const from = needDate(a.from_date), to = needDate(a.to_date || a.from_date);
     if (!from || !to) return say('from_date and to_date must look like 2026-11-20.', true);
-    const { results } = await db.prepare('SELECT id, dateKey, startMinutes, durationMinutes, type, description, notify FROM habit_events WHERE dateKey >= ? AND dateKey <= ? ORDER BY dateKey, startMinutes LIMIT 300').bind(from, to).all();
+    const { results } = await db.prepare('SELECT id, dateKey, startMinutes, durationMinutes, type, color, description, notify FROM habit_events WHERE dateKey >= ? AND dateKey <= ? ORDER BY dateKey, startMinutes LIMIT 300').bind(from, to).all();
     return say(results.length ? results.map(shape) : 'No events between ' + from + ' and ' + to + '.');
+  }
+  if (name === 'update_event') {
+    const row = await db.prepare('SELECT id, dateKey, startMinutes, durationMinutes, type, color, description, notify, locked FROM habit_events WHERE id = ?').bind(String(a.id || '')).first();
+    if (!row) return say('No event with that id.', true);
+    const n = { ...row };
+    if (a.title !== undefined) { const s = String(a.title).trim().slice(0, 120); if (!s) return say('title is empty.', true); n.type = s; }
+    if (a.date !== undefined) { const d = needDate(a.date); if (!d) return say('date must look like 2026-11-20.', true); n.dateKey = d; }
+    if (a.time !== undefined) { const m = mins(a.time); if (m == null) return say('time must be 24-hour HH:MM.', true); n.startMinutes = m; }
+    if (a.duration_minutes !== undefined) n.durationMinutes = Math.min(1440, Math.max(5, parseInt(a.duration_minutes, 10) || row.durationMinutes));
+    if (a.color !== undefined) { const c = colorOf(a.color, null); if (!c) return say('Unknown color. Use a name like red/blue/green or a hex like #ff8800.', true); n.color = c; }
+    else if (a.category !== undefined) { const c = CATEGORY_COLORS[String(a.category).toLowerCase()]; if (!c) return say('Unknown category. Use reminder, waste, chore, learning, productive, deep_work or best.', true); n.color = c; }
+    if (a.description !== undefined) n.description = String(a.description).slice(0, 400);
+    if (typeof a.notify === 'boolean') n.notify = a.notify ? 1 : 0;
+    if (typeof a.locked === 'boolean') n.locked = a.locked ? 1 : 0;
+    await db.prepare('UPDATE habit_events SET dateKey = ?, startMinutes = ?, durationMinutes = ?, type = ?, color = ?, description = ?, notify = ?, locked = ? WHERE id = ?').bind(n.dateKey, n.startMinutes, n.durationMinutes, n.type, n.color, n.description || '', n.notify ? 1 : 0, n.locked ? 1 : 0, row.id).run();
+    return say({ done: true, updated: true, ...shape(n) });
+  }
+  if (name === 'update_money_entry') {
+    await ensureMoney(db);
+    const row = await db.prepare('SELECT * FROM money_entries WHERE id = ?').bind(parseInt(a.id, 10) || 0).first();
+    if (!row) return say('No money entry with that id.', true);
+    const n = { ...row };
+    const sign = a.kind ? (a.kind === 'income' ? 1 : -1) : (row.amount < 0 ? -1 : 1);
+    if (a.amount !== undefined) { const v = Math.abs(num(a.amount) ?? NaN); if (!(v > 0)) return say('amount must be a number above zero.', true); n.amount = sign * v; } else if (a.kind) n.amount = sign * Math.abs(row.amount);
+    if (a.date !== undefined) { const d = needDate(a.date); if (!d) return say('date must look like 2026-11-20.', true); n.date = d; }
+    for (const k of ['store', 'item', 'street', 'note']) if (a[k] !== undefined) n[k] = String(a[k]).slice(0, k === 'item' || k === 'note' ? 200 : 150);
+    if (a.payment !== undefined) { const pay = String(a.payment).toLowerCase(); n.source = ['cash', 'card', 'apple pay', 'manual'].includes(pay) ? pay : 'manual'; }
+    if (a.time !== undefined) { const m = mins(a.time); if (m == null) return say('time must be 24-hour HH:MM.', true); n.created_at = vilniusToUtcSql(n.date, hhmm(m)); }
+    await db.prepare('UPDATE money_entries SET date = ?, amount = ?, note = ?, source = ?, store = ?, street = ?, item = ?, created_at = ? WHERE id = ?').bind(n.date, n.amount, n.note || '', n.source || 'manual', n.store || '', n.street || '', n.item || '', n.created_at || null, row.id).run();
+    return say({ done: true, updated: true, ...moneyShape(n), time: n.created_at ? hhmm(nowInTzFromSql(n.created_at)) : '' });
   }
   if (name === 'add_test') {
     const date = needDate(a.date), title = String(a.title || '').trim().slice(0, 120), start = a.time ? mins(a.time) : 480;
@@ -2975,11 +3037,11 @@ async function callToolInner(name, a, env) {
     const proj = a.kind === 'project';
     const hashOf = (s) => { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
     const id = (proj ? 'mdproj-' : 'mdtest-') + date + '-' + hashOf(title.toLowerCase());
-    const color = proj ? '#f59e0b' : '#ef4444', notify = a.notify ? 1 : 0, desc = String(a.description || '').slice(0, 400);
+    const color = pickColor(a, proj ? '#f59e0b' : '#ef4444'), notify = a.notify ? 1 : 0, desc = String(a.description || '').slice(0, 400);
     const have = await db.prepare('SELECT id FROM habit_events WHERE id = ?').bind(id).first();
     if (have) await db.prepare('UPDATE habit_events SET type = ?, description = ?, startMinutes = ?, notify = ? WHERE id = ?').bind(title, desc, start, notify, id).run();
     else await db.prepare('INSERT INTO habit_events (id, dateKey, startMinutes, durationMinutes, type, color, description, manualLeftPx, manualWidthPx, notify, locked) VALUES (?,?,?,?,?,?,?,NULL,NULL,?,0)').bind(id, date, start, 45, title, color, desc, notify).run();
-    return say({ done: true, updated_existing: !!have, ...shape({ id, dateKey: date, startMinutes: start, durationMinutes: 45, type: title, description: desc, notify }), kind: proj ? 'project' : 'test', note: notify ? 'A phone notification will arrive one day before at ' + hhmm(start) + '.' : 'No notification (ask if the owner wants one the day before).' });
+    return say({ done: true, updated_existing: !!have, ...shape({ id, color, dateKey: date, startMinutes: start, durationMinutes: 45, type: title, description: desc, notify }), kind: proj ? 'project' : 'test', note: notify ? 'A phone notification will arrive one day before at ' + hhmm(start) + '.' : 'No notification (ask if the owner wants one the day before).' });
   }
   if (name === 'add_event' || name === 'add_reminder') {
     const rem = name === 'add_reminder';
@@ -2991,18 +3053,18 @@ async function callToolInner(name, a, env) {
     const id = 'mcp-' + date + '-' + Math.random().toString(36).slice(2, 8);
     const notify = rem ? 1 : (a.notify ? 1 : 0);
     await db.prepare('INSERT INTO habit_events (id, dateKey, startMinutes, durationMinutes, type, color, description, manualLeftPx, manualWidthPx, notify, locked) VALUES (?,?,?,?,?,?,?,NULL,NULL,?,0)')
-      .bind(id, date, start, dur, title, rem ? '#8b5cf6' : '#3b82f6', rem ? '' : String(a.description || '').slice(0, 400), notify).run();
-    return say({ done: true, ...shape({ id, dateKey: date, startMinutes: start, durationMinutes: dur, type: title, description: rem ? '' : String(a.description || ''), notify }), note: notify ? 'A phone notification will be sent at ' + hhmm(start) + ' on ' + date + ' (Vilnius time).' : 'No notification was set.' });
+      .bind(id, date, start, dur, title, pickColor(a, rem ? CATEGORY_COLORS.reminder : '#3b82f6'), rem ? '' : String(a.description || '').slice(0, 400), notify).run();
+    return say({ done: true, ...shape({ id, color: pickColor(a, rem ? CATEGORY_COLORS.reminder : '#3b82f6'), dateKey: date, startMinutes: start, durationMinutes: dur, type: title, description: rem ? '' : String(a.description || ''), notify }), note: notify ? 'A phone notification will be sent at ' + hhmm(start) + ' on ' + date + ' (Vilnius time).' : 'No notification was set.' });
   }
   if (name === 'set_notification') {
-    const row = await db.prepare('SELECT id, dateKey, startMinutes, durationMinutes, type, description, notify FROM habit_events WHERE id = ?').bind(String(a.id || '')).first();
+    const row = await db.prepare('SELECT id, dateKey, startMinutes, durationMinutes, type, color, description, notify FROM habit_events WHERE id = ?').bind(String(a.id || '')).first();
     if (!row) return say('No event with that id.', true);
     await db.prepare('UPDATE habit_events SET notify = ? WHERE id = ?').bind(a.on ? 1 : 0, row.id).run();
     const auto = /^md(test|proj)-/.test(row.id);
     return say({ done: true, ...shape({ ...row, notify: a.on ? 1 : 0 }), note: a.on ? (auto ? 'This is a test/project from the Automate tab: its notification is sent ONE DAY BEFORE, at ' + hhmm(row.startMinutes) + '.' : 'A phone notification will be sent at ' + hhmm(row.startMinutes) + ' on ' + row.dateKey + '.') : 'Notification switched off.' });
   }
   if (name === 'delete_event') {
-    const row = await db.prepare('SELECT id, dateKey, startMinutes, durationMinutes, type, description, notify FROM habit_events WHERE id = ?').bind(String(a.id || '')).first();
+    const row = await db.prepare('SELECT id, dateKey, startMinutes, durationMinutes, type, color, description, notify FROM habit_events WHERE id = ?').bind(String(a.id || '')).first();
     if (!row) return say('No event with that id.', true);
     await db.prepare('DELETE FROM habit_events WHERE id = ?').bind(row.id).run();
     return say({ deleted: true, was: shape(row) });
@@ -3010,7 +3072,7 @@ async function callToolInner(name, a, env) {
   if (name === 'get_day_summary') {
     const d = needDate(a.date); if (!d) return say('date must look like 2026-11-20.', true);
     let sum = null; try { sum = await db.prepare('SELECT summary, updated FROM au_day_summary WHERE day = ?').bind(d).first(); } catch (e) { /* table not made yet */ }
-    const { results } = await db.prepare('SELECT id, dateKey, startMinutes, durationMinutes, type, description, notify FROM habit_events WHERE dateKey = ? ORDER BY startMinutes').bind(d).all();
+    const { results } = await db.prepare('SELECT id, dateKey, startMinutes, durationMinutes, type, color, description, notify FROM habit_events WHERE dateKey = ? ORDER BY startMinutes').bind(d).all();
     return say({ date: d, summary: sum ? sum.summary : null, summary_made: sum ? sum.updated : null, events: results.map(shape), hint: sum ? undefined : 'No summary was saved for this day. The owner can make one with "Run the agent" in the Test tab.' });
   }
 
@@ -3140,7 +3202,7 @@ async function handle(msg, env) {
   if (id === undefined) return null;                                                   // a notification: no answer
   if (msg.method === 'initialize') {
     const want = msg.params && msg.params.protocolVersion;
-    return ok(id, { protocolVersion: PROTOCOLS.includes(want) ? want : PROTOCOLS[1], capabilities: { tools: { listChanged: false } }, serverInfo: { name: 'habit-calendar', version: '1.0.0' }, instructions: 'Tools for the owner\'s whole calendar site: events, reminders, timers, daily habits and notes, money, birthdays, ads, files. Times are Europe/Vilnius. Call get_current_time first to resolve "today"/"tomorrow". For "what did I do today" use get_day_overview. To fill the "What productive did you do today" box use update_habits with productive_note. Money spent uses add_expense (positive amount). Reminders use add_reminder, timers use set_timer. Do not delete anything without asking the owner first.' });
+    return ok(id, { protocolVersion: PROTOCOLS.includes(want) ? want : PROTOCOLS[1], capabilities: { tools: { listChanged: false } }, serverInfo: { name: 'habit-calendar', version: '1.0.0' }, instructions: 'Tools for the owner\'s whole calendar site: events, reminders, timers, daily habits and notes, money, birthdays, ads, files. Times are Europe/Vilnius. Call get_current_time first to resolve "today"/"tomorrow". For "what did I do today" use get_day_overview. To fill the "What productive did you do today" box use update_habits with productive_note. Money spent uses add_expense (positive amount). Reminders use add_reminder, timers use set_timer. Do not delete anything without asking the owner first. COLORS: always choose the color of a new box yourself from what it is, using category (do not ask): reminder = pink, waste (scrolling, videos, wasting time) = red, chore (mandatory but boring: mowing the lawn, things with parents) = brown, learning (educational video) = light green, productive = green, deep_work (working with Claude, building) = dark green, best (the very best use of time, like calling businesses) = black. Reminders are always pink. Tests are red, projects amber.' });
   }
   if (msg.method === 'ping') return ok(id, {});
   if (msg.method === 'tools/list') return ok(id, { tools: TOOLS });
