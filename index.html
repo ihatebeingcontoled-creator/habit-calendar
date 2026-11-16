@@ -2862,7 +2862,7 @@
     body.test-mode .talk-ai-widget { display: none; }
     body.test-mode #daysGrid .day-cell { pointer-events: none; opacity: .4; }
     .au, .au-modal {
-      --g: #2fa08e; --r: #d23b2c; --k: #111; --bg: #f4f4f6; --card: #fff; --box: #fff; --btn: #111; --btnt: #fff; --alt: #e9e9ee; --altt: #111; --soft: #f0f0f3; --mut: #5f5f66; --sh: rgba(0,0,0,.10); --pad-x: 3.2vw; --pad-y: 3vh;
+      --g: #2fa08e; --line: #c9c9d1; --glow: rgba(0,0,0,.28); --r: #d23b2c; --k: #111; --bg: #f4f4f6; --card: #fff; --box: #fff; --btn: #111; --btnt: #fff; --alt: #e9e9ee; --altt: #111; --soft: #f0f0f3; --mut: #5f5f66; --sh: rgba(0,0,0,.10); --pad-x: 3.2vw; --pad-y: 3vh;
       font: 600 clamp(13px, min(1.05vw, 2.05vh), 30px)/1.25 -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
       color: var(--k); box-sizing: border-box;
     }
@@ -2870,19 +2870,19 @@
     .au { position: fixed; z-index: 1500; top: 52px; left: 0; right: 0; bottom: 0; padding: var(--pad-y) var(--pad-x); display: flex; flex-direction: column; overflow: hidden; overscroll-behavior: none;
       background: radial-gradient(60% 55% at 10% 6%, var(--card) 0%, transparent 70%), radial-gradient(55% 60% at 94% 94%, var(--card) 0%, transparent 70%), var(--bg);
       background-size: 150% 150%; animation: auBg 18s ease-in-out infinite alternate, auFade .35s ease both; }
-    body.night-mode .au, body.night-mode .au-modal { --g: #3dbba8; --k: #f5f5f5; --bg: #0e0e10; --card: #1c1c1e; --box: #232325; --btn: #f5f5f5; --btnt: #111; --alt: #2c2c2e; --altt: #f5f5f5; --soft: #2a2a2d; --mut: #a0a0a5; --sh: rgba(0,0,0,.5); --r: #ff6b5c; }
+    body.night-mode .au, body.night-mode .au-modal { --g: #3dbba8; --line: #3a3a3e; --glow: rgba(255,255,255,.3); --k: #f5f5f5; --bg: #0e0e10; --card: #1c1c1e; --box: #232325; --btn: #f5f5f5; --btnt: #111; --alt: #2c2c2e; --altt: #f5f5f5; --soft: #2a2a2d; --mut: #a0a0a5; --sh: rgba(0,0,0,.5); --r: #ff6b5c; }
     .au[hidden], .au-modal[hidden] { display: none; }
     @keyframes auBg { from { background-position: 0% 0%; } to { background-position: 100% 100%; } }
     @keyframes auFade { from { opacity: 0; } to { opacity: 1; } }
     @keyframes auUp { from { opacity: 0; transform: translateY(1.1em) scale(.985); } to { opacity: 1; transform: none; } }
     @keyframes auPop { 0% { transform: scale(.4); } 60% { transform: scale(1.25); } 100% { transform: scale(1); } }
-    @keyframes auFlash { 0% { box-shadow: 0 0 0 0 rgba(47,160,142,.7); background-color: var(--soft); } 100% { box-shadow: 0 0 0 1em rgba(47,160,142,0); background-color: var(--box); } }
+    @keyframes auFlash { 0% { box-shadow: 0 0 0 0 var(--glow); background-color: var(--soft); } 100% { box-shadow: 0 0 0 1em transparent; background-color: var(--box); } }
     @keyframes auSpin { to { transform: rotate(360deg); } }
     @keyframes auWob { 0%, 100% { translate: 0 0; } 25% { translate: .06em -.05em; } 75% { translate: -.05em .06em; } }
     @keyframes auSlide { from { transform: translateX(-100%); } to { transform: translateX(260%); } }
     @keyframes auNudge { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(.35em); } }
-    @keyframes auPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(47,160,142,.55); } 50% { box-shadow: 0 0 0 .5em rgba(47,160,142,0); } }
-    @keyframes auGlow { 0%, 100% { box-shadow: 0 1.2em 3em var(--sh), 0 0 0 0 rgba(47,160,142,0); } 50% { box-shadow: 0 1.2em 3em var(--sh), 0 0 1.6em .2em rgba(47,160,142,.4); } }
+    @keyframes auPulse { 0%, 100% { box-shadow: 0 0 0 0 var(--glow); } 50% { box-shadow: 0 0 0 .5em transparent; } }
+    @keyframes auGlow { 0%, 100% { box-shadow: 0 1.2em 3em var(--sh), 0 0 0 0 transparent; } 50% { box-shadow: 0 1.2em 3em var(--sh), 0 0 1.6em .2em var(--glow); } }
     @keyframes auShine { from { transform: translateX(-120%) skewX(-20deg); } to { transform: translateX(260%) skewX(-20deg); } }
     @keyframes auModal { from { opacity: 0; transform: translateY(1.5em) scale(.94); } to { opacity: 1; transform: none; } }
     @keyframes auBob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-.15em); } }
@@ -2895,7 +2895,7 @@
     .au-b:hover:not([disabled]) { transform: translateY(-.14em); box-shadow: 0 .35em .7em var(--sh); }
     .au-b:hover:not([disabled])::after { animation: auShine .7s ease; }
     .au-b:active:not([disabled]) { transform: translateY(.05em) scale(.95); box-shadow: none; }
-    .au-b:focus-visible { outline: .16em solid var(--g); outline-offset: .12em; }
+    .au-b:focus-visible { outline: .16em solid var(--line); outline-offset: .12em; }
     .au-b[disabled] { opacity: .5; cursor: default; }
     .au-b.alt, .au-modal .au-b:not(.pri):not(.sel) { background: var(--alt); color: var(--altt); }
     .au-b.sm { font-size: .82em; padding: .2em .7em; border-radius: .7em; }
@@ -2937,11 +2937,22 @@
     .au-frame { flex: 1; min-height: 0; border: .17em solid var(--g); border-radius: 1.7em; display: grid; grid-template-columns: 54fr 46fr; column-gap: 2.4%; padding: 1.5em 1.8em 1.2em 1.9em; position: relative; z-index: 1;
       background: var(--card); box-shadow: 0 1.2em 3em var(--sh); animation: auUp .55s .05s both; }
     .au.working .au-frame { animation: auUp .55s .05s both, auGlow 1.8s ease-in-out infinite .6s; }
-    .au-left { display: grid; grid-template-rows: auto auto auto auto minmax(0, 1fr) auto auto; row-gap: .6em; min-height: 0; min-width: 0; }
+    /* left column = ONE grid, so every row uses the same columns: [check] [text] [button] [button] [button] */
+    .au-left { display: grid; grid-template-columns: 1.35em 18em auto auto auto minmax(0, 1fr); grid-template-rows: repeat(5, auto) minmax(0, 1fr) auto auto; column-gap: .65em; row-gap: .75em; align-items: center; min-height: 0; min-width: 0; align-content: start; }
+    .au-left > .au-r { display: grid; grid-template-columns: subgrid; grid-column: 1 / -1; align-items: center; min-width: 0; }
+    .au-left > .au-r > * { min-width: 0; justify-self: start; }
+    .au-left .tx { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; font-size: 1.1em; font-weight: 800; }
+    .au-left .tx .nm { font-weight: 800; }
+    .au-left .grp { min-width: max-content !important; display: inline-flex; align-items: center; gap: .5em; font-weight: 800; font-size: 1.05em; }
+    .au-left .au-hint { grid-column: 4 / 7; font-size: .85em; }
+    .au-left .au-msgline { grid-column: 5 / 7; }
+    .au-left .au-codebox { align-items: start; align-self: stretch; }
+    .au-left .au-codebox > .au-ta { grid-column: 2 / -1; }
+    .au-left .au-stat { align-self: end; }
     .au-right { display: grid; grid-template-rows: 1.25fr 1fr 1.3fr .5fr 1fr; row-gap: .6em; min-height: 0; min-width: 0; position: relative; }
-    .au-right::before { content: ''; position: absolute; left: -1.25em; top: .2em; bottom: .2em; border-left: .13em dashed rgba(47,160,142,.6); }
+    .au-right::before { content: ''; position: absolute; left: -1.25em; top: .2em; bottom: .2em; border-left: .13em dashed var(--glow); }
     .au-left > *, .au-right > * { animation: auUp .55s both; }
-    .au-left > :nth-child(1) { animation-delay: .1s; } .au-left > :nth-child(2) { animation-delay: .16s; } .au-left > :nth-child(3) { animation-delay: .22s; } .au-left > :nth-child(4) { animation-delay: .28s; } .au-left > :nth-child(5) { animation-delay: .34s; } .au-left > :nth-child(6) { animation-delay: .4s; } .au-left > :nth-child(7) { animation-delay: .46s; }
+    .au-left > :nth-child(1) { animation-delay: .1s; } .au-left > :nth-child(2) { animation-delay: .16s; } .au-left > :nth-child(3) { animation-delay: .22s; } .au-left > :nth-child(4) { animation-delay: .28s; } .au-left > :nth-child(5) { animation-delay: .34s; } .au-left > :nth-child(6) { animation-delay: .4s; } .au-left > :nth-child(7) { animation-delay: .46s; } .au-left > :nth-child(8) { animation-delay: .52s; }
     .au-right > :nth-child(1) { animation-delay: .14s; } .au-right > :nth-child(2) { animation-delay: .22s; } .au-right > :nth-child(3) { animation-delay: .3s; } .au-right > :nth-child(4) { animation-delay: .38s; } .au-right > :nth-child(5) { animation-delay: .46s; }
 
     /* round check marks (toggle) */
@@ -2965,7 +2976,7 @@
     .au-sel, .au-run input[type=time] { font: inherit; font-weight: 700; color: var(--altt); background: var(--alt); border: 0; border-radius: .8em; padding: .25em .7em; outline: none; cursor: pointer; box-shadow: 0 .12em .3em var(--sh); transition: transform .18s, box-shadow .18s; }
     .au-sel:hover, .au-run input[type=time]:hover { transform: translateY(-.1em); box-shadow: 0 .3em .6em var(--sh); }
     .au-sel { appearance: none; -webkit-appearance: none; text-align: center; }
-    .au-run input[type=time] { width: 6.6em; color-scheme: light; }
+    .au-run input[type=time] { width: 7.8em; color-scheme: light; }
     body.night-mode .au-run input[type=time] { color-scheme: dark; }
     .au-run input[type=time]::-webkit-calendar-picker-indicator { display: none; }
     .au-del { display: grid; grid-template-columns: 28% 1fr; align-items: center; column-gap: .4em; }
@@ -2977,10 +2988,8 @@
     .au-code { display: grid; grid-template-columns: 46% 1fr; column-gap: .6em; min-height: 0; align-items: start; }
     .au-code .au-side { display: flex; flex-direction: column; align-items: flex-start; gap: .55em; padding-top: .1em; font-size: 1.12em; }
     .au-code .au-lab { display: flex; gap: .55em; align-items: center; }
-    .au-ta { width: 50ch; max-width: calc(100% - .6em); height: 19em; max-height: 100%; min-height: 0; resize: vertical; border: .17em solid var(--g); border-radius: 1.1em; background: var(--box); color: var(--k); font: 500 .82em/1.4 ui-monospace, Menlo, Consolas, monospace; padding: .7em .9em; outline: none; box-shadow: inset 0 .15em .6em var(--sh); transition: box-shadow .25s, border-color .25s; }
-    .au-ta:focus { border-color: var(--k); box-shadow: 0 0 0 .3em rgba(47,160,142,.3); }
-    .au-stat { font-size: 1.12em; font-weight: 800; display: grid; grid-template-columns: auto 17em auto auto; justify-content: start; align-items: center; column-gap: .6em; }
-    .au-stat > .tx { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .au-ta { width: 50ch; max-width: calc(100% - .6em); height: 19em; max-height: 100%; min-height: 0; resize: vertical; border: .17em solid var(--line); border-radius: 1.1em; background: var(--box); color: var(--k); font: 500 .82em/1.4 ui-monospace, Menlo, Consolas, monospace; padding: .7em .9em; outline: none; box-shadow: inset 0 .15em .6em var(--sh); transition: box-shadow .25s, border-color .25s; }
+    .au-ta:focus { border-color: var(--k); box-shadow: 0 0 0 .3em var(--glow); }
     .au-stat .v { font-weight: 900; }
     .au-stat .v.bad { color: var(--r); }
     .au-msgline { font-size: .72em; font-weight: 700; min-height: 1.2em; }
@@ -2990,14 +2999,14 @@
     .au-cap small { display: block; font-size: .8em; font-weight: 700; margin-top: .15em; }
     .au-cap small b { font-weight: 900; }
     .au-line { display: grid; grid-template-columns: 24% 1fr; column-gap: .6em; min-height: 0; min-width: 0; align-items: stretch; }
-    .au-box { border: .17em solid var(--g); border-radius: 1.1em; padding: .55em .8em; overflow: auto; min-height: 0; min-width: 0; font: 500 .8em/1.4 ui-monospace, Menlo, Consolas, monospace; color: var(--k); white-space: pre-wrap; word-break: break-word; margin: 0; cursor: zoom-in; background: var(--box); box-shadow: inset 0 .15em .6em var(--sh); scrollbar-width: thin; scrollbar-color: var(--g) transparent; transition: border-color .2s, transform .2s; }
+    .au-box { border: .17em solid var(--line); border-radius: 1.1em; padding: .55em .8em; overflow: auto; min-height: 0; min-width: 0; font: 500 .8em/1.4 ui-monospace, Menlo, Consolas, monospace; color: var(--k); white-space: pre-wrap; word-break: break-word; margin: 0; cursor: zoom-in; background: var(--box); box-shadow: inset 0 .15em .6em var(--sh); scrollbar-width: thin; scrollbar-color: var(--line) transparent; transition: border-color .2s, transform .2s; }
     .au-box:hover { transform: translateY(-.1em); }
     .au-box.empty { color: var(--mut); font-style: italic; }
     .au-box.flash { animation: auFlash .9s ease-out; }
     .au-final { display: grid; grid-template-columns: minmax(0, 1fr) minmax(9.5em, 36%); grid-template-rows: auto minmax(0, 1fr); column-gap: .7em; min-height: 0; }
     .au-final > .au-cap { grid-column: 1 / -1; padding-top: 0; }
     .au-final .au-box { grid-column: 1; }
-    .au-st { border-bottom: .14em dashed var(--g); padding-bottom: .3em; margin-bottom: .4em; font-weight: 800; }
+    .au-st { border-bottom: .14em dashed var(--line); padding-bottom: .3em; margin-bottom: .4em; font-weight: 800; }
     .au-btns { grid-column: 2; display: grid; grid-auto-rows: minmax(0, 1fr); gap: .4em; min-height: 0; }
     .au-btns .au-b { font-size: .98em; white-space: normal; text-align: center; line-height: 1.05; min-height: 0; padding: .1em .5em; }
     .au-btns .au-b .t { display: block; }
@@ -3017,9 +3026,9 @@
     /* pop-ups (viewer, list editor, page picker, account, agent) */
     .au-modal { position: fixed; inset: 0; z-index: 2147483000; background: rgba(0, 0, 0, .55); backdrop-filter: blur(3px); display: none; align-items: center; justify-content: center; padding: 4vh 3vw; }
     .au-modal.show { display: flex; animation: auFade .2s ease both; }
-    .au-box2 { background: var(--card); border: .17em solid var(--g); border-radius: 1.5em; width: min(1200px, 100%); height: min(88vh, 900px); display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 1.2em 3em rgba(0,0,0,.35); animation: auModal .35s cubic-bezier(.2,1.2,.4,1) both; }
+    .au-box2 { background: var(--card); border: .17em solid var(--line); border-radius: 1.5em; width: min(1200px, 100%); height: min(88vh, 900px); display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 1.2em 3em rgba(0,0,0,.35); animation: auModal .35s cubic-bezier(.2,1.2,.4,1) both; }
     .au-box2.small { width: min(760px, 100%); height: auto; max-height: 88vh; }
-    .au-mh { display: flex; gap: .7em; align-items: center; padding: .7em 1em; border-bottom: .12em solid var(--g); flex: none; background: var(--alt); }
+    .au-mh { display: flex; gap: .7em; align-items: center; padding: .7em 1em; border-bottom: .12em solid var(--line); flex: none; background: var(--alt); }
     .au-mh b { flex: 1; font-size: 1.05em; font-weight: 800; word-break: break-all; }
     .au-mb { flex: 1; min-height: 0; overflow: auto; padding: .9em 1.1em; }
     pre.au-mb { margin: 0; white-space: pre-wrap; word-break: break-word; font: 500 .8em/1.45 ui-monospace, Menlo, Consolas, monospace; }
@@ -3028,7 +3037,7 @@
     .au-tabs .au-b.sel { background: var(--btn); color: var(--btnt); }
     .au-two { display: grid; grid-template-columns: 38% 1fr; gap: 1em; height: 100%; min-height: 0; }
     .au-col { display: flex; flex-direction: column; gap: .5em; min-height: 0; min-width: 0; }
-    .au-scroll { flex: 1; min-height: 0; overflow: auto; border: .12em solid var(--g); border-radius: .9em; padding: .3em; background: var(--box); }
+    .au-scroll { flex: 1; min-height: 0; overflow: auto; border: .12em solid var(--line); border-radius: .9em; padding: .3em; background: var(--box); }
     .au-li { display: flex; align-items: center; gap: .6em; padding: .3em .45em; border-radius: .6em; font-size: .92em; transition: background .15s, transform .15s; animation: auUp .3s both; }
     .au-li:hover { background: var(--soft); transform: translateX(.15em); }
     .au-li.sel { background: var(--alt); }
@@ -3037,9 +3046,9 @@
     .au-li .x { padding: 0 .4em; font-size: 1.15em; border: 0; background: none; cursor: pointer; border-radius: .5em; transition: background .15s, transform .15s; }
     .au-li .x:hover { background: rgba(210,59,44,.18); color: var(--r); transform: scale(1.2); }
     .au-li small { display: block; font-weight: 600; word-break: break-all; font-size: .8em; opacity: .75; }
-    .au-li input[type=checkbox] { width: 1.15em; height: 1.15em; accent-color: var(--g); flex: none; }
-    .au-in, .au-modal textarea, .au-modal select { width: 100%; border: .13em solid var(--g); border-radius: .8em; padding: .4em .7em; font-size: .92em; font-weight: 600; line-height: 1.3; font-family: inherit; color: var(--k); background: var(--box); outline: none; transition: box-shadow .2s; }
-    .au-in:focus, .au-modal textarea:focus { box-shadow: 0 0 0 .25em rgba(47,160,142,.3); }
+    .au-li input[type=checkbox] { width: 1.15em; height: 1.15em; accent-color: var(--k); flex: none; }
+    .au-in, .au-modal textarea, .au-modal select { width: 100%; border: .13em solid var(--line); border-radius: .8em; padding: .4em .7em; font-size: .92em; font-weight: 600; line-height: 1.3; font-family: inherit; color: var(--k); background: var(--box); outline: none; transition: box-shadow .2s; }
+    .au-in:focus, .au-modal textarea:focus { box-shadow: 0 0 0 .25em var(--glow); }
     .au-modal textarea { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .82em; resize: vertical; }
     .au-hint { font-size: .78em; font-weight: 600; line-height: 1.35; }
     .au-msg { font-size: .85em; font-weight: 800; min-height: 1.2em; }
@@ -3052,7 +3061,7 @@
       .au { overflow: auto; --pad-x: 3vw; }
       .au-head { flex-wrap: wrap; } .au-steps { flex-wrap: wrap; font-size: 1.05em; }
       .au-frame { grid-template-columns: 1fr; height: auto; flex: none; row-gap: 1.2em; }
-      .au-left { grid-template-rows: none; } .au-code { min-height: 12em; }
+      .au-left { grid-template-columns: 1.35em minmax(0, 1fr) auto auto auto; grid-template-rows: none; } .au-left .au-codebox { min-height: 12em; }
       .au-right { grid-template-rows: none; } .au-right > * { min-height: 7em; } .au-right::before { display: none; }
       .au-two { grid-template-columns: 1fr; height: auto; }
     }
@@ -3219,7 +3228,7 @@
     body.night-mode .wt-bar { background: #333; }
     #watchToggleBtn.on { border-color: #1a73e8; color: #1a73e8; }
   </style>
-  <script src="/app.min.js?v=26" defer></script>
+  <script src="/app.min.js?v=27" defer></script>
 </head>
 <body>
   <script>
@@ -3386,45 +3395,61 @@
     </div>
     <div class="au-frame">
       <div class="au-left">
-        <div class="au-row au-run">
+        <div class="au-r au-run">
           <button type="button" class="au-chk" role="checkbox" aria-checked="false" id="auRunOn" aria-label="Run automation on a schedule"></button>
-          <span class="au-lab">Run automation:</span>
-          <select class="au-sel" id="auEvery" aria-label="How often"><option value="daily">daily</option><option value="weekly">weekly</option></select>
-          <select class="au-sel" id="auDow" aria-label="Weekday" hidden><option value="1">Monday</option><option value="2">Tuesday</option><option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option><option value="0">Sunday</option></select>
-          <span>at</span><input type="time" id="auTime" value="08:00" aria-label="Time of day">
+          <span class="tx"><span class="au-lab">Run automation:</span></span>
+          <span class="grp"><select class="au-sel" id="auEvery" aria-label="How often"><option value="daily">daily</option><option value="weekly">weekly</option></select><select class="au-sel" id="auDow" aria-label="Weekday" hidden><option value="1">Monday</option><option value="2">Tuesday</option><option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option><option value="0">Sunday</option></select></span>
+          <span class="grp"><span>at</span><input type="time" id="auTime" value="08:00" aria-label="Time of day"></span>
           <button type="button" class="au-b sm alt" id="auClock" title="Pick the time"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Clock</button>
+          <span></span>
         </div>
-        <div class="au-del">
-          <span class="au-lab">Deletion:</span>
-          <div class="au-item">
-            <button type="button" class="au-chk" role="checkbox" aria-checked="true" id="auDelOn" aria-label="Delete words from the picked lists"></button>
-            <b class="nm au-names" id="auListNames">Main keywords</b>
-            <button type="button" class="au-b sm alt" id="auPickList">Pick list</button>
-            <button type="button" class="au-b sm alt" id="auSeeWords">See more</button>
-            <button type="button" class="au-b sm pri" id="auDelNow" title="Delete the words from the scanned text now">Delete</button>
-          </div>
+        <div class="au-r">
+          <button type="button" class="au-chk" role="checkbox" aria-checked="true" id="auDelOn" aria-label="Delete words from the picked lists"></button>
+          <span class="tx"><span class="au-lab">Deletion:</span> <b class="nm" id="auListNames">Main keywords</b></span>
+          <button type="button" class="au-b sm alt" id="auPickList">Pick list</button>
+          <button type="button" class="au-b sm alt" id="auSeeWords">See more</button>
+          <button type="button" class="au-b sm" id="auDelNow" title="Delete the words from the scanned text now">Delete</button>
+          <span></span>
         </div>
-        <div class="au-del">
-          <span class="au-lab"></span>
-          <div class="au-item">
-            <button type="button" class="au-chk" role="checkbox" aria-checked="true" id="auRepOn" aria-label="Delete repeating phrases"></button>
-            <b class="nm">Repeating phrases</b>
-            <button type="button" class="au-b sm alt" id="auEditRep">Edit code</button>
-            <button type="button" class="au-b sm alt" id="auSeeRep">See more</button>
-          </div>
+        <div class="au-r">
+          <button type="button" class="au-chk" role="checkbox" aria-checked="true" id="auRepOn" aria-label="Delete repeating phrases"></button>
+          <span class="tx"><b class="nm">Repeating phrases</b></span>
+          <button type="button" class="au-b sm alt" id="auEditRep">Edit code</button>
+          <button type="button" class="au-b sm alt" id="auSeeRep">See more</button>
+          <span></span><span></span>
         </div>
-        <div class="au-row au-allow"><span class="au-lab">Allowed websites:</span> <b class="nm" id="auAllowName">Test 1</b> <button type="button" class="au-b sm alt" id="auPickPages">Pick them here</button><span class="au-hint" id="auAllowInfo"></span></div>
-        <div class="au-code">
-          <div class="au-side">
-            <span class="au-lab"><button type="button" class="au-chk" role="checkbox" aria-checked="true" id="auAgentOn" aria-label="Use the agent in the automation"></button><span>Agent code:</span></span>
-            <button type="button" class="au-b pri" id="auSaveCode">Save</button>
-            <button type="button" class="au-b sm alt" id="auResetCode">Reset to default</button>
-            <span class="au-msgline" id="auCodeMsg"></span>
-          </div>
+        <div class="au-r">
+          <span></span>
+          <span class="tx"><span class="au-lab">Allowed websites:</span> <b class="nm" id="auAllowName">Test 1</b></span>
+          <button type="button" class="au-b sm alt" id="auPickPages">Pick them here</button>
+          <span class="au-hint" id="auAllowInfo"></span>
+          <span></span><span></span>
+        </div>
+        <div class="au-r">
+          <button type="button" class="au-chk" role="checkbox" aria-checked="true" id="auAgentOn" aria-label="Use the agent in the automation"></button>
+          <span class="tx"><span class="au-lab">Agent code:</span></span>
+          <button type="button" class="au-b sm" id="auSaveCode">Save</button>
+          <button type="button" class="au-b sm alt" id="auResetCode">Reset to default</button>
+          <span class="au-msgline" id="auCodeMsg"></span><span></span>
+        </div>
+        <div class="au-r au-codebox">
+          <span></span>
           <textarea class="au-ta" id="auPrompt" spellcheck="false" aria-label="Agent code: what the agent must do with the scanned text"></textarea>
         </div>
-        <div class="au-stat au-row"><span class="au-chk" id="auDChk" aria-hidden="true"></span><span class="tx">Dienynas &rarr; <span class="v" id="auDTxt">Not tested yet</span></span><button type="button" class="au-b sm alt" id="auDTest">Test</button><button type="button" class="au-b sm alt" id="auDEdit">Edit</button></div>
-        <div class="au-stat au-row"><span class="au-chk" id="auAChk" aria-hidden="true"></span><span class="tx">Agent &rarr; <span class="v" id="auATxt">Not tested yet</span></span><button type="button" class="au-b sm alt" id="auATest">Test</button><button type="button" class="au-b sm alt" id="auAEdit">Edit</button></div>
+        <div class="au-r au-stat">
+          <span class="au-chk" id="auDChk" aria-hidden="true"></span>
+          <span class="tx">Dienynas &rarr; <span class="v" id="auDTxt">Not tested yet</span></span>
+          <button type="button" class="au-b sm alt" id="auDTest">Test</button>
+          <button type="button" class="au-b sm alt" id="auDEdit">Edit</button>
+          <span></span><span></span>
+        </div>
+        <div class="au-r au-stat">
+          <span class="au-chk" id="auAChk" aria-hidden="true"></span>
+          <span class="tx">Agent &rarr; <span class="v" id="auATxt">Not tested yet</span></span>
+          <button type="button" class="au-b sm alt" id="auATest">Test</button>
+          <button type="button" class="au-b sm alt" id="auAEdit">Edit</button>
+          <span></span><span></span>
+        </div>
       </div>
       <div class="au-right">
         <div class="au-final">
