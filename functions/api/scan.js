@@ -3,6 +3,7 @@
 //   GET  ?resource=settings            start url, username, schedule, last run (never the password)
 //   POST ?resource=settings            save them  (body: start_url, username, password?, every, hour, allowed?)
 //   POST ?resource=run                 log in + crawl now (takes up to ~half a minute)
+//   POST ?resource=logintest           only log in (nothing is crawled or saved) -> { loggedIn: true/false }
 //   GET  ?resource=latest              newest run: status, live log, list of pages (no text)
 //   GET  ?resource=page&id=N           the full text of one page
 //   GET  ?resource=results             the full text of every page of the newest finished run
@@ -217,7 +218,7 @@ function allowedBy(list, href) {
   return list.some((a) => a && (path.includes(a) || href.includes(a)));
 }
 
-export async function runScan({ db, env, runId, settings, password }) {
+export async function runScan({ db, env, runId, settings, password, loginOnly }) {
   const lines = [];
   let lastFlush = 0;
   const flush = async (force) => {
@@ -280,7 +281,7 @@ export async function runScan({ db, env, runId, settings, password }) {
       await log('Result: no login form on this page. Continuing.');
     }
 
-    if (status === 'ok') {
+    if (status === 'ok' && !loginOnly) {
       const seen = new Set([first.url.split('#')[0]]);
       const queue = [];
       const addLinks = (html, base) => {
@@ -321,6 +322,13 @@ export async function runScan({ db, env, runId, settings, password }) {
   } catch (e) {
     status = 'error';
     await log('ERROR: ' + (e && e.message || e));
+  }
+
+  if (loginOnly) {                                   // login test: nothing is crawled or saved
+    await log('LOGIN TEST DONE. ' + (status === 'ok' ? 'Logged in.' : 'Not logged in (' + status + ').'));
+    await flush(true);
+    await db.prepare('UPDATE scan_runs SET status = ?, finished = ?, pages = 0 WHERE id = ?').bind(status === 'ok' ? 'login-ok' : status, new Date().toISOString(), runId).run();
+    return { status, pages: 0, chars: 0, loggedIn: status === 'ok' };
   }
 
   // remember what was discovered (merged with earlier scans, capped)
@@ -456,7 +464,8 @@ export async function onRequestPost({ request, env }) {
       return json({ allowed });
     }
 
-    if (res === 'run') {
+    if (res === 'run' || res === 'logintest') {
+      const testOnly = res === 'logintest';
       const s = await env.DB.prepare('SELECT * FROM scan_settings WHERE id = 1').first();
       const busy = await env.DB.prepare("SELECT id, started FROM scan_runs WHERE status = 'running' ORDER BY started DESC LIMIT 1").first();
       if (busy && Date.now() - Date.parse(busy.started) < 3 * 60 * 1000) return json({ error: 'A scan is already running.' }, 409);
@@ -466,11 +475,13 @@ export async function onRequestPost({ request, env }) {
         try { password = await decrypt(env, s.password_enc); } catch (e) { return json({ error: 'Could not decrypt the saved password. Save it again.' }, 500); }
       }
       const runId = new Date().toISOString();
-      await env.DB.batch([
+      await env.DB.batch(testOnly ? [
+        env.DB.prepare("INSERT INTO scan_runs (id, started, status, log) VALUES (?, ?, 'running', '')").bind(runId, runId),
+      ] : [
         env.DB.prepare("INSERT INTO scan_runs (id, started, status, log) VALUES (?, ?, 'running', '')").bind(runId, runId),
         env.DB.prepare('UPDATE scan_settings SET last_run = ? WHERE id = 1').bind(runId),
       ]);
-      const out = await runScan({ db: env.DB, env, runId, settings: s, password });
+      const out = await runScan({ db: env.DB, env, runId, settings: s, password, loginOnly: testOnly });
       return json({ id: runId, ...out });
     }
     return json({ error: 'Unknown resource' }, 400);
