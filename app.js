@@ -10747,70 +10747,185 @@ const PIP_MAX = 3;
     })();
   ;
 
-    /* ───────────────────────── TEST TAB ─────────────────────────
-       Scans the school diary on the server (functions/api/scan.js) and lists what it fetched.
-         • days can NOT be clicked while this tab is on
-         • Scan now / schedule / clock / account fields / live log / fetched pages / "Results" pop-up
-       Part 2: allowed-pages picker, scanned-text working copy with "Delete characters" / "Delete unnecessary" / "Remove repeated lines", and the Notes pop-ups. */
+    /* ───────────────────────── TEST TAB = "Automate" dashboard ─────────────────────────
+       One fixed page (see the CSS block "TEST TAB"). Server parts: functions/api/scan.js (diary login + crawl),
+       functions/api/agent.js (the AI step) and functions/api/auto.js (saves your settings + word lists in D1).
+         Automate = Scan -> Delete words -> Run Agent -> Paste into calendar, one after the other. The four buttons on the right do one step each.
+         A failed step turns red at the top and the run stops there. While it runs, the buttons turn into spinning arrows.
+         Settings and word lists are kept in this browser AND in D1 (table auto_store), so the phone and the PC share them. */
     const TestMode = (() => {
       const $ = (id) => document.getElementById(id);
       const tab = $('globalTabTest'), monthTab = $('globalTabMonth'), dayTab = $('globalTabDay'), weekTab = $('globalTabWeek');
       if (!tab || !$('testPanel')) return { isOn: () => false };
 
-      const API = '/api/scan';
-      const NOTES = [{"title": "Handoff summary (copy-paste for another AI)", "sub": "Everything about this project: rules, how the scan works, what is done", "text": "=== HANDOFF: habit-calendar \"Test\" tab + site code gate ===\n\nWHO / WHAT\n- User owns a Cloudflare Pages site (bens-calendar.pages.dev, GitHub repo ihatebeingcontoled-creator/habit-calendar) with a D1 database (binding name DB). It is a habit calendar. Files: index.html (UI+CSS), app.js (source), app.min.js (what the page actually loads: <script src=\"/app.min.js?v=14\">), sw.js, manifest.json, functions/api/*.js (Pages Functions), functions/_middleware.js (code gate).\n- Goal: scan the user's school e-diary manodienynas.lt (Lithuanian) and LATER put upcoming tests into the calendar. FOR NOW only the Test tab scans and shows results. Still NOT wanted yet: Groq/AI, adding tests to the calendar, notifications.\n- The user is not a developer. Answer in short plain English. Always end with: (1) the list of changed files, presented as files, (2) the exact steps the user must do right now.\n\nUSER RULES\n1. Work in TWO PARTS (the AI often runs out of credits). Present each part when done.\n2. Only touch the Test area (plus the access-code gate). No other code, no notifications.\n3. Present the changed files and give the steps to do right now.\n4. Never type or ask for the user's passwords in chat. The user types them into the Test panel.\n5. No zip unless asked (\"zip it up\" = zip). Otherwise loose files.\n6. Summaries/handoffs are copy-paste text in chat, not a file.\n\nSTATE: BOTH PARTS ARE DONE (tested in headless Chrome against a fake diary site; NOT yet tried on the real manodienynas.lt from Cloudflare).\nPart 1\n- functions/_middleware.js: access-code gate. Env var named exactly \"code\". Cookie \"site_access\" = HMAC of the code (HttpOnly, Secure, SameSite=Strict, 1 year). No cookie = no access to any page/API. Left open on purpose: /api/push-check (outside cron), /api/spend with Bearer header (own token check), /manifest.json, /favicon.png. If \"code\" is missing the site shows 503 \"locked\".\n- functions/api/scan.js: server-side login + crawl of manodienynas.lt (browsers cannot, CORS). D1 tables scan_settings / scan_runs / scan_pages are created automatically. Password stored AES-GCM encrypted with a key derived from \"code\". Start URL must be https and *.manodienynas.lt. Max 40 pages and 46 requests per scan (free plan limit 50). Routes: GET/POST ?resource=settings, POST run, GET latest / page&id / results / found, POST allowed.\n- index.html + app.js (TestMode module, after the AdsMode module, \"TEST TAB\" comment) + app.min.js (rebuilt: /opt/npm-tools/node_modules/.bin/esbuild app.js --minify --outfile=app.min.js; verified byte-identical to the original build for unchanged code). Test tab button next to Ads; days not clickable (CSS pointer-events none + capture click handler); clock with current hour; Scan now; schedule (off/hourly/daily at hour; runs only while the site is open, browser time); username/password/start URL; live log; list of fetched pages; click a page = huge pop-up; Results button = pop-up with everything.\nPart 2\n- ALLOWED PAGES picker (\"Choose pages\"): the server remembers every page address it discovers (scan_settings.found). The user ticks the pages the scan may visit; saved with POST ?resource=allowed. Nothing ticked = scan everything. Non-allowed pages are never fetched (saves time and requests).\n- SCANNED TEXT (working copy, local in the browser, kept in localStorage): \"Load latest scan\", \"Delete unnecessary\" (removes dot leaders, repeated , / - _ * ~ | ; empty table cells, lines with no letters or digits, extra spaces and blank lines, consecutive duplicate lines), \"Remove repeated lines\" (drops lines that appear on most pages = the menu repeated on every page), \"Restore original\", Copy, Big view. \"Delete characters\": type characters, press + to add each as a chip, press a chip to delete that character from the scanned text, \"Delete all listed\" for all chips, x forgets a chip. Page header lines \"=== url ===\" are never touched. After a good scan the text is loaded into the working copy automatically.\n- NOTES: summary pages listed like scanned items in the Test tab; click = huge pop-up (this text and the guide).\n- \"Summarize\" means shrink with allowlist + cleaning. NOT AI.\n\nHOW THE EXTRACTION WAS DONE AND WHAT WAS LEARNED\n- First a Chrome extension \"Dienynas Copy\" (options page with Start, live log, result box) proved the approach. Logic: fetch start page https://www.manodienynas.lt/; detect password forms; the page has TWO: pick the one with exactly one password input and NOT field names like new_pass/regist/reset/surname (the other is a create-password form: user_name,user_surname,new_pass1,new_pass2). Login = POST the form action (an AJAX url like /1/lt/ajax/public/...) with hidden inputs + username/password + the submit button, header X-Requested-With: XMLHttpRequest. Confirm login by a logout link (\"Atsijungti\"). Then crawl same-host <a href> links (http->https), turn HTML into text (td -> \" | \", block tags -> newlines). scan.js does the same on the server with a manual cookie jar and manual redirects (Workers keep no cookies).\n- SKIPPED links: logout/atsijungti, delete/trinti, \"/api/\", \"/action/\" (click counters), \"redirect\" (the /api/redirect_to_portal links log the user into third-party cempion.lt), file downloads, duplicate language copies /1/ua /1/ru /1/en.\n- Result in Chrome was a logged-in family account (parent with children, Kauno Vinco Kudirkos progimnazija): 50,631 lines / 700KB, mostly junk (menu repeated on every page, messages in 4 languages, payments, contracts, bills).\n- USEFUL PAGES (base https://www.manodienynas.lt/1/lt/page/...): control_work/dates_pupil (TESTS. Columns: Eil. Nr. | Data | Atsiskaitomojo darbo tipas | Grupė | Atsiskaitomojo darbo tema | Įvesta; example: 2026-11-20 | Kontrolinis darbas | Chemija (-) 8b | ...), classhomework/home_work (Namų darbai), classhomework/class_work, schedule/view, sf/resolve_post/day_view, sf/resolve_post/event/list, marks_pupil/marks, marks_pupil/pupil_attendance, remark/pupil_parent_list. Tests sometimes appear only inside homework text (Lithuanian: kontrolinis, testas, atsiskaitymas, savarankiškas).\n- UNVERIFIED: the Chrome extension ran in the user's own browser (maybe already logged in). Server-side login from Cloudflare has not been verified; the scan log records every step so failures are visible.\n- Cloudflare Pages has no cron: scheduled scans only fire while the site is open. A separate cron Worker would be needed to scan while closed.\n\nHOW THE WEBSITE CODE WAS HANDLED\n- User uploads habit-calendar-main.zip. Unzip with python zipfile into a fresh directory and edit there. app.min.js is built from app.js with esbuild (command above); bump the ?v= number in index.html after rebuilding (now 14, bump to 15 if app.min.js changes again).\n- /api/events POST deletes and re-inserts every event for each date it receives (merge first if ever writing events).\n\nNEXT (not started, only when the user asks)\n- Use Groq (env GROQ_API_KEY, see functions/api/talk-ai.js) to pull test dates out of the cleaned scan text, then add them to the calendar via /api/events (merge per date, ids prefixed \"mdtest-\" so reruns update instead of duplicating).\n- Optional: a cron Worker so scans run when the site is closed."}, {"title": "Test tab guide (what each button does)", "sub": "Scan, schedule, allowed pages, delete tools", "text": "TEST TAB: WHAT EACH THING DOES\n\nTop\n- \"Now\" is your clock and the current hour.\n- Scan now: logs in to manodienynas.lt from the server and reads pages. The log shows each step.\n- Results: opens everything from the latest scan in one huge pop-up (the cleaned copy, if you cleaned it).\n\nSchedule\n- Off / every hour / every day at a chosen hour. It uses your browser's time and only starts while the site is open.\n\nDiary account\n- Start page, username, password. The password is saved encrypted and is never shown again. Leave the password empty to keep the saved one.\n\nAllowed pages\n- \"Choose pages\" lists every page the scans have found. Tick the ones that matter (for example the tests page and the homework page) and press Save. From then on the scan fetches only those pages. Nothing ticked = scan everything.\n- Run \"Scan now\" once first, so the list has pages in it.\n\nScanned text\n- Load latest scan: puts the newest scan in the box (it also happens by itself after a good scan).\n- Delete unnecessary: removes dot lines, repeated commas/slashes/dashes, empty table cells, lines with no letters or digits, extra spaces and blank lines.\n- Remove repeated lines: removes lines that appear on most pages (the menu). Needs at least 3 pages.\n- Delete characters: type characters (for example ,./-) and press +. Each becomes a chip. Press a chip to delete that character from the text. \"Delete all listed\" does every chip. The x forgets a chip.\n- Restore original: brings back the untouched scan text. Copy / Big view: copy it or open it large.\n\nNotes\n- These summary pages. Press one to open it in a pop-up. The first one is the copy-paste summary for another AI.\n\nSetup reminders\n- The Cloudflare variable is named code (the access code). Changing it means saving the diary password again.\n- A scan reads at most 40 pages (Cloudflare free plan limit)."}];
-      let on = false, settings = null, running = false, clockT = 0, modalText = '';
-      const p2 = (n) => String(n).padStart(2, '0');
-      const fmt = (iso) => { try { return new Date(iso).toLocaleString(); } catch (e) { return iso || ''; } };
-      const say = (id, msg) => { $(id).textContent = msg || ''; };
+      const SCAN = '/api/scan', AUTO = '/api/auto', AGENT = '/api/agent';
+      const CFG_KEY = 'auCfg.v1', LISTS_KEY = 'testDelLists.v1', WORK_KEY = 'testWork.v1', RESP_KEY = 'auAgentResp.v1', OLD_AUTO_KEY = 'testDelAuto.v1';
+      const STANDARD_WORDS = ["X", "menu", "Išbandykite", "planą „Šeima“", "Užsakyti", "school", "Pažymių", "knygelė", "bar_chart", "Analitika", "Individuali pažanga", "Fizinis pajėgumas", "Mokinio reitingas", "email", "1", "Pranešimai", "notifications", "Įvykiai", "help_outline", "Parašykite", "mums", "Kalba", "Pasirinkite", "kalbą", "Kristina Martinkevičienė", "Benas Martinkevičius", "Tėvas/Mama (Globėjas/Globėja)", "Kauno Vinco Kudirkos progimnazija", "notifications_active", "Rokas Martinkevičius", "Paskyros nustatymai", "Vartotojo vadovas", "Parašykite mums", "Atsijungti", "sports_basketball", "Sporto būreliai", "Korepetitoriai", "holiday_village", "Stovyklos", "audiotrack", "Muzikos būreliai", "accessibility", "Šokių būreliai", "language", "Kalbų mokymas", "home", "Įstaigos", "volunteer_activism", "Savanorystė", "Dienos vaizdas", "„Šeimos“ paslaugos", "Švietimo rodiklių švieslentė", "Pažymių knygelė", "Pažymiai", "Lankomumas", "Tvarkaraštis", "Klasės darbai", "Namų darbai", "Pagyrimai ir pastabos", "Atsiskaitomieji darbai", "Trimestrai, pusmečiai", "Tėvų susirinkimai", "Video pamokos", "Elektroninės paslaugos", "Kurti naują paslaugą", "Užsakytos paslaugos", "Pranešimai 1", "Rašyti naują pranešimą", "Gauti pranešimai 1", "Išsiųsti pranešimai", "Juodraščiai", "Svarbūs pranešimai", "Ištrinti pranešimai", "Kontaktų grupės", "Svarbi informacija", "Atostogų grafikas", "Mokyklos failai", "Apklausos", "Dokumentai", "Visi", "Laukiantys parašo", "Archyvas", "Ištrintos sutartys", "Sąskaitos", "Visos", "Laukiančios apmokėjimo", "Vėluojančios sąskaitos", "Ištrintos sąskaitos", "Pakvieskite šeimos narį", "Nustatymai", "Mokymosi resursai", "Svetainės medis", "cancel", "Parašyti mokyklos administracijai", "Tik vartotojai", "Parašyti Manodienynas.lt pagalbos tarnybai", "attach_file", "Pridėti pdf failą", "keyboard_arrow_right", "- Visi dalykai -", "Puslapiai:", "Mokėjimo būdai", "Klientams", "DUK", "Pirkimo taisyklės ir sąlygos", "Privatumo ir slapukų politika", "Sistemos naudojimo taisyklės", "Mano dienynas", "Kam skirta sistema", "Sistemos galimybės", "Reklamos galimybės", "Kontaktai", "Užsakyti šeimos planą", "Sekite mus", "Facebook", "Ⓒ Manodienynas.lt, .", "Visos teisės saugomos.", "check", "Patvirtinti", "Atšaukti", "Toliau", "Atmesti", "Ištrinti paskyrą", "Ar sutinkate perduoti Integrra sistemai", "El. pašto adresą, mokyklos pavadinimą", "sutinku su asmens duomenų tvarkymu", "identifikavimo tikslu", "Valdykite popierinių dokumentų srautą", "Sumažinkite spausdinimo išlaidas", "Nebegaiškite laiko ieškant dokumentų", "Valdykite užduočių srautą", "Pasirašyti dokumentus užtruksite tik akimirką", "Elektroninė dokumentų ir užduočių valdymo sistema INTEGRRA yra puikus sprendimas optimizuoti įstaigų ir įmonių dokumentų srautus bei elektronizuoti informacijos perdavimą."];   // the usual menu/footer lines of manodienynas.lt
+      const DEF_PROMPT = 'You read text copied from a Lithuanian school e-diary (manodienynas.lt).\nFind every UPCOMING test or graded work (kontrolinis darbas, testas, atsiskaitymas, savarankiškas darbas, diktantas, apklausa...). Ignore homework without a test, marks, messages, payments and everything else.\nAnswer with ONLY a JSON array, no other words and no code fences. One item per test:\n{"date":"YYYY-MM-DD","title":"Subject: kind of work","description":"topic, if the text says it"}\nSkip dates that are already in the past. If there is nothing, answer [].';
+      const SPIN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 13c0-4.4 3.4-7.8 7.6-7.8 2.2 0 3.8.8 5 2.1"/><path d="M19.5 11c0 4.4-3.4 7.8-7.6 7.8-2.2 0-3.8-.8-5-2.1"/><path d="M17.6 3.4v4.2h-4.2"/><path d="M6.4 20.6v-4.2h4.2"/></svg>';
+      const CAP = { maxLen: 120, maxWords: 1500, show: 40000, log: 400 };
+      const STEPS = ['scan', 'del', 'agent', 'cal'];
+      const WHAT = { scan: 'Scanning the diary...', del: 'Deleting words...', agent: 'Running the agent...', cal: 'Pasting into the calendar...' };
 
-      async function api(qs, opt) {
-        const r = await fetch(API + qs, { cache: 'no-store', ...(opt || {}) });
+      const p2 = (n) => String(n).padStart(2, '0');
+      const num = (n) => Number(n).toLocaleString();
+      const lsGet = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
+      const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+      const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+      const hhmmss = () => { const n = new Date(); return p2(n.getHours()) + ':' + p2(n.getMinutes()) + ':' + p2(n.getSeconds()); };
+      const fmt = (iso) => { try { return new Date(iso).toLocaleString(); } catch (e) { return iso || ''; } };
+
+      async function jf(url, opt) {
+        const r = await fetch(url, { cache: 'no-store', ...(opt || {}) });
         const t = await r.text();
         let j; try { j = JSON.parse(t); } catch (e) { j = { error: t.slice(0, 200) }; }
         if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
         return j;
       }
-      const postJson = (qs, body) => api(qs, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+      const post = (url, body) => jf(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+      const scanApi = (qs) => jf(SCAN + qs);
+      const scanPost = (qs, body) => post(SCAN + qs, body);
 
-      /* ---------- clock ---------- */
-      function tick() {
-        const n = new Date();
-        say('testClock', p2(n.getHours()) + ':' + p2(n.getMinutes()) + ':' + p2(n.getSeconds()));
-        say('testHourNow', '(hour ' + n.getHours() + ')');
+      /* ---------- state ---------- */
+      let on = false, settings = null, busy = '', curWhat = '', finalNote = '';
+      let srvLog = '', logLines = [], lastData = null, remoteLoaded = false;
+      const stepState = { scan: 'idle', del: 'idle', agent: 'idle', cal: 'idle' };
+      const conn = { d: 'none', a: 'none', dWhy: '' };
+      let cfg = Object.assign({ runOn: false, every: 'daily', dow: 1, time: '08:00', delOn: true, delNames: null, repeatOn: true, repeatPct: 60,
+        allowName: 'Test 1', agentOn: true, prompt: DEF_PROMPT, model: '', maxChars: 16000, lastAuto: '' }, lsGet(CFG_KEY, {}));
+      let lists = lsGet(LISTS_KEY, {});
+      if (!lists || typeof lists !== 'object' || !Object.keys(lists).length) lists = { 'Main keywords': STANDARD_WORDS.map((w) => 'L:' + w), 'Test 1': [] };
+      let work = lsGet(WORK_KEY, { o: '', c: '' });
+      if (work.d == null) work.d = !!work.o && work.c !== work.o;
+      let resp = lsGet(RESP_KEY, { t: '' });
+      if (!Array.isArray(cfg.delNames)) {
+        const old = lsGet(OLD_AUTO_KEY, {});
+        const guess = Object.keys(lists).filter((n) => /main keywords|^test 1$/i.test(n));
+        cfg.delNames = guess.length ? guess : (old && lists[old.name] ? [old.name] : Object.keys(lists).slice(0, 1));
       }
 
-      /* ---------- settings ---------- */
-      function fillFields() {
-        if (!settings) return;
-        $('testStart').value = settings.start_url || '';
-        $('testUser').value = settings.username || '';
-        $('testPass').value = '';
-        $('testPass').placeholder = settings.hasPassword ? 'Password saved (type to change it)' : 'Password';
-        $('testEvery').value = settings.every || 'off';
-        $('testIgnoreOn').checked = !!settings.ignore_on;
-        $('testHour').value = String(settings.hour == null ? 7 : settings.hour);
-        $('testHour').disabled = $('testEvery').value !== 'daily';
-        showLast(); allowedInfo();
-      }
-      function showLast() { say('testLast', 'Last scan: ' + (settings && settings.last_run ? fmt(settings.last_run) : 'never')); }
-      async function loadSettings() { settings = await api('?resource=settings'); fillFields(); }
-      async function saveSettings() {
-        const body = { start_url: $('testStart').value.trim(), username: $('testUser').value.trim(), every: $('testEvery').value, hour: parseInt($('testHour').value, 10) || 0, ignore_on: $('testIgnoreOn').checked };
-        const pw = $('testPass').value;
-        if (pw) body.password = pw;
-        say('testSaveMsg', 'Saving...');
+      /* ---------- saving: this browser + D1 ---------- */
+      let syncT = 0;
+      function saveCfg() { lsSet(CFG_KEY, cfg); queueSync(); }
+      function saveLists() { lsSet(LISTS_KEY, lists); queueSync(); }
+      function queueSync() { clearTimeout(syncT); syncT = setTimeout(pushRemote, 900); }
+      async function pushRemote() { try { await post(AUTO + '?key=cfg', { value: cfg }); await post(AUTO + '?key=lists', { value: lists }); } catch (e) { /* offline or no D1: the browser copy is still there */ } }
+      async function loadRemote() {
+        if (remoteLoaded) return;
         try {
-          settings = await postJson('?resource=settings', body);
-          fillFields();
-          say('testSaveMsg', 'Saved' + (pw ? ' (password stored encrypted)' : ''));
-        } catch (e) { say('testSaveMsg', 'Could not save: ' + e.message); }
+          const [c, l] = await Promise.all([jf(AUTO + '?key=cfg'), jf(AUTO + '?key=lists')]);
+          remoteLoaded = true;
+          let need = false;
+          if (c.value && typeof c.value === 'object') cfg = Object.assign(cfg, c.value); else need = true;
+          if (l.value && typeof l.value === 'object' && Object.keys(l.value).length) lists = l.value; else need = true;
+          if (!Array.isArray(cfg.delNames)) cfg.delNames = Object.keys(lists).slice(0, 1);
+          lsSet(CFG_KEY, cfg); lsSet(LISTS_KEY, lists);
+          if (need) pushRemote();
+          paintCfg();
+        } catch (e) { /* keep the browser copy */ }
+      }
+      const saveWork = () => lsSet(WORK_KEY, work);
+
+      /* ---------- the log ("Current work") ---------- */
+      function note(m) { logLines.push(hhmmss() + '  ' + m); if (logLines.length > CAP.log) logLines.splice(0, logLines.length - CAP.log); paintLog(); }
+      function paintLog() {
+        const b = $('auLog');
+        const lines = logLines.concat(srvLog ? srvLog.split('\n') : []);
+        const stick = b.scrollTop + b.clientHeight >= b.scrollHeight - 30;
+        b.textContent = lines.length ? lines.join('\n') : 'Nothing yet. Press Automate.';
+        b.classList.toggle('empty', !lines.length);
+        if (stick) b.scrollTop = b.scrollHeight;
       }
 
-      /* ---------- pop-up ---------- */
+      /* ---------- the picture: steps, buttons, boxes ---------- */
+      function setStep(s, st) {
+        stepState[s] = st;
+        curWhat = st === 'run' ? WHAT[s] : (STEPS.some((k) => stepState[k] === 'run') ? curWhat : '');
+        paintSteps(); paintFinal();
+      }
+      function paintSteps() {
+        document.querySelectorAll('#auSteps .au-step').forEach((e) => {
+          const st = stepState[e.dataset.s];
+          e.dataset.st = st;
+          const d = e.querySelector('.au-dot');
+          d.innerHTML = st === 'run' ? '<span class="au-spin" style="width:100%;height:100%">' + SPIN + '</span>' : st === 'ok' ? '&#10003;' : st === 'bad' ? '&#10005;' : '';
+        });
+        paintBusy();
+      }
+      function paintBusy() {
+        const all = busy === 'all';
+        $('auGo').disabled = !!busy;
+        $('auGoT').hidden = all; $('auGoS').hidden = !all;
+        $('auGoS').innerHTML = all ? SPIN : '';
+        document.querySelectorAll('.au-btn').forEach((b) => {
+          const d = b.dataset.do, running = all || busy === d;
+          b.disabled = !!busy;
+          b.classList.toggle('run', running);
+          b.classList.toggle('dim', !!busy && !running);
+          const sp = b.querySelector('.sp'); if (running && !sp.innerHTML) sp.innerHTML = SPIN; if (!running) sp.innerHTML = '';
+        });
+      }
+      function setConn(which, st, why) {
+        conn[which] = st; if (which === 'd') conn.dWhy = why || '';
+        const chk = $(which === 'd' ? 'auDChk' : 'auAChk'), txt = $(which === 'd' ? 'auDTxt' : 'auATxt');
+        chk.className = 'au-chk' + (st === 'ok' ? ' ok' : st === 'bad' ? ' bad' : st === 'wait' ? ' wait' : '');
+        chk.innerHTML = st === 'wait' ? SPIN : '';
+        if (st === 'wait') chk.firstChild.classList.add('au-spin');
+        const names = which === 'd' ? { none: 'Not tested yet', wait: 'Testing...', ok: 'Logged in', bad: 'Not logged in' } : { none: 'Not tested yet', wait: 'Testing...', ok: 'Connected', bad: 'Not connected' };
+        txt.textContent = names[st] + (why ? ' (' + why + ')' : '');
+        txt.className = 'v' + (st === 'bad' ? ' bad' : '');
+      }
+      function paintCfg() {
+        const setChk = (id, v) => $(id).setAttribute('aria-checked', v ? 'true' : 'false');
+        setChk('auRunOn', cfg.runOn); setChk('auDelOn', cfg.delOn); setChk('auRepOn', cfg.repeatOn); setChk('auAgentOn', cfg.agentOn);
+        $('auEvery').value = cfg.every; $('auDow').value = String(cfg.dow); $('auDow').hidden = cfg.every !== 'weekly'; $('auTime').value = cfg.time || '08:00';
+        cfg.delNames = (cfg.delNames || []).filter((n) => lists[n]);
+        $('auListNames').textContent = cfg.delNames.length ? cfg.delNames.join(', ') : '(none ticked)';
+        $('auAllowName').textContent = cfg.allowName || 'Test 1';
+        const n = settings && settings.allowed ? settings.allowed.length : null;
+        $('auAllowInfo').textContent = n == null ? '' : n ? n + ' page(s)' : 'all pages';
+        if (document.activeElement !== $('auPrompt')) $('auPrompt').value = cfg.prompt || '';
+      }
+      function statusLine() {
+        if (busy) return curWhat || 'Working...';
+        return finalNote || 'Ready. Press Automate.';
+      }
+      function paintFinal() {
+        const box = $('auFinal'); box.textContent = '';
+        box.appendChild(el('div', 'au-st', statusLine()));
+        const ev = parseEvents(resp.t || '');
+        let any = false;
+        if (ev && ev.length) { any = true; ev.forEach((e) => box.appendChild(document.createTextNode(e.date + '  ' + e.title + (e.description ? '  -  ' + e.description : '') + '\n'))); }
+        else if (ev && !ev.length) { any = true; box.appendChild(document.createTextNode('The agent found no tests.')); }
+        else if (resp.t) { any = true; box.appendChild(document.createTextNode('The agent answer is not a JSON list (see Agent Response).')); }
+        box.classList.toggle('empty', !any);
+        if (!any) box.appendChild(document.createTextNode('Nothing yet.'));
+      }
+      function paintScanned() {
+        const b = $('auScanned'), c = work.c || '';
+        b.textContent = c ? (c.length > CAP.show ? c.slice(0, CAP.show) + '\n\n... (' + num(c.length - CAP.show) + ' more characters, click the box to see everything)' : c) : 'Nothing scanned yet.';
+        b.classList.toggle('empty', !c);
+        const y = $('auDelYes'); y.textContent = work.d ? 'yes' : 'no';
+        $('auDelYes').style.color = work.d ? 'var(--g)' : 'var(--r)';
+      }
+      function paintAgent() { const b = $('auAgentOut'); b.textContent = resp.t || 'No answer yet.'; b.classList.toggle('empty', !resp.t); }
+      function paintPages() {
+        const box = $('auPages'); box.textContent = '';
+        const pages = (lastData && lastData.pages) || [];
+        if (!pages.length) { box.appendChild(el('span', 'au-nopages', 'No pages yet.')); return; }
+        pages.forEach((p) => {
+          const b = el('button', 'au-pg'); b.type = 'button';
+          b.append(el('b', '', p.title || p.url), el('small', '', num(p.chars || 0) + ' chars'));
+          b.title = p.url; b.addEventListener('click', () => openPage(p));
+          box.appendChild(b);
+        });
+      }
+
+      /* ---------- pop-up viewer ---------- */
+      let modalText = '';
       function showModal(title, text) {
         modalText = text || '';
-        say('testModalTitle', title);
+        $('testModalTitle').textContent = title;
         $('testModalBody').textContent = modalText;
         $('testModalBody').scrollTop = 0;
         $('testModal').hidden = false; $('testModal').classList.add('show');
@@ -10823,190 +10938,47 @@ const PIP_MAX = 3;
       }
       async function openPage(p) {
         showModal(p.title + '  (' + p.chars + ' characters)', 'Loading...');
-        try { const r = await api('?resource=page&id=' + p.id); if ($('testModal').classList.contains('show')) showModal(p.title + '  (' + r.chars + ' characters)', r.body || '(empty page)'); }
+        try { const r = await scanApi('?resource=page&id=' + p.id); if ($('testModal').classList.contains('show')) showModal(p.title + '  (' + r.chars + ' characters)', r.body || '(empty page)'); }
         catch (e) { showModal(p.title, 'Could not load: ' + e.message); }
       }
-      async function openResults() {
-        say('testStatus', 'Loading results...');
-        try {
-          if (!work.c) await loadWork(true);
-          say('testStatus', '');
-          showModal(work.c ? 'Latest scan, working copy (' + num(work.c.length) + ' characters' + (work.c.length !== work.o.length ? ', cleaned from ' + num(work.o.length) : '') + ')' : 'Latest scan',
-            work.c || 'No results yet. Press "Scan now" first.');
-        } catch (e) { say('testStatus', 'Could not load results: ' + e.message); }
+      function openDlg(title, small) {
+        $('auDlgTitle').textContent = title; $('auDlgBox').classList.toggle('small', !!small);
+        $('auDlgBody').textContent = ''; $('auDlgTabs').textContent = ''; $('auDlgTabs').hidden = true;
+        $('auDlg').hidden = false; $('auDlg').classList.add('show');
+        return $('auDlgBody');
       }
+      function closeDlg() { $('auDlg').classList.remove('show'); $('auDlg').hidden = true; paintCfg(); }
 
-      /* ---------- showing a scan ---------- */
-      function render(data) {
-        const run = data && data.run;
-        const logEl = $('testLog');
-        if (!run) { logEl.textContent = 'Nothing yet. Press "Scan now".'; $('testList').innerHTML = ''; say('testListTitle', 'Fetched pages'); return; }
-        const stick = running || logEl.scrollTop + logEl.clientHeight >= logEl.scrollHeight - 24;
-        logEl.textContent = run.log || '(starting...)';
-        if (stick) logEl.scrollTop = logEl.scrollHeight;
-        const pages = data.pages || [];
-        const total = pages.reduce((n, p) => n + (p.chars || 0), 0);
-        say('testListTitle', 'Fetched pages (' + pages.length + ', ' + total + ' characters) · scan from ' + fmt(run.started) + ' · ' + run.status);
-        const box = $('testList');
-        box.innerHTML = '';
-        lastData = data;
-        const shown = more.pages ? pages : pages.slice(0, CAP.pages);
-        const pm = $('testPagesMore'); pm.hidden = pages.length <= CAP.pages; pm.textContent = more.pages ? 'Show fewer' : 'Show all ' + pages.length + ' pages';
-        shown.forEach((p) => {
-          const b = document.createElement('button');
-          b.type = 'button'; b.className = 'test-item';
-          const left = document.createElement('div');
-          left.appendChild(document.createTextNode(p.title));
-          const small = document.createElement('small'); small.textContent = p.url; left.appendChild(small);
-          const n = document.createElement('span'); n.className = 'n'; n.textContent = p.chars + ' chars';
-          b.append(left, n);
-          b.addEventListener('click', () => openPage(p));
-          box.appendChild(b);
-        });
-      }
-
-      /* ---------- scanning ---------- */
-      function setBusy(b) { $('testScanBtn').disabled = b; $('testScanBtn').textContent = b ? 'Scanning...' : 'Scan now'; }
-      async function startScan(auto) {
-        if (running) return;
-        running = true; setBusy(true);
-        say('testStatus', auto ? 'Scheduled scan running...' : 'Scanning...');
-        const pollOnce = async () => { try { render(await api('?resource=latest')); } catch (e) {} };
-        const poll = setInterval(pollOnce, 1000);
-        setTimeout(pollOnce, 400);
-        let scanOk = false;
-        try {
-          const r = await postJson('?resource=run');
-          scanOk = r.status === 'ok';
-          say('testStatus', r.status === 'ok' ? 'Done: ' + r.pages + ' page(s), ' + r.chars + ' characters.'
-            : r.status === 'login-failed' ? 'Login failed. See the log.' : 'Scan failed. See the log.');
-        } catch (e) { say('testStatus', 'Scan failed: ' + e.message); }
-        finally {
-          clearInterval(poll); running = false; setBusy(false);
-          try { render(await api('?resource=latest')); settings = await api('?resource=settings'); showLast(); allowedInfo(); } catch (e) {}
-          if (scanOk) loadWork(true);
-        }
-      }
-      function due() {
-        if (!settings || running || !settings.hasPassword || !settings.username) return false;
-        const now = new Date(), last = settings.last_run ? new Date(settings.last_run) : null;
-        if (settings.every === 'hourly') return !last || now - last >= 3600e3;
-        if (settings.every === 'daily') {
-          const slot = new Date(now.getFullYear(), now.getMonth(), now.getDate(), settings.hour || 0);
-          return now >= slot && (!last || last < slot);
-        }
-        return false;
-      }
-      async function schedTick() {
-        try { if (!settings) settings = await api('?resource=settings'); } catch (e) { return; }
-        if (due()) startScan(true);
-      }
-
-      /* ---------- allowed pages (which pages a scan may visit) ---------- */
-      let pickItems = [], pickChecked = new Set();
-      function allowedInfo() {
-        const n = settings && settings.allowed ? settings.allowed.length : 0;
-        say('testAllowedInfo', n ? 'Only ' + n + ' page(s) are scanned' : 'Scanning everything (nothing is restricted)');
-      }
-      const pickShown = () => {
-        const q = $('testPickFilter').value.trim().toLowerCase();
-        return pickItems.filter((i) => !q || i.path.toLowerCase().includes(q) || (i.text || '').toLowerCase().includes(q));
-      };
-      function renderPicker() {
-        const box = $('testPickList');
-        box.innerHTML = '';
-        pickShown().forEach((i) => {
-          const row = document.createElement('label'); row.className = 'test-pickrow';
-          const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = pickChecked.has(i.path);
-          cb.addEventListener('change', () => { if (cb.checked) pickChecked.add(i.path); else pickChecked.delete(i.path); });
-          const t = document.createElement('span');
-          const b = document.createElement('b'); b.textContent = i.text || '(no label)';
-          const s = document.createElement('small'); s.textContent = i.path;
-          t.append(b, s); row.append(cb, t); box.appendChild(row);
-        });
-      }
-      async function togglePicker() {
-        const box = $('testPicker');
-        if (!box.hidden) { box.hidden = true; return; }
-        box.hidden = false; say('testPickMsg', 'Loading...');
-        try {
-          const r = await api('?resource=found');
-          pickItems = r.found || []; pickChecked = new Set(r.allowed || []);
-          (r.allowed || []).forEach((a) => { if (!pickItems.some((i) => i.path === a)) pickItems.unshift({ path: a, text: '' }); });
-          renderPicker();
-          say('testPickMsg', pickItems.length ? 'Nothing ticked = scan everything.' : 'No pages known yet. Press "Scan now" once, then come back here.');
-        } catch (e) { say('testPickMsg', 'Could not load: ' + e.message); }
-      }
-      async function saveAllowed() {
-        say('testPickMsg', 'Saving...');
-        try {
-          const r = await postJson('?resource=allowed', { allowed: [...pickChecked] });
-          if (settings) settings.allowed = r.allowed;
-          allowedInfo();
-          say('testPickMsg', r.allowed.length ? 'Saved. The next scan fetches only these ' + r.allowed.length + ' page(s).' : 'Saved. Nothing ticked, so the next scan reads everything.');
-        } catch (e) { say('testPickMsg', 'Could not save: ' + e.message); }
-      }
-
-      /* ---------- scanned text: a working copy that is cleaned locally in the browser ---------- */
-      const WORK_KEY = 'testWork.v1', CHIP_KEY = 'testDelChars.v3';
-      const lsGet = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
-      const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
-      const num = (n) => n.toLocaleString();
+      /* ---------- cleaning the scanned text (all local, in the browser) ---------- */
       const HEADER = /^=== .* ===$/;                       // the "=== address ===" line above each page is never touched
       const perLine = (t, fn) => t.split('\n').map((l) => (HEADER.test(l) ? l : fn(l))).join('\n');
-      let work = lsGet(WORK_KEY, { o: '', c: '' });
-      let chips = lsGet(CHIP_KEY, []);
-      const CAP = { chips: 8, pages: 4, work: 3000 };          // what is shown while collapsed; "Expand" shows everything
-      const more = { chips: false, pages: false, work: false, log: false };
-      let lastData = null;
-      const LISTS_KEY = 'testDelLists.v1', AUTO_KEY = 'testDelAuto.v1';
-      let lists = lsGet(LISTS_KEY, {});
-      let auto = lsGet(AUTO_KEY, { on: false, name: '' });
-
-      function showWork(msg) {
-        const o = work.o.length, c = work.c.length;
-        $('testWork').value = more.work || c <= CAP.work ? work.c : work.c.slice(0, CAP.work) + '\n\n… (' + num(c - CAP.work) + ' more characters hidden, press Expand)';
-        const wm = $('testWorkMore'); wm.hidden = c <= CAP.work; wm.textContent = more.work ? 'Collapse' : 'Expand (' + num(c) + ' characters)';
-        $('testWork').classList.toggle('open', more.work);
-        say('testWorkInfo', o ? 'Original ' + num(o) + ' → now ' + num(c) + ' characters' + (c !== o ? ' (−' + Math.round((1 - c / o) * 100) + '%)' : '') : 'Empty. Press "Load latest scan".');
-        say('testWorkMsg', msg || '');
-        lsSet(WORK_KEY, work);
-      }
-      async function loadWork(quiet) {
-        try {
-          const r = await api('?resource=results');
-          work = { o: r.text || '', c: r.text || '' };
-          if (quiet && auto.on && lists[auto.name] && work.c) work.c = deleteChars(work.c, lists[auto.name]);
-          showWork(quiet ? 'Loaded the newest scan' + (auto.on && lists[auto.name] ? ' and ran the list "' + auto.name + '".' : '.') : (r.pages ? 'Loaded ' + r.pages + ' page(s).' : 'No scan results yet.'));
-        } catch (e) { say('testWorkMsg', 'Could not load: ' + e.message); }
-      }
-      // a chip is either one character (typed) or a whole line "L:..." (pasted words/phrases: deletes only lines that are exactly that)
-      function deleteChars(t, list) {
+      // an entry is either one character typed ("," ";" - deleted everywhere) or "L:phrase" (a line that is exactly that phrase is deleted)
+      function deleteWords(t, list) {
         const chars = list.filter((c) => c.slice(0, 2) !== 'L:');
         const lines = new Set(list.filter((c) => c.slice(0, 2) === 'L:').map((c) => c.slice(2).trim().toLowerCase()));
         let out = perLine(t, (l) => { if (lines.size && lines.has(l.trim().toLowerCase())) return ''; for (const c of chars) l = l.split(c).join(''); return l; });
         if (lines.size) out = out.replace(/\n{3,}/g, '\n\n');
         return out;
       }
-      function cleanUnnecessary(t) {
+      function cleanSpaces(t) {
         t = perLine(t, (l) => l
-          .replace(/\.{2,}/g, ' ')                                   // dot leaders  ".........."
-          .replace(/([,\/\\\-_*~|;])\1+/g, '$1')                     // ",,," "///" "---" -> one
-          .replace(/(?:[ \t]*\|[ \t]*){2,}/g, ' | ')                 // empty table cells
+          .replace(/\.{2,}/g, ' ')
+          .replace(/([,\/\\\-_*~|;])\1+/g, '$1')
+          .replace(/(?:[ \t]*\|[ \t]*){2,}/g, ' | ')
           .replace(/^[ \t]*\|[ \t]*/, '').replace(/[ \t]*\|[ \t]*$/, '')
-          .replace(/[ \t ]{2,}/g, ' ').trim());
-        t = perLine(t, (l) => (/[\p{L}\p{N}]/u.test(l) ? l : ''));   // lines with no letters or digits at all
+          .replace(/[ \t  ]{2,}/g, ' ').trim());
+        t = perLine(t, (l) => (/[\p{L}\p{N}]/u.test(l) ? l : ''));
         t = t.replace(/\n{2,}/g, '\n');
         const out = []; let prev = null;
         for (const l of t.split('\n')) { if (l !== prev) out.push(l); prev = l; }
         return out.join('\n').trim();
       }
-      function dropRepeated(t) {                                       // the menu that every page repeats
+      function dropRepeated(t, pct) {                      // the menu that every page repeats
         const blocks = t.split(/\n(?==== [^\n]* ===(?:\n|$))/);
         if (blocks.length < 3) return { text: t, removed: 0, few: true };
         const count = new Map();
         blocks.forEach((b) => { new Set(b.split('\n').slice(1).map((l) => l.trim()).filter(Boolean)).forEach((l) => count.set(l, (count.get(l) || 0) + 1)); });
-        const need = Math.max(3, Math.ceil(blocks.length * 0.6));
+        const need = Math.max(3, Math.ceil(blocks.length * (Math.min(100, Math.max(10, pct || 60)) / 100)));
         let removed = 0;
         const out = blocks.map((b) => {
           const ls = b.split('\n');
@@ -11014,76 +10986,355 @@ const PIP_MAX = 3;
         });
         return { text: out.join('\n'), removed };
       }
-      function needText() { if (work.c) return true; say('testWorkMsg', 'Nothing to clean yet. Press "Load latest scan".'); return false; }
-      // ONE button does it all: junk characters -> menu lines repeated on every page -> every word/character in the list
-      function runClean() {
-        if (!needText()) return;
-        const b = work.c.length, parts = [];
-        let t = cleanUnnecessary(work.c); parts.push(num(b - t.length) + ' junk characters');
-        const d = dropRepeated(t);
-        if (!d.few) { t = d.text; parts.push(num(d.removed) + ' repeated lines'); }
-        if (chips.length) { const before = t.length; t = deleteChars(t, chips); parts.push(num(before - t.length) + ' characters from your list'); }
-        work.c = t;
-        showWork('Cleaned: ' + num(b - t.length) + ' characters removed (' + parts.join(', ') + ').');
+      function activeWords() {
+        const s = new Set();
+        (cfg.delNames || []).forEach((n) => (lists[n] || []).forEach((w) => s.add(w)));
+        return [...s];
       }
-      const say_keep = () => $('testWorkMsg').textContent;
-      function renderChips() {
-        const box = $('testChips'); box.innerHTML = '';
-        say('testChipsCount', chips.length ? '(' + chips.length + ')' : '(empty)');
-        const cm = $('testChipsMore'); cm.hidden = chips.length <= CAP.chips; cm.textContent = more.chips ? 'Show fewer' : 'Show all ' + chips.length;
-        (more.chips ? chips : chips.slice(0, CAP.chips)).forEach((c) => {
-          const line = c.slice(0, 2) === 'L:';
-          const w = document.createElement('div'); w.className = 'test-chip';
-          const a = document.createElement('span'); a.className = 'c'; a.textContent = line ? c.slice(2) : 'character  ' + c; a.title = line ? 'Every line that is exactly this is removed' : 'This character is removed everywhere';
-          const x = document.createElement('button'); x.type = 'button'; x.className = 'x'; x.textContent = '\u2212'; x.title = 'Take off the list'; x.setAttribute('aria-label', 'Remove from the list');
-          x.addEventListener('click', () => { chips = chips.filter((k) => k !== c); lsSet(CHIP_KEY, chips); renderChips(); });
-          w.append(a, x); box.appendChild(w);
-        });
+
+      /* ---------- the four steps ---------- */
+      async function loadWork() {
+        const r = await scanApi('?resource=results');
+        work = { o: r.text || '', c: r.text || '', d: false };
+        saveWork(); paintScanned();
+        return r;
       }
-      function renderLists() {
-        const sel = $('testListPick'); sel.innerHTML = '';
-        const names = Object.keys(lists);
-        if (!names.length) { const o = document.createElement('option'); o.value = ''; o.textContent = 'No saved lists yet'; sel.appendChild(o); }
-        names.forEach((n) => { const o = document.createElement('option'); o.value = n; o.textContent = n + ' (' + lists[n].length + ')'; sel.appendChild(o); });
-        if (auto.name && lists[auto.name]) sel.value = auto.name;
-        $('testListAuto').checked = !!auto.on;
+      async function stepScan() {
+        setStep('scan', 'run'); note('SCAN: started');
+        srvLog = ''; paintLog();
+        const poll = setInterval(async () => { try { const d = await scanApi('?resource=latest'); lastData = d; srvLog = (d.run && d.run.log) || ''; paintLog(); paintPages(); } catch (e) {} }, 1000);
+        let ok = false, msg = '', login = true;
+        try {
+          const r = await scanPost('?resource=run');
+          ok = r.status === 'ok';
+          if (r.status === 'login-failed') login = false;
+          msg = ok ? r.pages + ' page(s), ' + num(r.chars) + ' characters' : (r.status === 'login-failed' ? 'login failed' : 'scan failed (see the lines above)');
+        } catch (e) { msg = e.message; }
+        clearInterval(poll);
+        try { lastData = await scanApi('?resource=latest'); settings = await scanApi('?resource=settings'); } catch (e) {}
+        if (lastData && lastData.run && lastData.run.log) logLines.push(...lastData.run.log.split('\n'));
+        srvLog = ''; paintLog(); paintPages(); paintCfg();
+        if (ok) {
+          try { await loadWork(); } catch (e) { note('SCAN: finished but the text could not be loaded: ' + e.message); setStep('scan', 'bad'); return false; }
+          setConn('d', 'ok'); note('SCAN: done - ' + msg); setStep('scan', 'ok'); return true;
+        }
+        if (!login) setConn('d', 'bad', 'wrong username/password?');
+        note('SCAN: FAILED - ' + msg); setStep('scan', 'bad'); return false;
       }
-      function saveList() {
-        const name = $('testListName').value.trim() || 'My list';
-        if (!chips.length) { say('testWorkMsg', 'Add something to the chips first.'); return; }
-        lists[name] = chips.slice(); lsSet(LISTS_KEY, lists); $('testListName').value = ''; renderLists(); $('testListPick').value = name;
-        say('testWorkMsg', 'Saved list "' + name + '" (' + chips.length + ' items).');
+      async function stepDelete() {
+        setStep('del', 'run');
+        if (!work.o) { try { await loadWork(); } catch (e) {} }
+        if (!work.o) { note('DELETE: nothing scanned yet. Press Scan first.'); setStep('del', 'bad'); return false; }
+        const b = work.o.length, parts = [];
+        let t = cleanSpaces(work.o); parts.push(num(b - t.length) + ' characters of spaces/junk');
+        if (cfg.repeatOn) {
+          const d = dropRepeated(t, cfg.repeatPct);
+          if (d.few) parts.push('repeating phrases skipped (fewer than 3 pages)'); else { t = d.text; parts.push(num(d.removed) + ' repeating lines'); }
+        }
+        if (cfg.delOn) {
+          const w = activeWords();
+          if (w.length) { const before = t.length; t = deleteWords(t, w); parts.push(num(before - t.length) + ' characters from your lists (' + w.length + ' words)'); }
+          else parts.push('no words in the ticked lists');
+        }
+        t = t.replace(/\n{3,}/g, '\n\n').trim();
+        work.c = t; work.d = true; saveWork(); paintScanned();
+        note('DELETE: ' + num(b) + ' -> ' + num(t.length) + ' characters (' + parts.join(', ') + ')');
+        if (!t) { note('DELETE: nothing is left after deleting.'); setStep('del', 'bad'); return false; }
+        setStep('del', 'ok'); return true;
       }
-      function pickedList() { const n = $('testListPick').value; if (!n || !lists[n]) { say('testWorkMsg', 'Pick a saved list first.'); return null; } return n; }
-      function addChips(pasted) {
-        const inp = $('testDelInput');
-        const v = typeof pasted === 'string' ? pasted : inp.value, add = (c) => { if (c && !chips.includes(c)) chips.push(c); };
+      async function stepAgent() {
+        setStep('agent', 'run');
+        if (!work.c) { note('AGENT: there is no scanned text. Press Scan first.'); setStep('agent', 'bad'); return false; }
+        if (!(cfg.prompt || '').trim()) { note('AGENT: the Agent code box is empty.'); setStep('agent', 'bad'); return false; }
+        note('AGENT: sending ' + num(Math.min(work.c.length, cfg.maxChars || 16000)) + ' characters to the AI...');
+        try {
+          const r = await post(AGENT + '?resource=run', { prompt: cfg.prompt, text: work.c, model: cfg.model, maxChars: cfg.maxChars });
+          resp = { t: r.text || '', at: Date.now() }; lsSet(RESP_KEY, resp); paintAgent(); paintFinal();
+          if (!resp.t.trim()) { note('AGENT: the AI answered with nothing.'); setStep('agent', 'bad'); return false; }
+          note('AGENT: answered (' + num(resp.t.length) + ' characters)' + (r.truncated ? '. The text was cut to ' + num(r.usedChars) + ' characters to fit the AI limit - delete more words to send everything.' : ''));
+          setConn('a', 'ok'); setStep('agent', 'ok'); return true;
+        } catch (e) { note('AGENT: FAILED - ' + e.message); setConn('a', 'bad'); setStep('agent', 'bad'); return false; }
+      }
+      // the agent must answer with a JSON list: [{ "date": "2026-11-20", "title": "...", "description": "..." }]
+      function parseEvents(text) {
+        let t = String(text || '').trim();
+        if (!t) return null;
+        const fence = t.match(/```(?:json)?\s*([\s\S]*?)```/i); if (fence) t = fence[1].trim();
+        const a = t.indexOf('['), z = t.lastIndexOf(']');
+        if (a < 0 || z <= a) return null;
+        let arr; try { arr = JSON.parse(t.slice(a, z + 1)); } catch (e) { return null; }
+        if (!Array.isArray(arr)) return null;
+        return arr.filter((e) => e && /^\d{4}-\d{2}-\d{2}$/.test(String(e.date || '')) && String(e.title || '').trim())
+          .map((e) => ({ date: String(e.date), title: String(e.title).trim().slice(0, 120), description: String(e.description || '').trim().slice(0, 400) }));
+      }
+      const hashOf = (s) => { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
+      async function stepPaste() {
+        setStep('cal', 'run');
+        const ev = parseEvents(resp.t);
+        if (ev == null) { note('CALENDAR: the agent answer is not a JSON list, so nothing was pasted.'); setStep('cal', 'bad'); return false; }
+        if (typeof EventStore === 'undefined') { note('CALENDAR: the calendar is not ready.'); setStep('cal', 'bad'); return false; }
+        try {
+          await EventStore.whenReady();
+          let added = 0, updated = 0;
+          ev.forEach((e) => {
+            const id = 'mdtest-' + e.date + '-' + hashOf(e.title.toLowerCase());
+            let rec = EventStore.getForDate(e.date).find((r) => r.id === id);
+            if (rec) { if (rec.type !== e.title || (rec.description || '') !== e.description) { rec.type = e.title; rec.description = e.description; EventStore.save(rec); updated++; } }
+            else { rec = EventStore.create(e.date, 8 * 60, 45); rec.id = id; rec.type = e.title; rec.color = '#ef4444'; rec.description = e.description; EventStore.save(rec); added++; }
+          });
+          await EventStore.flushNow();
+          finalNote = 'Last run ' + hhmmss() + ': ' + ev.length + ' test(s), ' + added + ' new, ' + updated + ' changed.';
+          note('CALENDAR: ' + ev.length + ' test(s) found, ' + added + ' added, ' + updated + ' updated, ' + (ev.length - added - updated) + ' already there.');
+          setStep('cal', 'ok'); return true;
+        } catch (e) { note('CALENDAR: FAILED - ' + e.message); setStep('cal', 'bad'); return false; }
+      }
+      const RUN = { scan: stepScan, del: stepDelete, agent: stepAgent, cal: stepPaste };
+
+      async function runAll(auto) {
+        if (busy) return;
+        busy = 'all'; STEPS.forEach((s) => { stepState[s] = 'idle'; }); paintSteps(); paintFinal();
+        note('=== Automate started' + (auto ? ' (scheduled)' : '') + ' ===');
+        let fine = false;
+        try {
+          if (!(await stepScan())) return;
+          if (!(await stepDelete())) return;
+          if (cfg.agentOn) { if (!(await stepAgent())) return; if (!(await stepPaste())) return; }
+          else { stepState.agent = 'skip'; stepState.cal = 'skip'; paintSteps(); note('Agent code is switched off, so Run Agent and Paste into calendar were skipped.'); finalNote = 'Last run ' + hhmmss() + ': scanned and cleaned (agent is off).'; }
+          fine = true; note('=== Automate finished ===');
+        } finally {
+          if (!fine) { finalNote = 'Stopped at ' + hhmmss() + ': a red step failed (see Current work).'; note('=== Automate stopped ==='); }
+          busy = ''; curWhat = ''; cfg.lastAuto = new Date().toISOString(); saveCfg(); paintSteps(); paintFinal();
+        }
+      }
+      async function runOne(s) {
+        if (busy) return;
+        busy = s; stepState[s] = 'idle'; paintSteps(); paintFinal();
+        try { const ok = await RUN[s](); if (s === 'del' && ok) finalNote = 'Deleted from the list at ' + hhmmss() + '.'; } finally { busy = ''; curWhat = ''; paintSteps(); paintFinal(); }
+      }
+
+      /* ---------- the schedule (only while the site is open: Cloudflare Pages has no cron) ---------- */
+      function lastSlot() {
+        const m = /^(\d{1,2}):(\d{2})$/.exec(cfg.time || ''); if (!m) return null;
+        const n = new Date();
+        const s = new Date(n.getFullYear(), n.getMonth(), n.getDate(), +m[1], +m[2], 0, 0);
+        if (cfg.every === 'weekly') s.setDate(s.getDate() - ((n.getDay() - (+cfg.dow) + 7) % 7));
+        if (s > n) s.setDate(s.getDate() - (cfg.every === 'weekly' ? 7 : 1));
+        return s;
+      }
+      async function schedTick() {
+        if (!cfg.runOn || busy) return;
+        const slot = lastSlot(); if (!slot) return;
+        if (cfg.lastAuto && new Date(cfg.lastAuto) >= slot) return;
+        try { const c = await jf(AUTO + '?key=cfg'); if (c.value && c.value.lastAuto) { if (c.value.lastAuto > (cfg.lastAuto || '')) cfg.lastAuto = c.value.lastAuto; if (new Date(cfg.lastAuto) >= slot) { lsSet(CFG_KEY, cfg); return; } } } catch (e) {}
+        if (!busy) runAll(true);
+      }
+
+      /* ---------- connection tests ---------- */
+      async function testDienynas() {
+        if (busy) return;
+        setConn('d', 'wait'); note('DIENYNAS: testing the login...');
+        try {
+          const r = await scanPost('?resource=logintest');
+          const d = await scanApi('?resource=latest').catch(() => null);
+          if (d && d.run && d.run.log) logLines.push(...d.run.log.split('\n').slice(-12));
+          if (r.loggedIn) { setConn('d', 'ok'); note('DIENYNAS: logged in.'); }
+          else { setConn('d', 'bad', r.status === 'login-failed' ? 'wrong username/password?' : 'see Current work'); note('DIENYNAS: NOT logged in (' + r.status + ').'); }
+        } catch (e) { setConn('d', 'bad', e.message); note('DIENYNAS: test failed - ' + e.message); }
+        paintLog();
+      }
+      async function testAgent() {
+        if (busy) return;
+        setConn('a', 'wait'); note('AGENT: testing the connection...');
+        try {
+          const r = await post(AGENT + '?resource=test', { model: cfg.model });
+          if (!r.ok) { setConn('a', 'bad', r.error || 'no answer'); note('AGENT: NOT connected - ' + (r.error || '')); }
+          else if (!r.found) { setConn('a', 'bad', 'key works, model "' + (cfg.model || 'openai/gpt-oss-120b') + '" not found'); note('AGENT: the key works but the model name was not found. Press edit and fix the model.'); }
+          else { setConn('a', 'ok'); note('AGENT: connected (' + (r.model) + ').'); }
+        } catch (e) { setConn('a', 'bad', e.message); note('AGENT: test failed - ' + e.message); }
+      }
+
+      /* ---------- editor: word lists + repeating phrases ---------- */
+      let edSel = '', edTab = 'lists';
+      const entryText = (w) => (w.slice(0, 2) === 'L:' ? w.slice(2) : 'character  ' + w);
+      function parseWords(v) {
         const quoted = [...v.matchAll(/'((?:[^']|'')*)'/g)].map((m) => m[1].replace(/''/g, "'").trim()).filter(Boolean);
-        if (quoted.length) quoted.forEach((p) => add('L:' + p));                       // pasted SQL list: every 'phrase' becomes a line chip
-        else if (/\n/.test(v)) v.split('\n').map((x) => x.trim()).filter(Boolean).forEach((p) => add('L:' + p));   // one phrase per line
-        else for (const c of [...v]) { if (!/\s/.test(c)) add(c); }                    // typed characters
-        inp.value = ''; lsSet(CHIP_KEY, chips); renderChips(); inp.focus();
+        return (quoted.length ? quoted : v.split(/\r?\n/).map((x) => x.trim()).filter(Boolean));
       }
-      async function copyWork() {
-        if (!work.c) { say('testWorkMsg', 'Nothing to copy yet.'); return; }
-        try { await navigator.clipboard.writeText(work.c); } catch (e) { $('testWork').select(); document.execCommand('copy'); }
-        say('testWorkMsg', 'Copied ' + num(work.c.length) + ' characters.');
-      }
+      function openLists(tab) { edTab = tab || 'lists'; if (!lists[edSel]) edSel = cfg.delNames[0] || Object.keys(lists)[0] || ''; openDlg('Deletion'); renderEditor(); }
+      function renderEditor() {
+        const body = $('auDlgBody'); body.textContent = '';
+        const tabs = $('auDlgTabs'); tabs.textContent = ''; tabs.hidden = false;
+        [['lists', 'Word lists'], ['rep', 'Repeating phrases']].forEach(([k, t]) => {
+          const b = el('button', 'au-mbtn' + (edTab === k ? ' sel' : ''), t); b.type = 'button';
+          b.addEventListener('click', () => { edTab = k; renderEditor(); }); tabs.appendChild(b);
+        });
+        if (edTab === 'rep') return renderRepTab(body);
+        const two = el('div', 'au-two'); body.appendChild(two);
+        const L = el('div', 'au-col'), R = el('div', 'au-col'); two.append(L, R);
+        L.appendChild(el('div', 'au-hint', 'Tick the lists that Delete words should use. Press a name to edit its words.'));
+        const sc = el('div', 'au-scroll'); L.appendChild(sc);
+        const names = Object.keys(lists);
+        if (!names.length) sc.appendChild(el('div', 'au-hint', 'No lists yet. Make one below.'));
+        names.forEach((n) => {
+          const row = el('div', 'au-li' + (n === edSel ? ' sel' : ''));
+          const cb = el('input'); cb.type = 'checkbox'; cb.checked = cfg.delNames.includes(n); cb.title = 'Use this list';
+          cb.addEventListener('change', () => { cfg.delNames = cb.checked ? [...new Set(cfg.delNames.concat(n))] : cfg.delNames.filter((x) => x !== n); saveCfg(); });
+          const nm = el('button', 'nm', n); nm.type = 'button'; nm.addEventListener('click', () => { edSel = n; renderEditor(); });
+          const c = el('span', 'n', String(lists[n].length));
+          const x = el('button', 'x', '−'); x.type = 'button'; x.title = 'Delete this list';
+          x.addEventListener('click', () => { if (!confirm('Delete the list "' + n + '" and all its words?')) return; delete lists[n]; cfg.delNames = cfg.delNames.filter((k) => k !== n); if (edSel === n) edSel = ''; saveLists(); saveCfg(); renderEditor(); });
+          row.append(cb, nm, c, x); sc.appendChild(row);
+        });
+        const nf = el('div', 'au-fl'); const ni = el('input', 'au-in'); ni.placeholder = 'New list name'; ni.style.flex = '1';
+        const nb = el('button', 'au-mbtn', 'Add list'); nb.type = 'button';
+        const addList = () => { const n = ni.value.trim(); if (!n) return; if (!lists[n]) lists[n] = []; edSel = n; saveLists(); renderEditor(); };
+        nb.addEventListener('click', addList); ni.addEventListener('keydown', (e) => { if (e.key === 'Enter') addList(); });
+        nf.append(ni, nb); L.appendChild(nf);
 
-      /* ---------- notes: summary pages, listed like scanned pages; press one for a huge pop-up ---------- */
-      function renderNotes() {
-        const box = $('testNotes'); box.innerHTML = '';
-        NOTES.forEach((n) => {
-          const b = document.createElement('button'); b.type = 'button'; b.className = 'test-item';
-          const left = document.createElement('div'); left.appendChild(document.createTextNode(n.title));
-          const small = document.createElement('small'); small.textContent = n.sub; left.appendChild(small);
-          const c = document.createElement('span'); c.className = 'n'; c.textContent = num(n.text.length) + ' chars';
-          b.append(left, c); b.addEventListener('click', () => showModal(n.title + '  (' + num(n.text.length) + ' characters)', n.text));
-          box.appendChild(b);
+        if (!edSel || !lists[edSel]) { R.appendChild(el('div', 'au-hint', 'Pick a list on the left, or make a new one.')); return; }
+        const arr = lists[edSel];
+        R.appendChild(el('b', '', 'Words in: ' + edSel + '  (' + arr.length + ')'));
+        R.appendChild(el('div', 'au-hint', 'Paste one word or phrase per line (a list copied from SQL like \'a\',\'b\' also works). A line is deleted only when the WHOLE line is exactly that text (capital letters do not matter). Saved in your D1 database (shared by PC and phone) and in this browser.'));
+        const ta = el('textarea'); ta.rows = 4; ta.placeholder = 'Type or paste words here, one per line'; R.appendChild(ta);
+        const msg = el('div', 'au-msg');
+        const f1 = el('div', 'au-fl');
+        const add = el('button', 'au-mbtn solid', 'Add words'); add.type = 'button';
+        const std = el('button', 'au-mbtn', 'Add the standard menu words'); std.type = 'button';
+        const addMany = (ws) => {
+          let added = 0, skip = 0, long = 0;
+          ws.forEach((w) => { if (w.length > CAP.maxLen) { long++; return; } const e = 'L:' + w; if (arr.includes(e) || arr.length >= CAP.maxWords) { skip++; return; } arr.push(e); added++; });
+          saveLists(); return { added, skip, long };
+        };
+        add.addEventListener('click', () => {
+          const r = addMany(parseWords(ta.value));
+          if (!r.added && r.long) { msg.className = 'au-msg bad'; msg.textContent = 'That line is too long for one entry (limit ' + CAP.maxLen + ' characters). Put each word on its own line.'; return; }
+          renderEditor(); const m = $('auDlgBody').querySelector('.au-msg'); if (m) m.textContent = 'Added ' + r.added + (r.skip ? ' (' + r.skip + ' already there)' : '') + (r.long ? ', ' + r.long + ' too long and skipped' : '') + '.';
+        });
+        std.addEventListener('click', () => { const r = addMany(STANDARD_WORDS); renderEditor(); const m = $('auDlgBody').querySelector('.au-msg'); if (m) m.textContent = r.added ? 'Added ' + r.added + ' standard words.' : 'They are all in the list already.'; });
+        f1.append(add, std); R.append(f1);
+        const f2 = el('div', 'au-fl'); const ci = el('input', 'au-in'); ci.placeholder = 'Characters to delete everywhere, for example ,;|'; ci.style.flex = '1';
+        const cb2 = el('button', 'au-mbtn', 'Add characters'); cb2.type = 'button';
+        cb2.addEventListener('click', () => { let a = 0; for (const c of [...ci.value]) { if (/\s/.test(c) || arr.includes(c)) continue; arr.push(c); a++; } saveLists(); renderEditor(); const m = $('auDlgBody').querySelector('.au-msg'); if (m) m.textContent = 'Added ' + a + ' character(s).'; });
+        f2.append(ci, cb2); R.append(f2, msg);
+        const sc2 = el('div', 'au-scroll'); R.appendChild(sc2);
+        if (!arr.length) sc2.appendChild(el('div', 'au-hint', 'This list is empty.'));
+        arr.forEach((w) => {
+          const row = el('div', 'au-li'); const t = el('span', 'nm', entryText(w)); t.style.cursor = 'default';
+          const x = el('button', 'x', '✕'); x.type = 'button'; x.title = 'Remove from the list';
+          x.addEventListener('click', () => { lists[edSel] = lists[edSel].filter((k) => k !== w); saveLists(); renderEditor(); });
+          row.append(t, x); sc2.appendChild(row);
         });
       }
+      function renderRepTab(body) {
+        const f = el('div', 'au-form');
+        const row = el('div', 'au-fl'); const cb = el('input'); cb.type = 'checkbox'; cb.checked = !!cfg.repeatOn; cb.style.cssText = 'width:1.2em;height:1.2em;accent-color:var(--g)';
+        cb.addEventListener('change', () => { cfg.repeatOn = cb.checked; saveCfg(); });
+        row.append(cb, el('span', '', 'Delete repeating phrases'));
+        const lab = el('label', '', 'A line counts as repeating when it is on at least this many percent of the scanned pages');
+        const pi = el('input', 'au-in'); pi.type = 'number'; pi.min = '10'; pi.max = '100'; pi.value = String(cfg.repeatPct || 60); pi.style.maxWidth = '8em';
+        pi.addEventListener('change', () => { cfg.repeatPct = Math.min(100, Math.max(10, parseInt(pi.value, 10) || 60)); pi.value = String(cfg.repeatPct); saveCfg(); });
+        lab.appendChild(pi);
+        f.append(row, lab,
+          el('div', 'au-hint', 'This removes the menu and footer lines that the school site repeats on every page. It needs at least 3 pages. Lower the percent to delete more, raise it to delete less.'),
+          el('div', 'au-hint', 'Delete words always removes extra spaces, dot lines (.....), empty table cells, blank lines and lines without any letter or number, whatever is ticked.'));
+        body.appendChild(f);
+      }
+      function seeWords() {
+        const out = [];
+        (cfg.delNames || []).forEach((n) => { const a = lists[n] || []; out.push('=== ' + n + '  (' + a.length + ') ==='); a.forEach((w) => out.push(entryText(w))); out.push(''); });
+        showModal('Words that "Delete words" removes' + (cfg.delOn ? '' : '  (this check mark is OFF)'), out.length ? out.join('\n') : 'No list is ticked. Press "(pick list)" and tick one.');
+      }
+      function seeRepeat() {
+        showModal('Repeating phrases' + (cfg.repeatOn ? '' : '  (this check mark is OFF)'),
+          'Lines that appear on at least ' + (cfg.repeatPct || 60) + '% of the scanned pages (the menu and footer that the school site repeats on every page) are deleted.\nIt needs at least 3 pages.\n\nPress "(edit code)" to change the percent.');
+      }
 
-      /* ---------- turning Test mode on / off ---------- */
+      /* ---------- editor: allowed websites (which pages a scan may visit) ---------- */
+      let pickItems = [], pickChecked = new Set();
+      async function openPicker() {
+        const body = openDlg('Allowed websites');
+        const flt = el('input', 'au-in'); flt.placeholder = 'Filter pages...';
+        const f1 = el('div', 'au-fl'); const all = el('button', 'au-mbtn', 'Tick all shown'), none = el('button', 'au-mbtn', 'Untick all shown'); all.type = none.type = 'button';
+        const sc = el('div', 'au-scroll'); sc.style.height = '52vh';
+        const nm = el('input', 'au-in'); nm.value = cfg.allowName || 'Test 1'; nm.style.maxWidth = '14em'; nm.setAttribute('aria-label', 'Name of this selection');
+        const sv = el('button', 'au-mbtn solid', 'Save allowed pages'); sv.type = 'button';
+        const msg = el('div', 'au-msg', 'Loading...');
+        const f2 = el('div', 'au-fl'); f2.append(el('span', '', 'Name:'), nm, sv);
+        f1.append(all, none);
+        body.append(el('div', 'au-hint', 'Tick the pages a scan may read (for example the tests page and the homework page). Nothing ticked = scan everything. Run Scan once first so this list has pages in it.'), flt, f1, sc, f2, msg);
+        const shown = () => { const q = flt.value.trim().toLowerCase(); return pickItems.filter((i) => !q || i.path.toLowerCase().includes(q) || (i.text || '').toLowerCase().includes(q)); };
+        const draw = () => {
+          sc.textContent = '';
+          shown().forEach((i) => {
+            const row = el('label', 'au-li'); const cb = el('input'); cb.type = 'checkbox'; cb.checked = pickChecked.has(i.path);
+            cb.addEventListener('change', () => { if (cb.checked) pickChecked.add(i.path); else pickChecked.delete(i.path); });
+            const t = el('span'); t.style.flex = '1'; t.append(el('b', '', i.text || '(no label)'), el('small', '', i.path));
+            row.append(cb, t); sc.appendChild(row);
+          });
+        };
+        flt.addEventListener('input', draw);
+        all.addEventListener('click', () => { shown().forEach((i) => pickChecked.add(i.path)); draw(); });
+        none.addEventListener('click', () => { shown().forEach((i) => pickChecked.delete(i.path)); draw(); });
+        sv.addEventListener('click', async () => {
+          msg.className = 'au-msg'; msg.textContent = 'Saving...';
+          try {
+            const r = await scanPost('?resource=allowed', { allowed: [...pickChecked] });
+            if (settings) settings.allowed = r.allowed;
+            cfg.allowName = nm.value.trim() || 'Test 1'; saveCfg(); paintCfg();
+            msg.textContent = r.allowed.length ? 'Saved. The next scan reads only these ' + r.allowed.length + ' page(s).' : 'Saved. Nothing ticked, so the next scan reads everything.';
+          } catch (e) { msg.className = 'au-msg bad'; msg.textContent = 'Could not save: ' + e.message; }
+        });
+        try {
+          const r = await scanApi('?resource=found');
+          pickItems = r.found || []; pickChecked = new Set(r.allowed || []);
+          (r.allowed || []).forEach((a) => { if (!pickItems.some((i) => i.path === a)) pickItems.unshift({ path: a, text: '' }); });
+          draw(); msg.textContent = pickItems.length ? '' : 'No pages known yet. Press Scan once, then come back here.';
+        } catch (e) { msg.className = 'au-msg bad'; msg.textContent = 'Could not load: ' + e.message; }
+      }
+
+      /* ---------- editor: accounts ---------- */
+      async function openDienynasEdit() {
+        const body = openDlg('Dienynas account', true);
+        try { if (!settings) settings = await scanApi('?resource=settings'); } catch (e) {}
+        const s = settings || {};
+        const f = el('div', 'au-form');
+        const mk = (label, type, val, ph) => { const l = el('label', '', label); const i = el('input', 'au-in'); i.type = type; i.value = val || ''; if (ph) i.placeholder = ph; i.autocomplete = type === 'password' ? 'new-password' : 'off'; l.appendChild(i); f.appendChild(l); return i; };
+        const url = mk('Start page', 'text', s.start_url, 'https://www.manodienynas.lt/');
+        const user = mk('Username', 'text', s.username);
+        const pw = mk('Password', 'password', '', s.hasPassword ? 'Password saved (type to change it)' : 'Password');
+        const lab = el('label'); lab.style.cssText = 'display:flex;gap:.5em;align-items:center;font-weight:600;color:var(--k)';
+        const ig = el('input'); ig.type = 'checkbox'; ig.checked = !!s.ignore_on; ig.style.accentColor = 'var(--g)';
+        lab.append(ig, document.createTextNode('Also cut out the words of the D1 list "scan_ignore" while scanning'));
+        const row = el('div', 'au-fl'); const sv = el('button', 'au-mbtn solid', 'Save'), ts = el('button', 'au-mbtn', 'Save and test'); sv.type = ts.type = 'button';
+        const msg = el('div', 'au-msg'); row.append(sv, ts);
+        f.append(lab, row, msg, el('div', 'au-hint', 'The password is saved encrypted on the server and is never shown again. Leave it empty to keep the saved one.'));
+        body.appendChild(f);
+        const save = async () => {
+          msg.className = 'au-msg'; msg.textContent = 'Saving...';
+          const b = { start_url: url.value.trim(), username: user.value.trim(), every: (settings && settings.every) || 'off', hour: settings && settings.hour != null ? settings.hour : 7, ignore_on: ig.checked };
+          if (pw.value) b.password = pw.value;
+          try { settings = await scanPost('?resource=settings', b); pw.value = ''; pw.placeholder = settings.hasPassword ? 'Password saved (type to change it)' : 'Password'; msg.textContent = 'Saved' + (b.password ? ' (password stored encrypted).' : '.'); setConn('d', 'none'); return true; }
+          catch (e) { msg.className = 'au-msg bad'; msg.textContent = 'Could not save: ' + e.message; return false; }
+        };
+        sv.addEventListener('click', save);
+        ts.addEventListener('click', async () => { if (await save()) { closeDlg(); testDienynas(); } });
+      }
+      function openAgentEdit() {
+        const body = openDlg('Agent', true);
+        const f = el('div', 'au-form');
+        const l1 = el('label', '', 'Model (leave empty for openai/gpt-oss-120b)'); const mi = el('input', 'au-in'); mi.value = cfg.model || ''; mi.placeholder = 'openai/gpt-oss-120b'; l1.appendChild(mi);
+        const l2 = el('label', '', 'Most characters sent to the AI at once'); const ci = el('input', 'au-in'); ci.type = 'number'; ci.min = '2000'; ci.max = '60000'; ci.value = String(cfg.maxChars || 16000); l2.appendChild(ci);
+        const row = el('div', 'au-fl'); const sv = el('button', 'au-mbtn solid', 'Save'), ts = el('button', 'au-mbtn', 'Save and test'); sv.type = ts.type = 'button'; row.append(sv, ts);
+        const msg = el('div', 'au-msg');
+        f.append(l1, l2, row, msg, el('div', 'au-hint', 'The AI key is the Cloudflare variable GROQ_API_KEY (Settings, Variables and Secrets). It is never shown here. The free Groq plan allows only a few thousand words per minute, so a smaller text works better.'));
+        body.appendChild(f);
+        const save = () => { cfg.model = mi.value.trim(); cfg.maxChars = Math.min(60000, Math.max(2000, parseInt(ci.value, 10) || 16000)); saveCfg(); msg.className = 'au-msg'; msg.textContent = 'Saved.'; setConn('a', 'none'); };
+        sv.addEventListener('click', save);
+        ts.addEventListener('click', () => { save(); closeDlg(); testAgent(); });
+      }
+
+      /* ---------- turning the dashboard on / off ---------- */
+      async function loadSettings() { try { settings = await scanApi('?resource=settings'); paintCfg(); } catch (e) { note('Could not load the diary settings: ' + e.message); } }
       function setOn(v, o) {
         o = o || {};
         if (v === on) return;
@@ -11098,83 +11349,87 @@ const PIP_MAX = 3;
         if (on) monthTab.classList.remove('active');
         else if (o.tabs !== false && typeof GlobalTopBar !== 'undefined' && GlobalTopBar.currentView() === 'month') monthTab.classList.add('active');
         if (on) {
-          tick(); clearInterval(clockT); clockT = setInterval(tick, 1000);
-          loadSettings().catch((e) => say('testSaveMsg', 'Could not load settings: ' + e.message));
-          api('?resource=latest').then(render).catch(() => {});
-        } else clearInterval(clockT);
+          loadRemote(); loadSettings();
+          scanApi('?resource=latest').then((d) => {
+            lastData = d; paintPages();
+            if (!logLines.length && d.run && d.run.log) { logLines = d.run.log.split('\n'); logLines.unshift('(log of the last scan)'); paintLog(); }
+          }).catch(() => {});
+          paintAll();
+        }
+      }
+      function paintAll() { paintCfg(); paintSteps(); paintFinal(); paintScanned(); paintAgent(); paintPages(); paintLog(); setConn('d', conn.d, conn.dWhy); setConn('a', conn.a); }
+
+      function link(id, fn) { const a = $(id); a.addEventListener('click', fn); a.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fn(); } }); }
+      function bigBox(id, title, getText) {
+        $(id).addEventListener('click', () => { if (String(getSelection()).length) return; const t = getText(); if (t) showModal(title, t); });
       }
 
       function init() {
-        const hourSel = $('testHour');
-        for (let h = 0; h < 24; h++) { const op = document.createElement('option'); op.value = String(h); op.textContent = p2(h) + ':00'; hourSel.appendChild(op); }
-        hourSel.value = '7';
-        $('testEvery').addEventListener('change', () => { hourSel.disabled = $('testEvery').value !== 'daily'; });
-        hourSel.disabled = true;
-
         tab.style.touchAction = 'manipulation';
         tab.addEventListener('click', () => {
           if (on) return;
-          if (typeof GlobalTopBar !== 'undefined' && GlobalTopBar.currentView() !== 'month') {
-            GlobalTopBar.goToMonthView();
-            setTimeout(() => setOn(true), 60);
-          } else setOn(true);
+          if (typeof GlobalTopBar !== 'undefined' && GlobalTopBar.currentView() !== 'month') { GlobalTopBar.goToMonthView(); setTimeout(() => setOn(true), 60); }
+          else setOn(true);
         });
         monthTab.addEventListener('click', () => { if (on) setOn(false); });
         dayTab.addEventListener('click', () => { if (on) setOn(false, { tabs: false }); });
         weekTab.addEventListener('click', () => { if (on) setOn(false, { tabs: false }); });
-        new MutationObserver(() => { if (on && monthTab.classList.contains('active')) monthTab.classList.remove('active'); })
-          .observe(monthTab, { attributes: true, attributeFilter: ['class'] });
-        // Ads / Money calendars and Test can't be on together
-        new MutationObserver(() => {
-          if (on && (document.body.classList.contains('ads-mode') || document.body.classList.contains('money-mode'))) setOn(false, { tabs: false });
-        }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+        new MutationObserver(() => { if (on && monthTab.classList.contains('active')) monthTab.classList.remove('active'); }).observe(monthTab, { attributes: true, attributeFilter: ['class'] });
+        new MutationObserver(() => { if (on && (document.body.classList.contains('ads-mode') || document.body.classList.contains('money-mode'))) setOn(false, { tabs: false }); })
+          .observe(document.body, { attributes: true, attributeFilter: ['class'] });
+        $('daysGrid').addEventListener('click', (e) => { if (!on) return; if (e.target.closest('.day-cell')) { e.stopImmediatePropagation(); e.preventDefault(); } }, true);
 
-        // no day can be clicked in Test mode
-        $('daysGrid').addEventListener('click', (e) => {
-          if (!on) return;
-          if (e.target.closest('.day-cell')) { e.stopImmediatePropagation(); e.preventDefault(); }
-        }, true);
+        // top: Automate + the four buttons
+        $('auGo').addEventListener('click', () => runAll(false));
+        document.querySelectorAll('.au-btn').forEach((b) => b.addEventListener('click', () => runOne(b.dataset.do)));
 
-        $('testScanBtn').addEventListener('click', () => startScan(false));
-        $('testResultsBtn').addEventListener('click', openResults);
-        $('testSaveBtn').addEventListener('click', saveSettings);
+        // check marks
+        const tog = { auRunOn: 'runOn', auDelOn: 'delOn', auRepOn: 'repeatOn', auAgentOn: 'agentOn' };
+        Object.keys(tog).forEach((id) => $(id).addEventListener('click', () => {
+          const k = tog[id]; cfg[k] = !cfg[k];
+          if (id === 'auRunOn' && cfg.runOn) { const s = lastSlot(); if (s && (!cfg.lastAuto || new Date(cfg.lastAuto) < s)) cfg.lastAuto = new Date().toISOString(); }   // starts at the NEXT slot
+          saveCfg(); paintCfg();
+        }));
+        $('auEvery').addEventListener('change', () => { cfg.every = $('auEvery').value; saveCfg(); paintCfg(); });
+        $('auDow').addEventListener('change', () => { cfg.dow = parseInt($('auDow').value, 10); saveCfg(); });
+        $('auTime').addEventListener('change', () => { if ($('auTime').value) { cfg.time = $('auTime').value; saveCfg(); } });
+        let pt = 0;
+        $('auPrompt').addEventListener('input', () => { cfg.prompt = $('auPrompt').value; clearTimeout(pt); pt = setTimeout(saveCfg, 700); });
+
+        // links
+        link('auPickList', () => openLists('lists')); link('auSeeWords', seeWords);
+        link('auEditRep', () => openLists('rep')); link('auSeeRep', seeRepeat);
+        link('auPickPages', openPicker);
+        link('auDTest', testDienynas); link('auDEdit', openDienynasEdit);
+        link('auATest', testAgent); link('auAEdit', openAgentEdit);
+
+        // click a box = see everything in a big pop-up
+        bigBox('auScanned', 'Scanned text (' + 'working copy)', () => work.c);
+        bigBox('auAgentOut', 'Agent response', () => resp.t);
+        bigBox('auFinal', 'Final product', () => $('auFinal').textContent);
+        bigBox('auLog', 'Current work', () => logLines.concat(srvLog ? srvLog.split('\n') : []).join('\n'));
+
+        // Fetched Pages: the mouse wheel moves the row sideways
+        $('auPages').addEventListener('wheel', (e) => {
+          const s = e.currentTarget; if (s.scrollWidth <= s.clientWidth) return;
+          e.preventDefault(); s.scrollLeft += Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+        }, { passive: false });
+
+        // pop-ups
         $('testModalClose').addEventListener('click', closeModal);
         $('testModalCopy').addEventListener('click', copyModal);
         $('testModal').addEventListener('click', (e) => { if (e.target === $('testModal')) closeModal(); });
-        document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('testModal').classList.contains('show')) closeModal(); });
-
-        $('testPickBtn').addEventListener('click', togglePicker);
-        $('testPickFilter').addEventListener('input', renderPicker);
-        $('testPickAll').addEventListener('click', () => { pickShown().forEach((i) => pickChecked.add(i.path)); renderPicker(); });
-        $('testPickNone').addEventListener('click', () => { pickShown().forEach((i) => pickChecked.delete(i.path)); renderPicker(); });
-        $('testPickSave').addEventListener('click', saveAllowed);
-        $('testLoadBtn').addEventListener('click', () => loadWork(false));
-        $('testCleanBtn').addEventListener('click', runClean);
-        $('testRestoreBtn').addEventListener('click', () => { if (!work.o) { say('testWorkMsg', 'Nothing to restore.'); return; } work.c = work.o; showWork('Original text restored.'); });
-        $('testWorkCopyBtn').addEventListener('click', copyWork);
-        $('testWorkBigBtn').addEventListener('click', () => { if (!work.c) { say('testWorkMsg', 'Nothing to show yet.'); return; } showModal('Scanned text, working copy (' + num(work.c.length) + ' characters)', work.c); });
-        $('testDelAdd').addEventListener('click', () => addChips());
-        // a one-line box throws away the line breaks of a pasted list, so catch the paste ourselves: several lines = one phrase chip per line
-        $('testDelInput').addEventListener('paste', (e) => {
-          const t = (e.clipboardData && e.clipboardData.getData('text')) || '';
-          if (/[\r\n]/.test(t.trim())) { e.preventDefault(); addChips(t.replace(/\r/g, '')); }
+        $('auDlgClose').addEventListener('click', closeDlg);
+        $('auDlg').addEventListener('click', (e) => { if (e.target === $('auDlg')) closeDlg(); });
+        document.addEventListener('keydown', (e) => {
+          if (e.key !== 'Escape') return;
+          if ($('testModal').classList.contains('show')) closeModal(); else if ($('auDlg').classList.contains('show')) closeDlg();
         });
-        $('testDelInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addChips(); } });
-        $('testIgnoreOn').addEventListener('change', saveSettings);
-        $('testChipsMore').addEventListener('click', () => { more.chips = !more.chips; renderChips(); });
-        $('testWorkMore').addEventListener('click', () => { more.work = !more.work; showWork(say_keep()); });
-        $('testPagesMore').addEventListener('click', () => { more.pages = !more.pages; if (lastData) render(lastData); });
-        $('testLogMore').addEventListener('click', () => { more.log = !more.log; $('testLog').classList.toggle('open', more.log); $('testLogMore').textContent = more.log ? 'Collapse' : 'Expand'; });
-        $('testListSave').addEventListener('click', saveList);
-        $('testListLoad').addEventListener('click', () => { const n = pickedList(); if (!n) return; chips = lists[n].slice(); lsSet(CHIP_KEY, chips); renderChips(); $('testListName').value = n; say('testWorkMsg', 'List "' + n + '" is in the chips above. Change it and press Save list.'); });
-        $('testListDel').addEventListener('click', () => { const n = pickedList(); if (!n) return; delete lists[n]; lsSet(LISTS_KEY, lists); if (auto.name === n) { auto = { on: false, name: '' }; lsSet(AUTO_KEY, auto); } renderLists(); say('testWorkMsg', 'Deleted list "' + n + '".'); });
-        const setAuto = () => { auto = { on: $('testListAuto').checked, name: $('testListPick').value }; lsSet(AUTO_KEY, auto); say('testWorkMsg', auto.on && lists[auto.name] ? 'After every scan the list "' + auto.name + '" will run.' : 'Auto-run is off.'); };
-        $('testListAuto').addEventListener('change', setAuto);
-        $('testListPick').addEventListener('change', () => { if (auto.on) setAuto(); });
-        showWork(); renderChips(); renderLists(); renderNotes();
 
-        setTimeout(schedTick, 5000);
-        setInterval(schedTick, 60000);
+        paintAll();
+        setTimeout(loadRemote, 2500);
+        setTimeout(schedTick, 6000);
+        setInterval(schedTick, 30000);
       }
       init();
       return { isOn: () => on };
