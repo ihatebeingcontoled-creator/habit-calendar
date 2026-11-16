@@ -3022,6 +3022,21 @@ body.night-mode .bd-row { background: #1a1a1a; border-color: #333; } body.night-
 .bd-collapse .birthdays-panel { margin: 0; padding: 0; border: 0; } .bd-collapse .birthdays-list { max-height: 240px; }
 </style>
 <style id="uiTweaks">
+/* ===== Day/Week boxes: top half = move, bottom half = resize; a little grab margin outside the box ===== */
+.day-time-grid-event-box { overflow: visible; }
+.day-time-grid-event-box.editing { overflow: hidden; }
+.day-time-grid-event-box-content { border-radius: inherit; }
+.day-time-grid-event-box::before { content: ''; position: absolute; left: 0; right: 0; top: calc(-1 * var(--ovt, 14px)); height: var(--ovt, 14px); z-index: 9; }
+.day-time-grid-event-box.editing::before { display: none; }
+.day-time-grid-event-box-handle.top { display: none; }
+.day-time-grid-event-box-handle.bottom { top: auto; left: 0; right: 0; bottom: calc(-1 * var(--ovb, 14px)); height: calc(50% + var(--ovb, 14px)); cursor: ns-resize; }
+.day-time-grid-event-box-handle.bottom::after { content: ''; position: absolute; left: 50%; bottom: calc(var(--ovb, 14px) + 3px); width: 22px; height: 3px; margin-left: -11px; border-radius: 2px; background: rgba(255,255,255,.55); pointer-events: none; }
+.day-time-grid-event-box.editing .day-time-grid-event-box-handle.bottom { bottom: -8px; height: 16px; }
+.day-time-grid-event-box.editing .day-time-grid-event-box-handle.bottom::after { display: none; }
+@media (pointer: coarse) {
+  .day-time-grid-event-box-handle.left, .day-time-grid-event-box-handle.right { width: 38px; }
+  .day-time-grid-event-box-handle.left { left: 0; } .day-time-grid-event-box-handle.right { right: 0; }
+}
 /* ===== same-size buttons ===== */
 /* PC: top bar, day panel and the whole Test tab (editor panel + calendar) share one button height */
 .global-topbar-tab, .global-topbar-selectday, .global-topbar-tz-btn { height: 36px; min-height: 36px; padding-top: 0 !important; padding-bottom: 0 !important; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; box-sizing: border-box; }
@@ -14161,22 +14176,27 @@ window.__TEST_TAB_SRC = "/* test.js - the WHOLE Test tab in one file: its styles
   /* clicking a day in the month (it still opens the habits popup as before) also moves the panel to that day */
   var dg = document.getElementById('daysGrid');
   if (dg) dg.addEventListener('click', function (ev) { var c = ev.target.closest && ev.target.closest('.day-cell:not(.empty)'); if (!c || !c.dataset.day) return; try { SelectedDayState.set(viewYear, viewMonth, +c.dataset.day); } catch (e) {} }, true);
-  /* double-click a day in the month: no popup, just open that day in the left Day view */
-  if (dg) {
-    dg.addEventListener('click', function (ev) {
-      if (ev.detail < 2) return;
-      var c = ev.target.closest && ev.target.closest('.day-cell:not(.empty)'); if (!c) return;
-      ev.stopImmediatePropagation(); ev.preventDefault();
-    }, true);
-    dg.addEventListener('dblclick', function (ev) {
-      var c = ev.target.closest && ev.target.closest('.day-cell:not(.empty)'); if (!c || !c.dataset.day) return;
-      if (document.body.classList.contains('money-mode') || document.body.classList.contains('ads-mode') || document.body.classList.contains('test-mode')) return;
+  /* double-tap / double-click a day in the month: no popup, just open that day in the left Day view.
+     A single tap waits a moment (260ms) to see if a second one follows, because the first tap opens the popup that would cover the grid. */
+  (function () {
+    var pend = null, pass = false, MS = 260;
+    function fire(c) { pass = true; try { c.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window })); } finally { pass = false; } }
+    function showDay(c) {
       try { var ov = document.getElementById('overlay'); if (ov && ov.classList.contains('open') && window.__closeDayModal) window.__closeDayModal(); } catch (e) {}
       try { SelectedDayState.set(viewYear, viewMonth, +c.dataset.day); } catch (e) {}
       var sd = document.querySelector('.sd');
-      if (sd) { sd.classList.remove('flashp'); void sd.offsetWidth; sd.classList.add('flashp'); setTimeout(function () { sd.classList.remove('flashp'); }, 1200); }
-    });
-  }
+      if (sd) { sd.classList.remove('flashp'); void sd.offsetWidth; sd.classList.add('flashp'); setTimeout(function () { sd.classList.remove('flashp'); }, 1200); try { if (window.innerWidth <= 760) sd.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {} }
+    }
+    document.addEventListener('click', function (ev) {
+      if (pass) return;
+      var c = ev.target.closest && ev.target.closest('#daysGrid .day-cell:not(.empty)'); if (!c || !c.dataset.day) return;
+      var bc = document.body.classList; if (bc.contains('money-mode') || bc.contains('ads-mode') || bc.contains('test-mode')) return;
+      ev.stopImmediatePropagation(); ev.preventDefault();
+      if (pend && pend.c === c) { clearTimeout(pend.t); pend = null; showDay(c); return; }
+      if (pend) { clearTimeout(pend.t); var old = pend.c; pend = null; fire(old); }
+      pend = { c: c, t: setTimeout(function () { var x = pend && pend.c; pend = null; if (x) fire(x); }, MS) };
+    }, true);
+  })();
   /* Birthdays row in Settings: open/close + count */
   var bdRow = document.getElementById('bdRow'), bdBox = document.getElementById('birthdaysCollapse'), bdList = document.getElementById('birthdaysList');
   if (bdRow && bdBox) bdRow.addEventListener('click', function () { var o = bdBox.hidden; bdBox.hidden = !o; bdRow.classList.toggle('open', o); });
@@ -14416,6 +14436,40 @@ window.__TEST_TAB_SRC = "/* test.js - the WHOLE Test tab in one file: its styles
     var so = document.getElementById('settingsOverlay');
     if (so && window.MutationObserver) new MutationObserver(function () { cb.checked = get(); }).observe(so, { attributes: true, attributeFilter: ['class'] });
   }
+})();
+</script>
+<script>
+/* Day/Week boxes: the extra grab margin above/below a box shrinks when another box is close, so two nearby boxes never fight over the same spot */
+(function () {
+  var MAX = 14, queued = false;
+  function setVar(el, name, px) { var v = Math.max(0, Math.round(px * 2) / 2) + 'px'; if (el.style.getPropertyValue(name) !== v) el.style.setProperty(name, v); }
+  function calc() {
+    queued = false;
+    var groups = new Map();
+    document.querySelectorAll('.day-time-grid-event-box').forEach(function (b) {
+      if (!b.offsetHeight) return;
+      var p = b.offsetParent || b.parentElement; if (!groups.has(p)) groups.set(p, []); groups.get(p).push(b);
+    });
+    groups.forEach(function (list) {
+      list.forEach(function (a) {
+        var at = a.offsetTop, ab = at + a.offsetHeight, al = a.offsetLeft, ar = al + a.offsetWidth, ob = MAX, ot = MAX;
+        list.forEach(function (b) {
+          if (b === a) return;
+          var bl = b.offsetLeft, br = bl + b.offsetWidth;
+          if (Math.min(ar, br) - Math.max(al, bl) <= 1) return;
+          var bt = b.offsetTop, bb = bt + b.offsetHeight;
+          if (bt >= ab - 1) ob = Math.min(ob, (bt - ab) / 2);
+          else if (bb <= at + 1) ot = Math.min(ot, (at - bb) / 2);
+          else { ob = 0; ot = 0; }
+        });
+        setVar(a, '--ovb', ob); setVar(a, '--ovt', ot);
+      });
+    });
+  }
+  function queue() { if (!queued) { queued = true; requestAnimationFrame(calc); } }
+  if (window.MutationObserver) new MutationObserver(queue).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'] });
+  window.addEventListener('resize', queue);
+  queue();
 })();
 </script>
 </body>
