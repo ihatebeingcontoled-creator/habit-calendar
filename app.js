@@ -11249,7 +11249,7 @@ const PIP_MAX = 3;
       }
       function renderRepTab(body) {
         const f = el('div', 'au-form');
-        const row = el('div', 'au-fl'); const cb = el('input'); cb.type = 'checkbox'; cb.checked = !!cfg.repeatOn; cb.style.cssText = 'width:1.2em;height:1.2em;accent-color:var(--g)';
+        const row = el('div', 'au-fl'); const cb = el('input'); cb.type = 'checkbox'; cb.checked = !!cfg.repeatOn; cb.style.cssText = 'width:1.2em;height:1.2em;accent-color:var(--k)';
         cb.addEventListener('change', () => { cfg.repeatOn = cb.checked; saveCfg(); });
         row.append(cb, el('span', '', 'Delete repeating phrases'));
         const lab = el('label', '', 'A line counts as repeating when it is on at least this many percent of the scanned pages');
@@ -11325,7 +11325,7 @@ const PIP_MAX = 3;
         const user = mk('Username', 'text', s.username);
         const pw = mk('Password', 'password', '', s.hasPassword ? 'Password saved (type to change it)' : 'Password');
         const lab = el('label'); lab.style.cssText = 'display:flex;gap:.5em;align-items:center;font-weight:600;color:var(--k)';
-        const ig = el('input'); ig.type = 'checkbox'; ig.checked = !!s.ignore_on; ig.style.accentColor = 'var(--g)';
+        const ig = el('input'); ig.type = 'checkbox'; ig.checked = !!s.ignore_on; ig.style.accentColor = 'var(--k)';
         lab.append(ig, document.createTextNode('Also cut out the words of the D1 list "scan_ignore" while scanning'));
         const row = el('div', 'au-fl'); const sv = el('button', 'au-b pri', 'Save'), ts = el('button', 'au-b', 'Save and test'); sv.type = ts.type = 'button';
         const msg = el('div', 'au-msg'); row.append(sv, ts);
