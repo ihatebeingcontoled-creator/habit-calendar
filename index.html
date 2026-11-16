@@ -14544,5 +14544,38 @@ window.__TEST_TAB_SRC = "/* test.js - the WHOLE Test tab in one file: its styles
 /*TEST_TAB_END*/
 
 </script>
+<script>
+/* LIVE-SYNC: when something changes the calendar from outside (the Claude connector, another device),
+   this notices within a few seconds and refreshes the page once you are not touching it. */
+(function () {
+  var lastTouch = Date.now(), base = null, busy = false, selfWrite = 0;
+  ['pointerdown', 'keydown', 'touchstart', 'wheel', 'input'].forEach(function (e) { addEventListener(e, function () { lastTouch = Date.now(); }, { passive: true, capture: true }); });
+  var of = window.fetch;
+  window.fetch = function (u, o) {
+    try { var m = ((o && o.method) || (u && u.method) || 'GET').toUpperCase(); if (m !== 'GET' && /\/api\/(events|habits)/.test(String(u && u.url || u))) { selfWrite = Date.now(); base = null; } } catch (e) {}
+    return of.apply(this, arguments);
+  };
+  function typing() { var a = document.activeElement; return a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) || (a && a.isContentEditable); }
+  async function sig() {
+    var a = await of('/api/events', { cache: 'no-store' }), b = await of('/api/habits', { cache: 'no-store' });
+    if (!a.ok || !b.ok) return null;
+    return (await a.text()) + '|' + (await b.text());
+  }
+  async function tick() {
+    if (busy || document.hidden || Date.now() - selfWrite < 3000) return;
+    busy = true;
+    try {
+      var s = await sig(); if (s === null) return;
+      if (base === null) { base = s; return; }
+      if (s !== base) {
+        if (Date.now() - lastTouch > 4000 && !typing()) { try { var t = document.getElementById('toast'); if (t) { t.textContent = 'Updated - refreshing'; t.className = 'toast show'; } } catch (e) {} setTimeout(function () { location.reload(); }, 400); }
+        /* else: keep base, try again on the next tick once you stop touching the page */
+      }
+    } catch (e) {} finally { busy = false; }
+  }
+  setTimeout(function () { setInterval(tick, 6000); tick(); }, 5000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) tick(); });
+})();
+</script>
 </body>
 </html>
