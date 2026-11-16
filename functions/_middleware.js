@@ -2786,6 +2786,123 @@ async function onRequestOptions() {
   return { onRequest: typeof onRequest === 'function' ? onRequest : undefined, onRequestGet: typeof onRequestGet === 'function' ? onRequestGet : undefined, onRequestPost: typeof onRequestPost === 'function' ? onRequestPost : undefined, onRequestPut: typeof onRequestPut === 'function' ? onRequestPut : undefined, onRequestDelete: typeof onRequestDelete === 'function' ? onRequestDelete : undefined, onRequestPatch: typeof onRequestPatch === 'function' ? onRequestPatch : undefined, onRequestOptions: typeof onRequestOptions === 'function' ? onRequestOptions : undefined };
 })();
 
+// ================================ SECTION: mcp  (/mcp - the Claude connector, has its own key) ================================
+const M_mcp = (() => {
+// ===== MCP server: lets Claude (claude.ai, the phone app, voice) read and change your calendar through a "custom connector" =====
+// Address:  https://<your site>/mcp      (it does NOT use the site's code cookie; it has its own key instead)
+// The key:  the Cloudflare variable MCP_TOKEN (any long random text, 16+ characters).
+//           Claude sends it as "Authorization: Bearer <MCP_TOKEN>" (connector setting: Request headers),
+//           or you can put it in the address instead:  https://<your site>/mcp?key=<MCP_TOKEN>
+// Tools:    get_current_time, list_events, add_event, add_reminder, set_notification, delete_event, get_day_summary
+// Times are Europe/Vilnius (the same zone the notification timer uses). A notification is sent AT the event's start time.
+const TZ = 'Europe/Vilnius';
+const PROTOCOLS = ['2025-06-18', '2025-03-26', '2024-11-05'];
+const J = { 'Content-Type': 'application/json' };
+const ok = (id, result) => ({ jsonrpc: '2.0', id, result });
+const bad = (id, code, message) => ({ jsonrpc: '2.0', id, error: { code, message } });
+const say = (v, isError) => ({ content: [{ type: 'text', text: typeof v === 'string' ? v : JSON.stringify(v, null, 2) }], ...(isError ? { isError: true } : {}) });
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const mins = (t) => { const m = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(String(t || '').trim()); return m ? (+m[1]) * 60 + (+m[2]) : null; };
+const hhmm = (n) => String(Math.floor(n / 60) % 24).padStart(2, '0') + ':' + String(n % 60).padStart(2, '0');
+function nowInTz() {
+  const map = {};
+  for (const p of new Intl.DateTimeFormat('en-US', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', weekday: 'long', hour12: false }).formatToParts(new Date())) map[p.type] = p.value;
+  return { date: map.year + '-' + map.month + '-' + map.day, time: (map.hour === '24' ? '00' : map.hour) + ':' + map.minute, weekday: map.weekday, timezone: TZ };
+}
+const eq = (a, b) => { a = String(a); b = String(b); let d = a.length ^ b.length; for (let i = 0; i < Math.max(a.length, b.length); i++) d |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0); return d === 0; };
+const shape = (r) => ({ id: r.id, date: r.dateKey, time: hhmm(r.startMinutes), duration_minutes: r.durationMinutes, title: r.type, description: r.description || '', notification_on: !!r.notify });
+
+const TOOLS = [
+  { name: 'get_current_time', description: 'Returns the current date, time and weekday in the calendar owner\'s time zone (Europe/Vilnius). Call this first to work out words like "today", "tomorrow" or "on Friday".', inputSchema: { type: 'object', properties: {} } },
+  { name: 'list_events', description: 'Lists calendar events between two dates (inclusive). Includes tests and projects the Automate tab found (ids start with mdtest- or mdproj-).', inputSchema: { type: 'object', properties: { from_date: { type: 'string', description: 'YYYY-MM-DD' }, to_date: { type: 'string', description: 'YYYY-MM-DD (defaults to from_date)' } }, required: ['from_date'] } },
+  { name: 'add_event', description: 'Adds an event to the calendar. If notify is true, a phone notification is sent at the start time.', inputSchema: { type: 'object', properties: { date: { type: 'string', description: 'YYYY-MM-DD' }, time: { type: 'string', description: 'Start time, 24h HH:MM' }, title: { type: 'string' }, duration_minutes: { type: 'integer', description: 'Default 45' }, description: { type: 'string' }, notify: { type: 'boolean', description: 'Send a phone notification at the start time (default false)' } }, required: ['date', 'time', 'title'] } },
+  { name: 'add_reminder', description: 'Sets a reminder: a short calendar event that sends a phone notification at exactly the given date and time. Use this for "remind me to ... at ...".', inputSchema: { type: 'object', properties: { date: { type: 'string', description: 'YYYY-MM-DD' }, time: { type: 'string', description: '24h HH:MM' }, text: { type: 'string', description: 'What to be reminded of' } }, required: ['date', 'time', 'text'] } },
+  { name: 'set_notification', description: 'Turns the phone notification of an existing event on or off (it is sent at the event\'s start time).', inputSchema: { type: 'object', properties: { id: { type: 'string' }, on: { type: 'boolean' } }, required: ['id', 'on'] } },
+  { name: 'delete_event', description: 'Deletes an event by its id (get ids from list_events). Ask the owner before deleting.', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
+  { name: 'get_day_summary', description: 'Returns the saved AI summary of one school day (lessons, topics, tests, homework from the e-diary) if the owner made one, plus that day\'s events.', inputSchema: { type: 'object', properties: { date: { type: 'string', description: 'YYYY-MM-DD' } }, required: ['date'] } },
+];
+
+async function callTool(name, a, env) {
+  const db = env.DB; if (!db) return say('The D1 binding DB is missing.', true);
+  a = a || {};
+  const needDate = (d) => (DATE_RE.test(String(d || '')) && !isNaN(new Date(d + 'T12:00:00')) ? String(d) : null);
+  if (name === 'get_current_time') return say(nowInTz());
+  if (name === 'list_events') {
+    const from = needDate(a.from_date), to = needDate(a.to_date || a.from_date);
+    if (!from || !to) return say('from_date and to_date must look like 2026-11-20.', true);
+    const { results } = await db.prepare('SELECT id, dateKey, startMinutes, durationMinutes, type, description, notify FROM habit_events WHERE dateKey >= ? AND dateKey <= ? ORDER BY dateKey, startMinutes LIMIT 300').bind(from, to).all();
+    return say(results.length ? results.map(shape) : 'No events between ' + from + ' and ' + to + '.');
+  }
+  if (name === 'add_event' || name === 'add_reminder') {
+    const rem = name === 'add_reminder';
+    const date = needDate(a.date), start = mins(a.time), title = String(rem ? a.text : a.title || '').trim().slice(0, 120);
+    if (!date) return say('date must look like 2026-11-20.', true);
+    if (start == null) return say('time must be 24-hour HH:MM, like 08:00 or 17:30.', true);
+    if (!title) return say(rem ? 'text is empty.' : 'title is empty.', true);
+    const dur = rem ? 15 : Math.min(1440, Math.max(5, parseInt(a.duration_minutes, 10) || 45));
+    const id = 'mcp-' + date + '-' + Math.random().toString(36).slice(2, 8);
+    const notify = rem ? 1 : (a.notify ? 1 : 0);
+    await db.prepare('INSERT INTO habit_events (id, dateKey, startMinutes, durationMinutes, type, color, description, manualLeftPx, manualWidthPx, notify, locked) VALUES (?,?,?,?,?,?,?,NULL,NULL,?,0)')
+      .bind(id, date, start, dur, title, rem ? '#8b5cf6' : '#3b82f6', rem ? '' : String(a.description || '').slice(0, 400), notify).run();
+    return say({ done: true, ...shape({ id, dateKey: date, startMinutes: start, durationMinutes: dur, type: title, description: rem ? '' : String(a.description || ''), notify }), note: notify ? 'A phone notification will be sent at ' + hhmm(start) + ' on ' + date + ' (Vilnius time).' : 'No notification was set.' });
+  }
+  if (name === 'set_notification') {
+    const row = await db.prepare('SELECT id, dateKey, startMinutes, durationMinutes, type, description, notify FROM habit_events WHERE id = ?').bind(String(a.id || '')).first();
+    if (!row) return say('No event with that id.', true);
+    await db.prepare('UPDATE habit_events SET notify = ? WHERE id = ?').bind(a.on ? 1 : 0, row.id).run();
+    const auto = /^md(test|proj)-/.test(row.id);
+    return say({ done: true, ...shape({ ...row, notify: a.on ? 1 : 0 }), note: a.on ? (auto ? 'This is a test/project from the Automate tab: its notification is sent ONE DAY BEFORE, at ' + hhmm(row.startMinutes) + '.' : 'A phone notification will be sent at ' + hhmm(row.startMinutes) + ' on ' + row.dateKey + '.') : 'Notification switched off.' });
+  }
+  if (name === 'delete_event') {
+    const row = await db.prepare('SELECT id, dateKey, startMinutes, durationMinutes, type, description, notify FROM habit_events WHERE id = ?').bind(String(a.id || '')).first();
+    if (!row) return say('No event with that id.', true);
+    await db.prepare('DELETE FROM habit_events WHERE id = ?').bind(row.id).run();
+    return say({ deleted: true, was: shape(row) });
+  }
+  if (name === 'get_day_summary') {
+    const d = needDate(a.date); if (!d) return say('date must look like 2026-11-20.', true);
+    let sum = null; try { sum = await db.prepare('SELECT summary, updated FROM au_day_summary WHERE day = ?').bind(d).first(); } catch (e) { /* table not made yet */ }
+    const { results } = await db.prepare('SELECT id, dateKey, startMinutes, durationMinutes, type, description, notify FROM habit_events WHERE dateKey = ? ORDER BY startMinutes').bind(d).all();
+    return say({ date: d, summary: sum ? sum.summary : null, summary_made: sum ? sum.updated : null, events: results.map(shape), hint: sum ? undefined : 'No summary was saved for this day. The owner can make one with "Run the agent" in the Test tab.' });
+  }
+  return say('Unknown tool ' + name, true);
+}
+
+async function handle(msg, env) {
+  const id = msg && msg.id !== undefined ? msg.id : undefined;
+  if (!msg || typeof msg.method !== 'string') return id === undefined ? null : bad(id, -32600, 'Invalid request');
+  if (id === undefined) return null;                                                   // a notification: no answer
+  if (msg.method === 'initialize') {
+    const want = msg.params && msg.params.protocolVersion;
+    return ok(id, { protocolVersion: PROTOCOLS.includes(want) ? want : PROTOCOLS[1], capabilities: { tools: { listChanged: false } }, serverInfo: { name: 'habit-calendar', version: '1.0.0' }, instructions: 'Tools for the owner\'s calendar. Times are Europe/Vilnius. Call get_current_time first to resolve "today"/"tomorrow". Use add_reminder for reminders.' });
+  }
+  if (msg.method === 'ping') return ok(id, {});
+  if (msg.method === 'tools/list') return ok(id, { tools: TOOLS });
+  if (msg.method === 'tools/call') {
+    const p = msg.params || {};
+    if (!TOOLS.some((t) => t.name === p.name)) return bad(id, -32602, 'Unknown tool: ' + p.name);
+    try { return ok(id, await callTool(p.name, p.arguments, env)); } catch (e) { return ok(id, say('The calendar database failed: ' + e.message, true)); }
+  }
+  return bad(id, -32601, 'Method not found: ' + msg.method);
+}
+
+async function onRequest({ request, env }) {
+  if (!env.MCP_TOKEN || String(env.MCP_TOKEN).length < 16) return new Response('MCP is not set up: add the variable MCP_TOKEN (16 or more characters) in Cloudflare Pages -> Settings -> Variables and Secrets.', { status: 503 });
+  const url = new URL(request.url);
+  const given = (request.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '').trim() || url.searchParams.get('key') || '';
+  if (!eq(given, env.MCP_TOKEN)) return new Response('Unauthorized', { status: 401 });
+  if (request.method === 'POST') {
+    let body; try { body = await request.json(); } catch (e) { return new Response(JSON.stringify(bad(null, -32700, 'Parse error')), { status: 400, headers: J }); }
+    if (Array.isArray(body)) { const out = (await Promise.all(body.map((m) => handle(m, env)))).filter(Boolean); return out.length ? new Response(JSON.stringify(out), { headers: J }) : new Response(null, { status: 202 }); }
+    const out = await handle(body, env);
+    return out ? new Response(JSON.stringify(out), { headers: J }) : new Response(null, { status: 202 });
+  }
+  return new Response('Use POST', { status: 405, headers: { Allow: 'POST' } });
+}
+
+  return { onRequest };
+})();
+
 // ================================ ROUTER ================================
 const ROUTES = {
   'ads': M_ads,
@@ -2887,6 +3004,7 @@ export async function onRequest(ctx) {
   const path = url.pathname;
   // once someone is allowed in: /api/... goes to the API sections above, everything else is the normal site
   const next = () => (path.startsWith('/api/') ? routeApi(ctx) : ctx.next());
+  if (path === '/mcp' || path === '/mcp/') return M_mcp.onRequest(ctx);   // the Claude connector: it checks its own key (MCP_TOKEN), not the site cookie
 
   // things that must stay reachable without a cookie
   if (path === '/api/push-check') return next();
