@@ -205,7 +205,9 @@ export async function onRequestGet({ env }) {
       const [y, mo, d] = ev.dateKey.split('-').map(Number);
       const hh = Math.floor(ev.startMinutes / 60);
       const mi = ev.startMinutes % 60;
-      const eventMs = zonedTimeToUtc(y, mo, d, hh, mi, 'Europe/Vilnius');
+      // tests/projects made by the Test tab (ids mdtest-/mdproj-) notify ONE DAY BEFORE, at the same clock time
+      ev.isAuto = /^md(test|proj)-/.test(String(ev.id || ''));
+      const eventMs = zonedTimeToUtc(y, mo, ev.isAuto ? d - 1 : d, hh, mi, 'Europe/Vilnius');
       if (eventMs <= nowMs && eventMs > nowMs - 90 * 1000) {
         ev.timeLabel = `${pad(hh)}:${pad(mi)}`;
         due.push(ev);
@@ -256,7 +258,9 @@ export async function onRequestGet({ env }) {
     const markStmts = [];
 
     for (const ev of toSend) {
-      const payload = {
+      const payload = ev.isAuto
+        ? { title: 'Tomorrow: ' + (ev.type || 'Test'), body: ev.description || ev.dateKey }
+        : {
         title: ev.type || 'Reminder',
         body: ev.description ? `${ev.timeLabel} — ${ev.description}` : ev.timeLabel,
       };
