@@ -10775,14 +10775,24 @@ const PIP_MAX = 3;
       function load() {
         if (window.__TestTab) return Promise.resolve(window.__TestTab);
         if (!loading) loading = fetch('/test.js', { cache: 'no-cache' })
-          .then((r) => { if (!r.ok) throw new Error('test.js ' + r.status); return r.text(); })
-          .then((code) => { const sc = document.createElement('script'); sc.textContent = code; document.head.appendChild(sc); sc.remove(); if (!window.__TestTab) throw new Error('test.js did not start'); return window.__TestTab; })
+          .then((r) => { if (!r.ok) throw new Error('test.js is not on the server (error ' + r.status + ')'); return r.text(); })
+          .then((code) => {
+            // test.js always starts with a comment; anything else means the server sent a different file (or a web page) for /test.js
+            if (!/^\s*\/\*/.test(code)) throw new Error('/test.js on the server is the wrong file - it starts with: ' + code.slice(0, 50).replace(/\s+/g, ' '));
+            return new Promise((ok, no) => {
+              const url = URL.createObjectURL(new Blob([code], { type: 'text/javascript' }));
+              const sc = document.createElement('script');
+              sc.onload = () => { URL.revokeObjectURL(url); sc.remove(); window.__TestTab ? ok(window.__TestTab) : no(new Error('test.js loaded but did not start (see the Console)')); };
+              sc.onerror = () => { URL.revokeObjectURL(url); sc.remove(); no(new Error('test.js could not run (see the Console)')); };
+              sc.src = url; document.head.appendChild(sc);
+            });
+          })
           .catch((e) => { loading = null; throw e; });
         return loading;
       }
       if (tab) tab.addEventListener('click', () => {
         tab.classList.add('loading');
-        load().then((t) => t.open()).catch(() => { if (typeof toast === 'function') toast('Could not load the Test tab - check your connection', true); }).finally(() => tab.classList.remove('loading'));
+        load().then((t) => t.open()).catch((e) => { console.error('Test tab:', e); if (typeof toast === 'function') toast('Test tab: ' + (e && e.message || 'could not load'), true); }).finally(() => tab.classList.remove('loading'));
       });
       // a scheduled automation must still run while the Test tab is closed: this tiny check wakes the Test code only when a run is due
       function due() {
