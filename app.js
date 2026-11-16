@@ -1987,6 +1987,24 @@ const PIP_MAX = 3;
     // text character limits, with ZERO characters lost (every character lands in
     // exactly one notification, in order), spread as evenly as possible.
     function splitForWatch(text, subjMax, bodyMax, target) {
+      // structured mode: every non-empty line is "Subject | text" -> exactly one notification per line (the "Notifications" number is ignored)
+      const lines = String(text).split(/\r?\n/).filter(l => l.trim());
+      if (lines.length && lines.every(l => l.includes('|'))) {
+        const res = [];
+        for (const line of lines) {
+          const k = line.indexOf('|');
+          const subj = Array.from(line.slice(0, k).trim());
+          const body = Array.from(line.slice(k + 1).trim());
+          const first = subj.slice(0, subjMax).join('');
+          if (!body.length) { res.push({ subject: first, body: '' }); continue; }
+          for (let p = 0, part = 1; p < body.length; p += bodyMax, part++) {
+            const tag = ' (' + part + ')';
+            const subject = part === 1 ? first : subj.slice(0, Math.max(1, subjMax - tag.length)).join('') + tag;
+            res.push({ subject, body: body.slice(p, p + bodyMax).join('') });
+          }
+        }
+        return res;
+      }
       const chars = Array.from(text);              // code points: emoji count as 1, never cut in half
       const N = chars.length;
       if (!N) return [];
@@ -10877,6 +10895,7 @@ const PIP_MAX = 3;
         const names = which === 'd' ? { none: 'Not tested yet', wait: 'Testing...', ok: 'Logged in', bad: 'Not logged in' } : { none: 'Not tested yet', wait: 'Testing...', ok: 'Connected', bad: 'Not connected' };
         txt.textContent = names[st] + (why ? ' (' + why + ')' : '');
         txt.className = 'v' + (st === 'bad' ? ' bad' : '');
+        txt.parentNode.title = txt.parentNode.textContent;
       }
       function paintCfg() {
         const setChk = (id, v) => $(id).setAttribute('aria-checked', v ? 'true' : 'false');
