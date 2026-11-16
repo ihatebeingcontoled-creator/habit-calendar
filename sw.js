@@ -26,7 +26,7 @@ self.addEventListener('notificationclick', (event) => {
    Serves the page instantly from cache and refreshes it in the background.
    The whole site is index.html now: just upload a changed index.html, nothing else needs touching (this file never needs a version bump for that:
    the page is refreshed in the background and shows the new version on the next open). */
-const SHELL_VERSION = 'shell-v26';
+const SHELL_VERSION = 'shell-v27';
 const SHELL = ['/', '/index.html', '/favicon.png', '/manifest.json'];
 
 self.addEventListener('install', (event) => {
@@ -53,7 +53,7 @@ self.addEventListener('fetch', (event) => {
   const req = event.request;
   const url = new URL(req.url);
   // only handle same-origin GETs, and never touch the API
-  if (req.method !== 'GET' || url.origin !== location.origin || url.pathname.startsWith('/api/')) return;
+  if (req.method !== 'GET' || url.origin !== location.origin || url.pathname.startsWith('/api/') || url.pathname.startsWith('/mcp')) return;
   event.respondWith(
     caches.open(SHELL_VERSION).then(async (cache) => {
       // page navigations ignore ?query bits; app.js is matched exactly so ?v=N busts it
