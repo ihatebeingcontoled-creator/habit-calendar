@@ -249,6 +249,9 @@
     .day-cell.selected-mini-day {
       box-shadow: 0 0 0 2px #fff, 0 0 0 4px #3b82f6;
     }
+    /* the colored day levels below overwrite the box-shadow ring, so the selected day also gets an outline they can't touch */
+    .day-cell.selected-mini-day { outline: 3px solid #3b82f6; outline-offset: 3px; position: relative; z-index: 2; }
+    body.night-mode .day-cell.selected-mini-day { outline-color: #60a5fa; }
     body.night-mode .day-cell.selected-mini-day {
       box-shadow: 0 0 0 2px #1c1c1e, 0 0 0 4px #60a5fa;
     }
@@ -3018,13 +3021,57 @@
     body.night-mode .wt-bar { background: #333; }
     #watchToggleBtn.on { border-color: #1a73e8; color: #1a73e8; }
   </style>
+  <style id="navStyles">
+.au-legend { display: none !important; }
+.sd-scroll { overscroll-behavior: contain; }
+@media (min-width: 1000px) and (hover: hover) and (pointer: fine) { html, body { overflow-y: auto; } }
+@media (max-width: 760px) {
+  .au-calhead { display: grid !important; grid-template-columns: 46px 1fr 1fr 46px; gap: 8px !important; align-items: center; margin-bottom: 10px; }
+  .au-calhead #auCalPrev { grid-column: 1; } .au-calhead #auCalNext { grid-column: 4; }
+  .au-calhead .au-calmonth { grid-column: 2 / 4; text-align: center; font-size: 1.55em !important; font-weight: 800; white-space: nowrap; }
+  .au-calhead #auCalToday { grid-column: 1 / 3; } .au-calhead #auClearCal { grid-column: 3 / 5; }
+  .au-calhead #auCalBusy { grid-column: 1 / -1; text-align: center; }
+  .au-calhead .au-b { height: 40px; justify-content: center; border-radius: 12px; }
+}
+/* Day tab is replaced by a Money tab; the title is gone; less room at the top */
+#globalTabDay { display: none !important; }
+.app-header { display: none !important; }
+.app { padding-top: 8px; }
+@media (min-width: 1000px) and (hover: hover) and (pointer: fine) {
+  .talk-ai-widget { display: none !important; }
+  .app { padding-top: 8px; padding-bottom: 12px; }
+  .stat-card { padding: 6px 12px; border-radius: 10px; } .stat-label { font-size: 9px; margin-bottom: 1px; } .stat-value { font-size: 15px; } .stats-bar { gap: 8px; }
+  .legend-panel { top: 60px; min-height: 0; height: calc(100vh - 128px); max-height: none; }
+  .month-nav { margin-bottom: 8px; grid-template-columns: 32px 1fr 32px auto; }
+  .month-nav .nav-btn { width: 32px; height: 32px; }
+  .month-label { font-size: 17px; }
+  .stats-bar { margin-bottom: 8px; }
+  .weekdays { gap: 5px; margin-bottom: 4px; }
+  .weekday { padding: 2px 0; font-size: 10px; }
+  .days-grid { gap: 5px; min-height: 0; }
+  .day-cell, .day-skel { aspect-ratio: auto; min-height: 0; height: clamp(44px, calc((100vh - 170px) / 6), 68px); border-radius: 10px; padding: 17px 4px 4px; }
+  .day-cell .day-num { top: 4px; left: 7px; font-size: 10.5px; }
+  .day-cell .day-title { font-size: 9.5px; line-height: 1.12; }
+}
+@media (max-width: 760px) {
+  .app { padding-top: 8px; }
+  .global-topbar { padding: 0 10px; }
+  .global-topbar-viewtabs { flex: 1; gap: 2px; }
+  .global-topbar-tab { flex: 1 1 0; min-width: 0; padding: 7px 0 !important; text-align: center; font-size: 12.5px; }
+  .global-topbar-right { display: none !important; }
+  .legend-panel { display: block !important; order: 1; width: 100%; position: static; max-height: none; min-height: 0; height: auto; margin-top: 14px; }
+  .sd { display: flex !important; flex-direction: column; min-height: 0; flex: none; }
+  .sd-scroll { flex: none; height: 440px; -webkit-overflow-scrolling: touch; }
+  .sd-grid, .sd-grid * { -webkit-touch-callout: none; }
+}
+  </style>
   <style id="sdStyles">
 /* ===== PC SIDE DAY PANEL (left column) + Birthdays inside Settings ===== */
 .sd { display: none; }
 @media (min-width: 1000px) and (hover: hover) and (pointer: fine) {
   .legend-panel { width: 340px; position: sticky; top: 62px; max-height: calc(100vh - 215px); min-height: 520px; display: flex; flex-direction: column; }
   .legend-panel .legend-list { flex: none; }
-  .sd { display: flex; flex-direction: column; flex: 1; min-height: 360px; margin-top: 14px; padding-top: 12px; border-top: 1px solid #eee; }
+  .sd { display: flex; flex-direction: column; flex: 1; min-height: 360px; }
 }
 body.night-mode .sd { border-top-color: #333; }
 .sd-head { display: flex; align-items: center; gap: 6px; flex: none; }
@@ -3036,6 +3083,8 @@ body.night-mode .sd { border-top-color: #333; }
 .sd-pill { flex: 1; border: 1.5px solid #e2e2e2; background: #fff; color: #333; font: inherit; font-size: 11.5px; font-weight: 800; padding: 5px 8px; border-radius: 9px; cursor: pointer; transition: background .12s, border-color .12s, transform .12s; }
 .sd-pill:hover { background: #f0f6ff; border-color: #93c5fd; } .sd-pill:active { transform: scale(.96); } .sd-pill.pri { background: #111; color: #fff; border-color: #111; } .sd-pill.pri:hover { background: #333; }
 .sd-scroll { position: relative; flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; border: 1.5px solid #ececec; border-radius: 12px; background: #fff; scrollbar-width: thin; }
+.sd-hold { position:absolute; left:44px; right:6px; border-radius:6px; background:rgba(59,130,246,.16); border:1.5px dashed rgba(59,130,246,.55); opacity:0; pointer-events:none; z-index:4; }
+.sd-hold.ok { background:rgba(59,130,246,.32); border-style:solid; }
 .sd-grid { position: relative; height: calc(var(--sdh, 44px) * 24); user-select: none; -webkit-user-select: none; }
 .sd-hl { position: absolute; left: 0; right: 0; height: 0; border-top: 1px solid #f0f0f0; pointer-events: none; } .sd-hl.half { border-top-style: dotted; border-top-color: #f5f5f5; }
 .sd-hr { position: absolute; left: 6px; width: 34px; font-size: 10px; font-weight: 700; color: #aaa; transform: translateY(-50%); pointer-events: none; background: #fff; text-align: right; }
@@ -3070,7 +3119,7 @@ body.night-mode .sd-card { background: #1c1c1e; color: #f5f5f5; }
 .bd-row { display: flex; align-items: center; gap: 10px; width: 100%; box-sizing: border-box; margin-bottom: 12px; padding: 12px 14px; border: 1.5px solid #ececec; border-radius: 12px; background: #fafafa; cursor: pointer; font: inherit; color: inherit; text-align: left; transition: background .12s, border-color .12s; }
 .bd-row:hover { background: #f0f6ff; border-color: #93c5fd; } .bd-row .l { flex: 1; font-weight: 800; font-size: 13px; } .bd-row .n { color: #999; font-size: 12px; font-weight: 700; } .bd-row .c { transition: transform .2s; color: #999; } .bd-row.open .c { transform: rotate(90deg); }
 body.night-mode .bd-row { background: #1a1a1a; border-color: #333; } body.night-mode .bd-row:hover { background: #17233a; border-color: #3b82f6; }
-.bd-collapse { margin: -4px 0 14px; padding: 4px 4px 2px; animation: sdUp .25s ease both; } .bd-collapse[hidden] { display: none; }
+.bd-collapse { margin: -4px 0 14px; padding: 4px 4px 2px; animation: sdUp .25s ease both; } .bd-collapse[hidden] { display: none; } #colorGuideCollapse .legend-title { margin-top: 2px; }
 .bd-collapse .birthdays-panel { margin: 0; padding: 0; border: 0; } .bd-collapse .birthdays-list { max-height: 240px; }
 </style>
 </head>
@@ -3079,6 +3128,7 @@ body.night-mode .bd-row { background: #1a1a1a; border-color: #333; } body.night-
     /* runs before first paint: apply night mode from the last-known settings so there is no white flash */
     try { var __c = JSON.parse(localStorage.getItem('habitcal_boot_v1')); if (__c && __c.settings && __c.settings.nightMode) document.body.classList.add('night-mode'); } catch (e) {}
   </script>
+
   <!-- Persistent top bar (Google Calendar-style) — always visible above
        every view (month calendar, week overlay, day view) and every
        popup, regardless of scroll position or which transition is
@@ -3086,6 +3136,7 @@ body.night-mode .bd-row { background: #1a1a1a; border-color: #333; } body.night-
        script for its Day/Week/Month wiring and Select Day handling. -->
   <div class="global-topbar" id="globalTopBar">
     <div class="global-topbar-viewtabs">
+      <button type="button" class="global-topbar-tab" id="globalTabMoney">Money</button>
       <button type="button" class="global-topbar-tab" id="globalTabDay" data-view="day">Day</button>
       <button type="button" class="global-topbar-tab" id="globalTabWeek" data-view="week">Week</button>
       <button type="button" class="global-topbar-tab active" id="globalTabMonth" data-view="month">Month</button>
@@ -3141,21 +3192,6 @@ body.night-mode .bd-row { background: #1a1a1a; border-color: #333; } body.night-
 
     <div class="app-layout">
       <div class="legend-panel">
-        <div class="legend-title" id="colorGuideEl">Color Guide</div>
-        <div class="legend-list">
-          <div class="legend-row">1<span class="legend-swatch" style="background:#ffe6e6;border-color:#c61215"></span></div>
-          <div class="legend-row">2<span class="legend-swatch" style="background:#fff;border-color:#cd361a"></span></div>
-          <div class="legend-row">3<span class="legend-swatch" style="background:#fff;border-color:#d55821"></span></div>
-          <div class="legend-row">4<span class="legend-swatch" style="background:#fff;border-color:#e17c29"></span></div>
-          <div class="legend-row">5<span class="legend-swatch" style="background:#fff;border-color:#e8a22e"></span></div>
-          <div class="legend-row">6<span class="legend-swatch" style="background:#fff;border-color:#f4c439"></span></div>
-          <div class="legend-row">7<span class="legend-swatch" style="background:#fff;border-color:#fce83e"></span></div>
-          <div class="legend-row">8<span class="legend-swatch" style="background:#fff;border-color:#e9f038"></span></div>
-          <div class="legend-row">9<span class="legend-swatch" style="background:#fff;border-color:#caf32d"></span></div>
-          <div class="legend-row">10<span class="legend-swatch" style="background:#fff;border-color:#adf623"></span></div>
-          <div class="legend-row">11<span class="legend-swatch" style="background:#dcfce7;border-color:rgba(34,197,94,0.7)"></span></div>
-          <div class="legend-row">12<span class="legend-swatch legend-swatch-perfect" style="background:#dcfce7;"></span></div>
-        </div>
 
       </div>
 
@@ -3379,6 +3415,25 @@ body.night-mode .bd-row { background: #1a1a1a; border-color: #333; } body.night-
           </div>
           <div class="birthdays-list" id="birthdaysList"></div>
           <button type="button" id="birthdayAddOpenBtn" class="birthdays-open-add-btn">+ Add Birthday</button>
+        </div>
+      </div>
+
+      <button type="button" class="bd-row" id="cgRow"><span class="l">🎨 Color Guide</span><span class="c">▸</span></button>
+      <div class="bd-collapse" id="colorGuideCollapse" hidden>
+        <div class="legend-title" id="colorGuideEl">Color Guide</div>
+        <div class="legend-list">
+          <div class="legend-row">1<span class="legend-swatch" style="background:#ffe6e6;border-color:#c61215"></span></div>
+          <div class="legend-row">2<span class="legend-swatch" style="background:#fff;border-color:#cd361a"></span></div>
+          <div class="legend-row">3<span class="legend-swatch" style="background:#fff;border-color:#d55821"></span></div>
+          <div class="legend-row">4<span class="legend-swatch" style="background:#fff;border-color:#e17c29"></span></div>
+          <div class="legend-row">5<span class="legend-swatch" style="background:#fff;border-color:#e8a22e"></span></div>
+          <div class="legend-row">6<span class="legend-swatch" style="background:#fff;border-color:#f4c439"></span></div>
+          <div class="legend-row">7<span class="legend-swatch" style="background:#fff;border-color:#fce83e"></span></div>
+          <div class="legend-row">8<span class="legend-swatch" style="background:#fff;border-color:#e9f038"></span></div>
+          <div class="legend-row">9<span class="legend-swatch" style="background:#fff;border-color:#caf32d"></span></div>
+          <div class="legend-row">10<span class="legend-swatch" style="background:#fff;border-color:#adf623"></span></div>
+          <div class="legend-row">11<span class="legend-swatch" style="background:#dcfce7;border-color:rgba(34,197,94,0.7)"></span></div>
+          <div class="legend-row">12<span class="legend-swatch legend-swatch-perfect" style="background:#dcfce7;"></span></div>
         </div>
       </div>
 
@@ -13347,7 +13402,7 @@ const PIP_MAX = 3;
       function toggle() {
         on = !on;
         document.body.classList.toggle('money-mode', on);
-        monthTab.textContent = on ? 'Money' : 'Month';
+        monthTab.textContent = 'Month';
         $('moneyPanel').hidden = !on;
         document.querySelectorAll('#daysGrid .day-cell').forEach((c) => { c._ms = false; c._net = null; c.classList.remove('money-enter'); });
         if (on && !$('moneyDate').value) $('moneyDate').value = todayKey();
@@ -14666,7 +14721,7 @@ window.__TEST_TAB_SRC = "/* test.js - the WHOLE Test tab in one file: its styles
   function render(flashId) {
     if (!ready || dragging) return;
     prettyLabel(); var k = key(), list = EventStore.getForDate(k); layer.textContent = '';
-    if (!list.length) layer.appendChild(el('div', 'sd-empty', 'Nothing planned. Double-click to add.'));
+    if (!list.length) layer.appendChild(el('div', 'sd-empty', 'Nothing planned. Press and hold to add.'));
     layout(list).forEach(function (e) {
       var r = e.rec, b = el('div', 'sd-ev' + (r.locked ? ' lockd' : '') + (flashId && r.id === flashId ? ' flash' : '')); b.dataset.id = r.id; b.style.setProperty('--c', colorOf(r));
       b.style.top = (r.startMinutes / 60 * H) + 'px'; b.style.height = Math.max(r.durationMinutes / 60 * H - 2, 20) + 'px'; b.style.left = (e.col / e.n * 100) + '%'; b.style.width = 'calc(' + (100 / e.n) + '% - 3px)';
@@ -14697,8 +14752,23 @@ window.__TEST_TAB_SRC = "/* test.js - the WHOLE Test tab in one file: its styles
     }
     b.addEventListener('pointerup', end); b.addEventListener('pointercancel', function (ev) { dragging = false; mode = ''; render(); });
   }
-  grid.addEventListener('dblclick', function (ev) {
-    if (ev.target.closest('.sd-ev')) return; var y = ev.clientY - grid.getBoundingClientRect().top, m = Math.max(0, Math.min(1380, Math.floor(y / H * 60 / SNAP) * SNAP)); var rec = EventStore.create(key(), m, 60); render(); openEditor(rec, true);
+  /* press-and-hold on empty space makes a new event: same as the Day view (0.42 s, fill cue, snaps to the hour, 1 hour long) */
+  var hold = el('div', 'sd-hold'); grid.appendChild(hold);
+  var hT = null, hId = null, hx = 0, hy = 0;
+  function hourAt(cy) { var y = cy - grid.getBoundingClientRect().top; return Math.max(0, Math.min(1380, Math.round(y / H) * 60)); }
+  function hEnd(cancelVisual) { if (hT) { clearTimeout(hT); hT = null; } hId = null; document.removeEventListener('pointermove', hMove); document.removeEventListener('pointerup', hUp); document.removeEventListener('pointercancel', hUp); if (cancelVisual) { hold.style.transition = 'opacity 140ms ease'; hold.style.opacity = '0'; hold.classList.remove('ok'); } }
+  function hMove(e) { if (e.pointerId !== hId) return; if (Math.hypot(e.clientX - hx, e.clientY - hy) > 10) hEnd(true); }
+  function hUp(e) { if (e.pointerId !== hId) return; hEnd(!!hT); }
+  grid.addEventListener('pointerdown', function (e) {
+    if (hId !== null || (e.button !== undefined && e.button !== 0) || e.target.closest('.sd-ev')) return;
+    hId = e.pointerId; hx = e.clientX; hy = e.clientY; var m = hourAt(e.clientY);
+    hold.classList.remove('ok'); hold.style.top = (m / 60 * H) + 'px'; hold.style.height = H + 'px'; hold.style.transition = 'none'; hold.style.opacity = '0'; void hold.offsetHeight; hold.style.transition = 'opacity 420ms linear'; hold.style.opacity = '1';
+    document.addEventListener('pointermove', hMove); document.addEventListener('pointerup', hUp); document.addEventListener('pointercancel', hUp);
+    hT = setTimeout(function () {
+      hT = null; hold.style.transition = 'opacity 120ms ease'; hold.style.opacity = '1'; hold.classList.add('ok');
+      setTimeout(function () { hold.style.transition = 'opacity 220ms ease'; hold.style.opacity = '0'; hold.classList.remove('ok'); }, 260);
+      var rec = EventStore.create(key(), m, 60); render(rec.id);
+    }, 420);
   });
 
   /* ---------- editor ---------- */
@@ -14747,13 +14817,25 @@ window.__TEST_TAB_SRC = "/* test.js - the WHOLE Test tab in one file: its styles
   }
   /* clicking a day in the month (it still opens the habits popup as before) also moves the panel to that day */
   var dg = document.getElementById('daysGrid');
-  if (dg) dg.addEventListener('click', function (ev) { if (!mq.matches) return; var c = ev.target.closest && ev.target.closest('.day-cell:not(.empty)'); if (!c || !c.dataset.day) return; try { SelectedDayState.set(viewYear, viewMonth, +c.dataset.day); } catch (e) {} }, true);
+  if (dg) dg.addEventListener('click', function (ev) { var c = ev.target.closest && ev.target.closest('.day-cell:not(.empty)'); if (!c || !c.dataset.day) return; try { SelectedDayState.set(viewYear, viewMonth, +c.dataset.day); } catch (e) {} }, true);
   /* Birthdays row in Settings: open/close + count */
   var bdRow = document.getElementById('bdRow'), bdBox = document.getElementById('birthdaysCollapse'), bdList = document.getElementById('birthdaysList');
   if (bdRow && bdBox) bdRow.addEventListener('click', function () { var o = bdBox.hidden; bdBox.hidden = !o; bdRow.classList.toggle('open', o); });
+  var cgRow = document.getElementById('cgRow'), cgBox = document.getElementById('colorGuideCollapse');
+  if (cgRow && cgBox) cgRow.addEventListener('click', function () { var o = cgBox.hidden; cgBox.hidden = !o; cgRow.classList.toggle('open', o); });
   function bdCount() { var n = bdList ? bdList.querySelectorAll('.birthdays-row').length : 0, c = document.getElementById('bdCount'); if (c) c.textContent = n ? n + ' saved' : ''; }
   if (bdList && window.MutationObserver) { new MutationObserver(bdCount).observe(bdList, { childList: true }); bdCount(); }
   mq.addEventListener && mq.addEventListener('change', function () { render(); });
+})();
+</script>
+<script>
+/* Money tab (replaces Day): same as the old round euro button */
+(function () {
+  var t = document.getElementById('globalTabMoney'), m = document.getElementById('globalTabMonth'); if (!t) return;
+  t.addEventListener('click', function () { if (typeof MoneyMode !== 'undefined') MoneyMode.tapToggle(); });
+  if (m) m.addEventListener('click', function () { if (typeof MoneyMode !== 'undefined' && MoneyMode.isOn()) MoneyMode.toggle(); });
+  function sync() { var on = document.body.classList.contains('money-mode'); t.classList.toggle('active', on); if (on && m) m.classList.remove('active'); else if (!on && m && typeof GlobalTopBar !== 'undefined' && GlobalTopBar.currentView() === 'month' && !document.body.classList.contains('ads-mode') && !document.body.classList.contains('test-mode')) m.classList.add('active'); }
+  new MutationObserver(sync).observe(document.body, { attributes: true, attributeFilter: ['class'] }); sync();
 })();
 </script>
 <script>
