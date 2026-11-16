@@ -632,6 +632,36 @@ const scanPart = (() => {
             record(p.url, p.text); await log('Read [' + pages.length + '] (date ' + iso + ') ' + p.url);
           }
         };
+        let pageLeft = 8;
+        const morePages = async (url, html) => {      // pages with a "Puslapiai: 1 2 3 ..." list: read the other numbered pages too
+          if (pageLeft <= 0) return;
+          let base, cur = null;
+          try { const u = new URL(url); const m = /^(.*?)\/(\d+)$/.exec(u.pathname); base = m ? m[1] : u.pathname; cur = m ? +m[2] : null; } catch (e) { return; }
+          const found = new Map();
+          for (const l of extractLinks(html)) {
+            try {
+              const u = new URL(l.href, url); u.hash = ''; if (u.protocol === 'http:') u.protocol = 'https:';
+              if (u.protocol !== 'https:' || u.hostname.replace(/^www\./, '') !== host) continue;
+              const m = /^(.*?)\/(\d+)$/.exec(u.pathname); if (!m || m[1] !== base || (cur !== null && +m[2] === cur)) continue;
+              if (SKIP.test(u.href) || seen.has(u.href) || !allowedBy(allowed, u.href)) continue;
+              found.set(u.href, +m[2]);
+            } catch (e) {}
+          }
+          const list = [...found].sort((a, b) => a[1] - b[1]);
+          if (!list.length) {
+            const k = String(html || '').indexOf('Puslapiai');
+            if (k >= 0) { const hrefs = [...String(html).slice(k, k + 2500).matchAll(/href=["']([^"']+)/gi)].map((m) => m[1]).slice(0, 6); await log('Pages: "Puslapiai" is on ' + base + ' but no numbered page links were found. First links after it: ' + (hrefs.join(' ') || 'none')); }
+            return;
+          }
+          await log('Pages: ' + base + ' has ' + list.length + ' more page link(s); reading up to ' + pageLeft + '.');
+          for (const [href] of list) {
+            if (pageLeft <= 0 || st.requests >= MAX_REQUESTS || pages.length >= MAX_PAGES) break;
+            seen.add(href); pageLeft--;
+            const p = await http(href);
+            if (!p.text || (hasPasswordBox(p.text) && !isLoggedIn(p.text))) continue;
+            record(p.url, p.text); await log('Read [' + pages.length + '] (page) ' + p.url);
+          }
+        };
         const ranged = async (url, html) => {
           if (!range) return { url, html };
           try { const r = await submitRange(http, host, url, html, range, log); if (r) return { url: r.url, html: r.text, viaForm: true }; }
@@ -639,7 +669,7 @@ const scanPart = (() => {
           return { url, html };
         };
         addLinks(first.text, first.url);
-        if (allowedBy(allowed, first.url)) { const r = await ranged(first.url, first.text); record(r.url, r.html); if (!r.viaForm) await extraDates(r.url, r.html); }
+        if (allowedBy(allowed, first.url)) { const r = await ranged(first.url, first.text); record(r.url, r.html); await morePages(r.url, r.html); if (!r.viaForm) await extraDates(r.url, r.html); }
         await log('STEP 4: reading pages. Found ' + queue.length + ' links on the first page' + (allowed.length ? ' (only ' + allowed.length + ' allowed address part(s) are kept).' : '.'));
         for (let i = 0; i < queue.length && pages.length < MAX_PAGES; i++) {
           if (st.requests >= MAX_REQUESTS) { await log('Stopped: reached the request limit for one scan (' + MAX_REQUESTS + ').'); break; }
@@ -649,7 +679,7 @@ const scanPart = (() => {
           if (hasPasswordBox(p.text) && !isLoggedIn(p.text)) { await log('Asked to log in: ' + url); continue; }
           addLinks(p.text, p.url);
           if (!allowedBy(allowed, p.url)) continue;
-          { const r = await ranged(p.url, p.text); record(r.url, r.html); await log('Read [' + pages.length + '] ' + p.url); if (!r.viaForm) await extraDates(r.url, r.html); }
+          { const r = await ranged(p.url, p.text); record(r.url, r.html); await log('Read [' + pages.length + '] ' + p.url); await morePages(r.url, r.html); if (!r.viaForm) await extraDates(r.url, r.html); }
         }
       }
     } catch (e) {
@@ -3261,7 +3291,7 @@ async function onRequest({ request, env }) {
 })();
 
 // version counter of THIS file (added into the number shown in the page corner; bump it only when this file changes)
-const FILE_VERSION = 1;
+const FILE_VERSION = 2;
 const M_version = { onRequest: () => new Response(JSON.stringify({ v: FILE_VERSION }), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } }) };
 
 // ================================ ROUTER ================================
