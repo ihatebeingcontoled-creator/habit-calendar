@@ -240,10 +240,20 @@
     .au-cd.today .dn { background: var(--btn); color: var(--btnt); border-radius: 1em; padding: 0 .55em; }
     .au-ev { display: flex; align-items: center; gap: .35em; flex: none; min-width: 0; font-size: .78em; font-weight: 700; line-height: 1.15; padding: .2em .4em; border-radius: .55em; background: var(--soft); border-left: .3em solid var(--evc, #111); }
     .au-ev[hidden] { display: none; }
-    .au-calgrid .au-ev { pointer-events: auto; }
+    .au-calgrid .au-cd { pointer-events: auto; cursor: pointer; transition: box-shadow .15s, border-color .15s; } .au-calgrid .au-cd:hover, .au-calgrid .au-cd:focus-visible { border-color: var(--k); outline: none; box-shadow: 0 .2em .6em var(--sh); }
+    .au-calgrid .au-ev { pointer-events: none; }
     .au-ev { cursor: pointer; transition: box-shadow .12s; } .au-ev:hover, .au-ev:focus-visible { box-shadow: 0 .15em .45em var(--sh); outline: none; }
     .au-src-head { display: flex; flex-direction: column; gap: .15em; } .au-src-head b { font-size: 1.35em; } .au-src-sub { color: var(--mut); font-weight: 700; font-size: .9em; }
     .au-src-box { display: flex; flex-direction: column; gap: .3em; } .au-src-lb { font-size: .78em; font-weight: 800; color: var(--mut); text-transform: uppercase; letter-spacing: .04em; }
+    .au-src-card { display: flex; flex-direction: column; gap: .6em; padding: .8em .9em; border-radius: 1em; background: var(--card); border: .12em solid var(--line); border-left: .45em solid var(--evc, #111); }
+    .au-src-card .au-src-head { flex-direction: row; align-items: center; gap: .6em; flex-wrap: wrap; } .au-src-card .au-src-head b { font-size: 1.15em; }
+    .au-src-none { font-weight: 700; color: var(--mut); padding: .3em 0; }
+    .au-src-notify { display: flex; align-items: center; gap: .7em; padding: .55em .7em; border-radius: .8em; background: var(--soft); cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent; }
+    .au-src-notify .au-chk { flex: none; pointer-events: none; } .au-src-notify .au-chk.busy { opacity: .5; }
+    .au-nlab { display: flex; flex-direction: column; gap: .1em; min-width: 0; } .au-nlab b { font-size: 1em; } .au-nlab span { font-size: .8em; font-weight: 700; color: var(--mut); }
+    .au-nmsg:empty { display: none; }
+    .au-src-ctx .hit2 { font-weight: 800; background: #fde68a; color: #111; border-radius: .3em; padding: .05em .3em; margin: .1em -.3em; }
+    .au-bell { flex: none; font-size: .9em; line-height: 1; }
     .au-src-tx { font-weight: 600; line-height: 1.4; }
     .au-src-ctx { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .82em; line-height: 1.45; background: var(--soft); border-radius: .7em; padding: .6em .75em; overflow-wrap: anywhere; max-height: 14em; overflow: auto; }
     .au-src-ctx .ctx { color: var(--mut); } .au-src-ctx .hit { font-weight: 800; background: #fde68a; color: #111; border-radius: .3em; padding: .1em .3em; margin: .15em -.3em; animation: auPop .45s both; }
@@ -278,6 +288,32 @@
     .au-tip.show { opacity: 1; transform: none; }
     body.night-mode .au-tip { background: #f5f5f5; color: #111; }
     @media (max-width: 800px) { .au-ev .au-tag, .au-ev .tm { display: none; } .au-legend { display: none; } .au-calmonth { font-size: 1.3em; min-width: 0; } .au-calhead { flex-wrap: wrap; } }
+    /* ── phones and tablets: the left list becomes stacked cards, calendar days show colour bars ── */
+    @media (max-width: 900px) {
+      .au-left { display: flex; flex-direction: column; align-items: stretch; gap: .5em; }
+      .au-left > .au-r { grid-template-columns: 1.4em minmax(0, 1fr) auto auto; column-gap: .6em; row-gap: .3em; padding: .6em .75em; border-radius: 1em; background: var(--soft); }
+      .au-left > .au-r > span:empty:not(.au-chk):not(.au-msgline) { display: none; }
+      .au-left > .au-r > .au-chk { grid-column: 1; grid-row: 1; }
+      .au-left > .au-r > .au-b { grid-row: 1; justify-self: end; }
+      .au-left .lb { grid-column: 2; grid-row: 1; margin-right: 0; font-size: 1.05em; }
+      .au-left .vl { grid-column: 2 / -1; grid-row: 2; white-space: normal; font-size: 1em; }
+      .au-left .au-msgline { grid-column: 2 / -1; grid-row: 3; }
+      .au-left .grp { flex-wrap: wrap; }
+      .au-left > .au-codebox { display: block; padding: 0; background: none; }
+      .au-left .au-codebox > span { display: none; }
+      .au-left .au-codebox > .au-ta { width: 100%; min-height: 12em; box-sizing: border-box; }
+      .au-left > .au-stat { align-self: stretch; }
+      .au-box2, .au-box2.small { max-height: 92vh; max-height: 92dvh; }
+    }
+    @media (max-width: 700px) {
+      .au-cd { padding: .3em .3em; gap: .18em; }
+      .au-cd .dn { font-size: .9em; }
+      .au-ev { padding: 0; height: .55em; min-height: .55em; border-left: 0; background: var(--evc, #111); border-radius: .3em; }
+      .au-ev > * { display: none; }
+      .au-legend { display: flex; flex-basis: 100%; order: 9; font-size: .74em; gap: .4em; align-items: center; }
+      .au-calhead { gap: .4em; } .au-calmonth { font-size: 1.15em; }
+      .au-src-card { padding: .7em .75em; }
+    }
     @media (prefers-reduced-motion: reduce) { .au, .au *, .au-modal, .au-modal * { animation: none !important; transition: none !important; } }
 `;
 
@@ -292,7 +328,7 @@
         <button type="button" class="au-b sm alt" id="auCalNext" aria-label="Next month">&#8594;</button>
         <button type="button" class="au-b sm alt" id="auCalToday">Today</button>
         <span class="au-calbusy" id="auCalBusy" hidden>Automation is running...</span>
-        <span class="au-legend"><span class="au-tag t">Test</span> <span class="au-tag">Project</span> made by Automate</span>
+        <span class="au-legend"><span class="au-tag t">Test</span> <span class="au-tag">Project</span> made by Automate &middot; tap a day to see why</span>
         <button type="button" class="au-b sm alt" id="auClearCal" title="Clear events from the calendar (pick the dates)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/></svg>Clear</button>
       </div>
       <div class="au-calwd"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div>
@@ -567,7 +603,7 @@
         $('auAllowName').textContent = cfg.allowName || 'Test 1';
         const n = settings && settings.allowed ? settings.allowed.length : null;
         $('auAllowInfo').textContent = cfg.allowOn === false ? '(off: all pages)' : n == null ? '' : n ? '(' + n + ' page' + (n === 1 ? '' : 's') + ')' : '(all pages)';
-        $('auRangeInfo').textContent = cfg.rangeOn ? span(cfg.backDays) + ' back, ' + span(cfg.aheadDays) + ' ahead' : "Diary's own (about 1 week back, 3 weeks ahead)";
+        $('auRangeInfo').textContent = cfg.rangeOn ? span(cfg.backDays) + ' back, ' + span(cfg.aheadDays) + ' ahead' : "Diary's own dates";
         $('auRepInfo').textContent = 'On ' + (cfg.repeatPct || 60) + '%+ of pages';
         $('auCodeInfo').textContent = cfg.agentOn ? 'In use' : 'Not used';
         if (document.activeElement !== $('auPrompt') && !codeDirty) $('auPrompt').value = cfg.prompt || '';
@@ -1062,39 +1098,82 @@
           cell.appendChild(el('span', 'dn', String(d.getDate())));
           (snap[key] || []).filter(isTestEv).sort((a, b) => (a.startMinutes || 0) - (b.startMinutes || 0)).forEach((r) => {
             const k = autoKind(r), e = el('div', 'au-ev'); e.style.setProperty('--evc', r.color || '#111'); e.dataset.id = r.id || '';
-            e.title = k + ': ' + (r.type || '') + (r.description ? ' - ' + r.description : '') + '  (click to see where it came from)';
-            e.tabIndex = 0; e.setAttribute('role', 'button'); e.addEventListener('click', () => openSource(r, key));
-            e.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openSource(r, key); } });
+            e.title = k + ': ' + (r.type || '') + (r.description ? ' - ' + r.description : '') + '';
+            if (r.notify) { const bl = el('span', 'au-bell'); bl.innerHTML = '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor"><path d="M12 22a2.2 2.2 0 0 0 2.2-2.2H9.8A2.2 2.2 0 0 0 12 22zm6.5-6.2V11a6.5 6.5 0 0 0-5-6.3V4a1.5 1.5 0 0 0-3 0v.7A6.5 6.5 0 0 0 5.5 11v4.8l-1.8 1.8V19h16.6v-1.4z"/></svg>'; e.appendChild(bl); }
             e.append(el('span', 'tm', hm(r.startMinutes)), el('span', 'tt', r.type || '(no title)'), el('span', 'au-tag' + (k === 'Test' ? ' t' : ''), k));
             cell.appendChild(e);
           });
+          cell.tabIndex = 0; cell.setAttribute('role', 'button'); cell.setAttribute('aria-label', d.toDateString());
+          cell.addEventListener('click', () => openDay(key));
+          cell.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openDay(key); } });
           grid.appendChild(cell);
         }
         requestAnimationFrame(fitChips);
       }
-      function openSource(r, key) {
-        const k = autoKind(r), s = srcMap[r.id] || null, body = openDlg('Where this came from', true);
-        body.style.cssText = 'display:flex;flex-direction:column;gap:.8em';
-        const d = new Date(key + 'T12:00:00'), pretty = isNaN(d) ? key : d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-        const head = el('div', 'au-src-head'); head.append(el('b', '', r.type || '(no title)'), el('span', 'au-src-sub', k + '  \u00b7  ' + pretty));
-        body.appendChild(head);
-        const box = (label, node) => { const w = el('div', 'au-src-box'); w.appendChild(el('div', 'au-src-lb', label)); w.appendChild(node); body.appendChild(w); };
-        if (r.description) box('What the agent understood', el('div', 'au-src-tx', r.description));
-        const loc = s && s.loc;
-        if (loc) {
-          const pre = el('div', 'au-src-ctx');
-          loc.before.forEach((x) => pre.appendChild(el('div', 'ctx', x)));
-          pre.appendChild(el('div', 'hit', loc.line));
-          loc.after.forEach((x) => pre.appendChild(el('div', 'ctx', x)));
-          box(loc.exact ? 'The exact line in the diary text' : 'The closest line in the diary text', pre);
-          if (loc.page) { const a = el('a', 'au-src-link', loc.page); a.href = loc.page; a.target = '_blank'; a.rel = 'noopener'; box('On this diary page', a); }
-        } else if (s && s.quote) {
-          box('What the agent said it read', el('div', 'au-src-ctx', s.quote));
-          body.appendChild(el('div', 'au-hint', 'That line is NOT in the scanned text, so the agent may have guessed or changed it. Check this one by hand. (If the text was scanned again since, press Run agent to refresh.)'));
-        } else {
-          body.appendChild(el('div', 'au-hint', 'No source was saved for this one. It was made before this feature, or on another device. Press Run agent again and it will be saved.'));
+      /* ---------- Day popup: everything the scan saw for one day, where each test came from, and the reminder switch ---------- */
+      function dayLines(key) {
+        const text = work.c || work.o || ''; if (!text) return null;
+        const [y, m, d] = key.split('-'), forms = [key, y + '.' + m + '.' + d, d + '.' + m + '.' + y, y + '/' + m + '/' + d, d + '/' + m + '/' + y];
+        const L = text.split('\n'), pageAt = []; let page = '';
+        L.forEach((x, i) => { const mm = /^=== (.+) ===$/.exec(x.trim()); if (mm) page = mm[1]; pageAt[i] = page; });
+        const sn = [];
+        L.forEach((x, i) => {
+          if (/^=== /.test(x.trim()) || !forms.some((f) => x.includes(f))) return;
+          const a = Math.max(0, i - 1), z = Math.min(L.length - 1, i + 4), last = sn[sn.length - 1];
+          if (last && a <= last.z + 1 && pageAt[i] === last.page) { last.z = Math.max(last.z, z); last.hits.push(i); } else sn.push({ a, z, hits: [i], page: pageAt[i] });
+        });
+        return sn.slice(0, 12).map((s) => ({ page: s.page, lines: L.map((x, k) => ({ t: x.trim(), hit: s.hits.includes(k), k })).filter((o) => o.k >= s.a && o.k <= s.z && pageAt[o.k] === s.page && o.t && !/^=== /.test(o.t)).slice(0, 14) }));
+      }
+      const pageLink = (url) => { const a = el('a', 'au-src-link', url); a.href = url; a.target = '_blank'; a.rel = 'noopener'; return a; };
+      const remindAt = (key, mins) => { const [y, m, d] = key.split('-').map(Number); return new Date(y, m - 1, d - 1, Math.floor((mins || 0) / 60), (mins || 0) % 60); };
+      async function setNotify(rec, on, msg) {
+        if (on) {
+          let perm = 'unsupported';
+          try { perm = typeof NotificationScheduler !== 'undefined' ? await NotificationScheduler.requestPermission() : (typeof Notification !== 'undefined' ? await Notification.requestPermission() : 'unsupported'); } catch (e) {}
+          if (perm !== 'granted') { msg.textContent = perm === 'denied' ? 'Notifications are blocked for this site. Allow them in your phone or browser settings, then try again.' : 'Notifications are not available here. On an iPhone, add the site to your Home Screen first, then open it from there.'; return false; }
+          try { if (typeof PushNotifications !== 'undefined') await PushNotifications.ensureSubscribed(); } catch (e) {}
         }
-        if (s && s.at) body.appendChild(el('div', 'au-hint', 'Last seen by the agent: ' + new Date(s.at).toLocaleString()));
+        try { await EventStore.whenReady(); rec.notify = on; EventStore.save(rec); await EventStore.flushNow(); } catch (e) { msg.textContent = 'Could not save: ' + e.message; return false; }
+        refreshCal(); return true;
+      }
+      function openDay(key) {
+        const d = new Date(key + 'T12:00:00'), pretty = isNaN(d) ? key : d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+        const body = openDlg(pretty, true); body.style.cssText = 'display:flex;flex-direction:column;gap:.9em';
+        const evs = (evSnap()[key] || []).filter(isTestEv).sort((a, b) => (a.startMinutes || 0) - (b.startMinutes || 0));
+        const section = (label) => { const h = el('div', 'au-src-lb', label); body.appendChild(h); return h; };
+        if (!evs.length) body.appendChild(el('div', 'au-src-none', 'The agent found no test or project on this day.'));
+        evs.forEach((r) => {
+          const k = autoKind(r), s = srcMap[r.id] || null, card = el('div', 'au-src-card'); card.style.setProperty('--evc', r.color || '#111');
+          const head = el('div', 'au-src-head'); head.append(el('b', '', r.type || '(no title)'), el('span', 'au-tag' + (k === 'Test' ? ' t' : ''), k)); card.appendChild(head);
+          if (r.description) card.appendChild(el('div', 'au-src-tx', r.description));
+          let loc = s && s.loc; if (!loc) loc = locate({ date: key, title: r.type || '', source: s ? s.quote : '' });
+          const box = (label, node) => { const w = el('div', 'au-src-box'); w.appendChild(el('div', 'au-src-lb', label)); w.appendChild(node); card.appendChild(w); };
+          if (loc) {
+            const pre = el('div', 'au-src-ctx');
+            loc.before.forEach((x) => pre.appendChild(el('div', 'ctx', x))); pre.appendChild(el('div', 'hit', loc.line)); loc.after.forEach((x) => pre.appendChild(el('div', 'ctx', x)));
+            box(loc.exact ? 'The exact line it read' : 'The closest line it could find', pre);
+            if (loc.page) box('Site', pageLink(loc.page));
+          } else if (s && s.quote) {
+            box('What the agent said it read', el('div', 'au-src-ctx', s.quote));
+            card.appendChild(el('div', 'au-hint', 'That line is NOT in the scanned text, so the agent may have guessed or changed it. Check this one by hand.'));
+          } else card.appendChild(el('div', 'au-hint', 'No source was saved for this one (made before this feature, or on another device). Press Run agent again and it will be saved.'));
+          // reminder: one day before
+          const rec = (typeof EventStore !== 'undefined' && EventStore.getForDate(key).find((x) => x.id === r.id)) || null;
+          const when = remindAt(key, r.startMinutes), past = when.getTime() < Date.now();
+          const row = el('div', 'au-src-notify'), chk = el('button', 'au-chk'); chk.type = 'button'; chk.setAttribute('role', 'checkbox'); chk.setAttribute('aria-checked', r.notify ? 'true' : 'false'); chk.setAttribute('aria-label', 'Notify me one day before');
+          const lab = el('div', 'au-nlab'); lab.append(el('b', '', 'Notify me 1 day before'), el('span', '', when.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' }) + ' at ' + hm(r.startMinutes)));
+          const msg = el('div', 'au-hint au-nmsg', past && !r.notify ? 'That time has already passed, so a reminder for this one would not be sent.' : '');
+          row.append(chk, lab); card.append(row, msg);
+          const flip = async () => { if (!rec) { msg.textContent = 'The calendar is not ready yet.'; return; } const on = chk.getAttribute('aria-checked') !== 'true'; chk.classList.add('busy'); const ok = await setNotify(rec, on, msg); chk.classList.remove('busy'); if (!ok) return; chk.setAttribute('aria-checked', on ? 'true' : 'false'); msg.textContent = on ? (past ? 'Saved, but that time has already passed.' : 'Done. You will get a notification on ' + when.toLocaleDateString(undefined, { weekday: 'long' }) + ' at ' + hm(r.startMinutes) + '.') : 'Reminder switched off.'; };
+          row.addEventListener('click', flip);
+          body.appendChild(card);
+        });
+        section('Everything the scan saw for this day');
+        const lines = dayLines(key);
+        if (lines == null) body.appendChild(el('div', 'au-src-none', 'There is no scanned text yet. Press Scan first.'));
+        else if (!lines.length) body.appendChild(el('div', 'au-src-none', 'The scanned text has nothing about this day. It may be outside the dates a scan looks at (see the Dates row).'));
+        else lines.forEach((g) => { const w = el('div', 'au-src-box'); const ctx = el('div', 'au-src-ctx'); g.lines.forEach((o) => ctx.appendChild(el('div', o.hit ? 'hit2' : 'ctx', o.t))); if (g.page) w.appendChild(pageLink(g.page)); w.appendChild(ctx); body.appendChild(w); });
+        body.appendChild(el('div', 'au-hint', 'This is the text the agent received (after Delete words). Reminders use the notification system of this site; the phone needs to have allowed notifications.'));
       }
       function fitChips() {
         if (!calVisible()) return;
