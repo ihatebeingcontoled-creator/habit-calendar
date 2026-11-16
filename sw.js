@@ -25,8 +25,8 @@ self.addEventListener('notificationclick', (event) => {
 /* ── App-shell caching (new) ──
    Serves the page instantly from cache and refreshes it in the background.
    Whenever you change index.html or app.js: bump SHELL_VERSION here AND the ?v= number on the app.js line in index.html (and in SHELL below). */
-const SHELL_VERSION = 'shell-v24';
-const SHELL = ['/', '/index.html', '/app.js?v=32', '/favicon.png', '/manifest.json'];
+const SHELL_VERSION = 'shell-v25';
+const SHELL = ['/', '/index.html', '/app.js?v=33', '/favicon.png', '/manifest.json'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
