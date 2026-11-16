@@ -229,7 +229,54 @@ const scanPart = (() => {
     return list.some((a) => a && (path.includes(a) || href.includes(a)));
   }
 
-  async function runScan({ db, env, runId, settings, password, loginOnly }) {
+  /* ───────────── custom date window (the diary shows about 1 week back and 3 weeks ahead by itself) ─────────────
+     If a page has a form with two date boxes, the window you picked is typed into them and the form is sent, so the page shows YOUR dates. */
+  const D_ISO = /^(\d{4})-(\d{2})-(\d{2})$/, D_DOT = /^(\d{4})\.(\d{2})\.(\d{2})$/, D_DMY = /^(\d{2})([.\/-])(\d{2})\2(\d{4})$/;
+  const dateKind = (v) => { v = String(v || '').trim(); return D_ISO.test(v) ? 'iso' : D_DOT.test(v) ? 'dot' : D_DMY.test(v) ? 'dmy' : ''; };
+  function fmtDate(iso, sample) {                       // write the date the same way the page wrote its own (2026-11-16 / 2026.11.16 / 16.11.2026)
+    const [y, m, d] = iso.split('-'); const k = dateKind(sample);
+    if (k === 'dot') return y + '.' + m + '.' + d;
+    if (k === 'dmy') { const sep = D_DMY.exec(String(sample).trim())[2]; return d + sep + m + sep + y; }
+    return y + '-' + m + '-' + d;
+  }
+  function findDateForm(html) {
+    for (const f of parseForms(html)) {
+      const ds = f.inputs.filter((i) => i.name && ['text', 'date', 'search', ''].includes((i.type || 'text').toLowerCase()) && ((i.type || '').toLowerCase() === 'date' || dateKind(i.value)));
+      if (ds.length < 2) continue;
+      let [a, b] = ds;
+      if (/iki|\bto\b|_to|end|till/i.test(a.name) && /nuo|from|start|begin/i.test(b.name)) [a, b] = [b, a];   // the box named "to" comes second
+      return { form: f, from: a, to: b };
+    }
+    return null;
+  }
+  async function submitRange(http, host, pageUrl, html, range, log) {
+    const d = findDateForm(html);
+    const path = (() => { try { return new URL(pageUrl).pathname; } catch (e) { return pageUrl; } })();
+    if (!d) { await log('Dates: no date boxes on ' + path + ' (it shows the diary\'s own dates).'); return null; }
+    const p = new URLSearchParams(); let submitSet = false;
+    for (const el of d.form.inputs) {
+      if (!el.name) continue;
+      const t = (el.type || (el.tag === 'input' ? 'text' : '')).toLowerCase();
+      if (el === d.from) { p.set(el.name, fmtDate(range.from, el.value)); continue; }
+      if (el === d.to) { p.set(el.name, fmtDate(range.to, el.value)); continue; }
+      if (el.tag !== 'input') { if (el.value) p.set(el.name, el.value); continue; }
+      if (t === 'submit') { if (!submitSet) { p.set(el.name, el.value || ''); submitSet = true; } continue; }
+      if (['button', 'image', 'file', 'reset', 'password'].includes(t)) continue;
+      if (t === 'checkbox' || t === 'radio') { if (el.checked && !p.has(el.name)) p.set(el.name, el.value || 'on'); continue; }
+      if (!p.has(el.name)) p.set(el.name, el.value || '');
+    }
+    const action = new URL(d.form.action || pageUrl, pageUrl); action.protocol = 'https:';
+    if (action.hostname.replace(/^www\./, '') !== host) return null;
+    const method = String(d.form.method || 'get').toUpperCase();
+    let res;
+    if (method === 'POST') res = await http(action.href, { method: 'POST', body: p.toString(), headers: { 'Content-Type': 'application/x-www-form-urlencoded', Referer: pageUrl } });
+    else { action.search = p.toString(); res = await http(action.href, { headers: { Referer: pageUrl } }); }
+    if (!res.text || (hasPasswordBox(res.text) && !isLoggedIn(res.text))) { await log('Dates: sending ' + range.from + ' to ' + range.to + ' to ' + path + ' gave no page, so the diary\'s own dates are used.'); return null; }
+    await log('Dates: ' + path + ' now shows ' + range.from + ' to ' + range.to + ' (boxes "' + d.from.name + '" and "' + d.to.name + '").');
+    return res;
+  }
+
+  async function runScan({ db, env, runId, settings, password, loginOnly, range }) {
     const lines = [];
     let lastFlush = 0;
     const flush = async (force) => {
@@ -315,8 +362,14 @@ const scanPart = (() => {
           const body = dropIgnored(htmlToText(html), ignore).slice(0, MAX_BODY);
           pages.push({ url, title: titleOf(html, url), chars: body.length, body });
         };
+        const ranged = async (url, html) => {
+          if (!range) return { url, html };
+          try { const r = await submitRange(http, host, url, html, range, log); if (r) return { url: r.url, html: r.text }; }
+          catch (e) { await log('Dates: could not use your dates (' + (e && e.message || e) + ').'); }
+          return { url, html };
+        };
         addLinks(first.text, first.url);
-        if (allowedBy(allowed, first.url)) record(first.url, first.text);
+        if (allowedBy(allowed, first.url)) { const r = await ranged(first.url, first.text); record(r.url, r.html); }
         await log('STEP 4: reading pages. Found ' + queue.length + ' links on the first page' + (allowed.length ? ' (only ' + allowed.length + ' allowed address part(s) are kept).' : '.'));
         for (let i = 0; i < queue.length && pages.length < MAX_PAGES; i++) {
           if (st.requests >= MAX_REQUESTS) { await log('Stopped: reached the request limit for one scan (' + MAX_REQUESTS + ').'); break; }
@@ -326,7 +379,7 @@ const scanPart = (() => {
           if (hasPasswordBox(p.text) && !isLoggedIn(p.text)) { await log('Asked to log in: ' + url); continue; }
           addLinks(p.text, p.url);
           if (!allowedBy(allowed, p.url)) continue;
-          record(p.url, p.text);
+          { const r = await ranged(p.url, p.text); record(r.url, r.html); }
           await log('Read [' + pages.length + '] ' + p.url);
         }
       }
@@ -485,6 +538,10 @@ const scanPart = (() => {
           if (!env.code) return json({ error: 'The "code" variable is missing.' }, 500);
           try { password = await decrypt(env, s.password_enc); } catch (e) { return json({ error: 'Could not decrypt the saved password. Save it again.' }, 500); }
         }
+        let range = null;
+        if (!testOnly) {
+          try { const b = await request.json(); if (b && /^\d{4}-\d{2}-\d{2}$/.test(b.range_from || '') && /^\d{4}-\d{2}-\d{2}$/.test(b.range_to || '') && b.range_from <= b.range_to) range = { from: b.range_from, to: b.range_to }; } catch (e) {}
+        }
         const runId = new Date().toISOString();
         await env.DB.batch(testOnly ? [
           env.DB.prepare("INSERT INTO scan_runs (id, started, status, log) VALUES (?, ?, 'running', '')").bind(runId, runId),
@@ -492,7 +549,7 @@ const scanPart = (() => {
           env.DB.prepare("INSERT INTO scan_runs (id, started, status, log) VALUES (?, ?, 'running', '')").bind(runId, runId),
           env.DB.prepare('UPDATE scan_settings SET last_run = ? WHERE id = 1').bind(runId),
         ]);
-        const out = await runScan({ db: env.DB, env, runId, settings: s, password, loginOnly: testOnly });
+        const out = await runScan({ db: env.DB, env, runId, settings: s, password, loginOnly: testOnly, range });
         return json({ id: runId, ...out });
       }
       return json({ error: 'Unknown resource' }, 400);
