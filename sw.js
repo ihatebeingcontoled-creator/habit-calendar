@@ -26,8 +26,8 @@ self.addEventListener('notificationclick', (event) => {
    Serves the page instantly from cache and refreshes it in the background.
    Whenever you change index.html or app.js: rebuild app.min.js (npx esbuild app.js --minify --outfile=app.min.js),
    then bump SHELL_VERSION here AND the ?v= number on the app.min.js line in index.html (and in SHELL below). */
-const SHELL_VERSION = 'shell-v19';
-const SHELL = ['/', '/index.html', '/app.min.js?v=27', '/favicon.png', '/manifest.json'];
+const SHELL_VERSION = 'shell-v21';
+const SHELL = ['/', '/index.html', '/app.min.js?v=29', '/favicon.png', '/manifest.json'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -54,6 +54,14 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
   // only handle same-origin GETs, and never touch the API
   if (req.method !== 'GET' || url.origin !== location.origin || url.pathname.startsWith('/api/')) return;
+  // test.js (the whole Test tab) is fetched fresh whenever online, so changing that one file is enough
+  if (url.pathname === '/test.js') {
+    event.respondWith(caches.open(SHELL_VERSION).then(async (cache) => {
+      try { const res = await fetch(req); if (res.ok) cache.put(req, res.clone()); return res; }
+      catch (e) { const c = await cache.match(req); if (c) return c; throw e; }
+    }));
+    return;
+  }
   event.respondWith(
     caches.open(SHELL_VERSION).then(async (cache) => {
       // page navigations ignore ?query bits; app.js is matched exactly so ?v=N busts it
