@@ -1,4 +1,4 @@
-`/* test.js - the WHOLE Test tab in one file: its styles, its page and its code.
+/* test.js - the WHOLE Test tab in one file: its styles, its page and its code.
    Loaded by app.js ONLY when you press the Test tab (or when a scheduled automation is due), never on a normal page load.
    To change the Test tab, change this file only (the service worker always fetches it fresh). Server part: functions/api/automate.js. */
 (() => {
