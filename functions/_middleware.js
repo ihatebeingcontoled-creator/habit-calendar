@@ -1930,7 +1930,8 @@ async function onRequestGet({ env, request }) {
     if (new URL(request.url).searchParams.get('status')) {
       let last = null;
       try { const r = await env.DB.prepare('SELECT sent_at FROM sent_notifications WHERE event_id = ?').bind('__push_check__').first(); last = r ? r.sent_at : null; } catch (e) { /* table not there yet */ }
-      return json({ ok: true, last, now: nowMs });
+      let diag = null; try { const r = await env.DB.prepare("SELECT event_id FROM sent_notifications WHERE event_id LIKE '__push_diag__%' ORDER BY sent_at DESC LIMIT 1").first(); if (r) diag = JSON.parse(r.event_id.slice('__push_diag__'.length)); } catch (e) { /* none yet */ }
+      return json({ ok: true, last, now: nowMs, diag });
     }
     try { await env.DB.prepare('INSERT OR REPLACE INTO sent_notifications (event_id, sent_at) VALUES (?, ?)').bind('__push_check__', nowMs).run(); } catch (e) { /* only a status note */ }
 
@@ -1993,7 +1994,7 @@ async function onRequestGet({ env, request }) {
 
     const { results: subs } = await env.DB.prepare('SELECT * FROM push_subscriptions').all();
 
-    let sentCount = 0;
+    let sentCount = 0, lastDiag = null;
     const markStmts = [];
 
     for (const ev of toSend) {
@@ -2003,23 +2004,30 @@ async function onRequestGet({ env, request }) {
         title: ev.type || 'Reminder',
         body: ev.description ? `${ev.timeLabel} — ${ev.description}` : ev.timeLabel,
       };
+      let delivered = 0, note = subs.length ? '' : 'no phone is subscribed to notifications';
       for (const sub of subs) {
         try {
           const res = await sendPush(sub, payload, env);
           if (res.status === 404 || res.status === 410) {
             await env.DB.prepare('DELETE FROM push_subscriptions WHERE id = ?').bind(sub.id).run();
+            note = 'a phone subscription had expired and was removed (' + res.status + ')';
+          } else if (res.status >= 200 && res.status < 300) {
+            sentCount++; delivered++;
           } else {
-            sentCount++;
+            let t = ''; try { t = (await res.text()).slice(0, 120); } catch (e) { /* ignore */ }
+            note = 'push service answered ' + res.status + ' ' + t;
           }
         } catch (err) {
-          /* one bad subscription shouldn't block the rest */
+          note = 'send failed: ' + (err && err.message ? err.message : String(err));
         }
       }
-      markStmts.push(
+      lastDiag = { at: Date.now(), title: ev.type || 'Reminder', time: ev.timeLabel, delivered, note };
+      if (delivered > 0) markStmts.push(      // only a delivered bell counts as sent; a failed one is tried again on the next check (for up to 10 minutes)
         env.DB.prepare('INSERT OR REPLACE INTO sent_notifications (event_id, sent_at) VALUES (?, ?)')
           .bind(ev.id, Date.now())
       );
     }
+    if (lastDiag) { try { const dt = Date.now(); await env.DB.prepare("DELETE FROM sent_notifications WHERE event_id LIKE '__push_diag__%'").run(); await env.DB.prepare('INSERT OR REPLACE INTO sent_notifications (event_id, sent_at) VALUES (?, ?)').bind('__push_diag__' + JSON.stringify(lastDiag), dt).run(); } catch (e) { /* diagnostics only */ } }
 
     for (const b of dueBirthdays) {
       const payload = { title: b.name, body: `${MONTH_NAMES[b.month - 1]} ${b.day}` };
@@ -3359,7 +3367,7 @@ async function onRequest({ request, env }) {
 })();
 
 // version counter of THIS file (added into the number shown in the page corner; bump it only when this file changes)
-const FILE_VERSION = 8;
+const FILE_VERSION = 9;
 const M_version = { onRequest: () => new Response(JSON.stringify({ v: FILE_VERSION }), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } }) };
 
 // ================================ ROUTER ================================
