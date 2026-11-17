@@ -3187,7 +3187,7 @@ async function callToolInner(name, a, env) {
       if (/roblox|steam|epic|fisch|minecraft|game|chess|valorant|fortnite|league/.test(b)) return 'games';
       if (/^claude/.test(b)) return 'claude';
       if (/spotify|music|podcast|soundcloud|audible|shazam/.test(b)) return 'music';
-      if (/claude|chatgpt|code|cursor|notes|notepad|calendar|reminders|mail|gmail|journal|excel|word|powerpnt|onenote|figma|github|terminal|powershell|cmd|devenv|pycharm|books|files|ads|sheets|docs|translate|capcut|autohotkey/.test(b)) return 'work';
+      if (/powerpoint|onedrive|airtable|notebooklm|manus|stripe|tradingview|forexfactory|maventrading|markthetrade|rekvizitai|dienynas|doversus|tascentvo|furlota|cloudflare|make\.com|claude|chatgpt|code|cursor|notes|notepad|calendar|reminders|mail|gmail|journal|excel|word|powerpnt|onenote|figma|github|terminal|powershell|cmd|devenv|pycharm|books|files|ads|sheets|docs|translate|capcut|autohotkey/.test(b)) return 'work';
       if (/settings|shortcuts|clock|camera|photos|maps|wallet|calculator|finder|explorer|taskmgr|weather|health|find my|app store|preview|regedit|control/.test(b)) return 'system';
       return 'other';
     };
@@ -3368,7 +3368,7 @@ async function onRequest({ request, env }) {
 })();
 
 // version counter of THIS file (added into the number shown in the page corner; bump it only when this file changes)
-const FILE_VERSION = 10;
+const FILE_VERSION = 11;
 const M_version = { onRequest: () => new Response(JSON.stringify({ v: FILE_VERSION }), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } }) };
 
 // ================================ ROUTER ================================
