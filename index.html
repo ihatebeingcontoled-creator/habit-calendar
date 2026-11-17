@@ -14592,6 +14592,9 @@ body.night-mode .st-row { border-top-color: #2c2c2e; }
 body.night-mode .st-set { border-top-color: #2c2c2e; }
 .st-set > span { min-width: 0; }
 .st-set select { font: inherit; font-size: 13px; border-radius: 9px; border: 1.5px solid #e2e2e6; background: #f7f7f9; color: inherit; padding: 5px 7px; max-width: 120px; } body.night-mode .st-set select { background: #2c2c2e; border-color: #3a3a3c; }
+.st-fab { position: fixed; right: 12px; bottom: 76px; z-index: 900; width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(128,128,128,.35); background: rgba(255,255,255,.92); color: #111; font-size: 20px; line-height: 1; box-shadow: 0 2px 10px rgba(0,0,0,.18); cursor: pointer; display: flex; align-items: center; justify-content: center; }
+body.night-mode .st-fab { background: rgba(40,40,42,.92); color: #f5f5f5; }
+@media (min-width: 1000px) and (hover: hover) and (pointer: fine) { .st-fab { display: none; } }
 .st-cat { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 7px; cursor: pointer; vertical-align: -1px; box-shadow: 0 0 0 2px rgba(128,128,128,.18); }
 .st-adjsel { font: inherit; font-size: 13px; border-radius: 9px; border: 1.5px solid #e2e2e6; background: #f7f7f9; color: inherit; padding: 5px 7px; height: 34px; max-width: 190px; } body.night-mode .st-adjsel { background: #2c2c2e; border-color: #3a3a3c; }
 .st-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #9a9aa1; margin-right: 5px; } .st-dot.on { background: #22a559; }
@@ -14659,7 +14662,7 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
             <div class="st-set"><span>Break reminder (phone)</span><input type="checkbox" id="stBrkChk"></div>
             <div class="st-set"><span title="A break = 5 minutes without using the PC">Remind after</span><select id="stBrkMin"><option value="30">30 min</option><option value="45">45 min</option><option value="60">1 hour</option><option value="90">1 h 30</option><option value="120">2 hours</option><option value="150">2 h 30</option><option value="180">3 hours</option><option value="240">4 hours</option></select></div>
             <div class="st-set"><span>Colour the days</span><input type="checkbox" id="stColChk"></div>
-            <div class="st-set"><span title="Bars are split into productive (green), unproductive (red) and other (brown). Tap the coloured dot next to a program in the list to change its group.">Colour by productivity</span><input type="checkbox" id="stProgChk"></div>
+            <div class="st-set"><span title="Choose how the bars are coloured. Tap the coloured dot next to a program in the list to change its group.">Colour bars by</span><select id="stColMode" class="st-adjsel"><option value="kind">App type (colour guide)</option><option value="prod">Productive / not</option><option value="off">One colour</option></select></div>
             <div class="st-set"><span>Test the reminder</span><button type="button" class="st-btn ghost sm" id="stBrkTest">Send test</button></div>
           </div>
           <div class="st-mut" style="margin-top:6px;font-size:11.5px">Changes reach the PC within 30 seconds. A break = 5 minutes without using the PC.</div>
@@ -14700,12 +14703,32 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
     var rtBy = {}, adjBy = {}, i;
     d.rt.forEach(function (x) { rtBy[x.day] = x.seconds; });
     d.adj.forEach(function (x) { adjBy[x.day] = (adjBy[x.day] || 0) + x.seconds; });
-    var progOn = d.conf.progColors !== 0, cats = d.cats || {};
-    var P_COL = '#2fb457', U_COL = '#e5484d', O_COL = '#a47551', CAT_COL = { p: P_COL, u: U_COL, o: O_COL }, CAT_NAME = { p: 'Productive', u: 'Unproductive', o: 'Other' };
+    var mode = 'kind'; try { mode = localStorage.getItem('stColMode') || 'kind'; } catch (e) {}
+    if (mode !== 'prod' && mode !== 'off') mode = 'kind';
+    var progOn = mode !== 'off', cats = d.cats || {}, kinds = d.kinds || {};
+    var PROD_PAL = [{ k: 'u', name: 'Unproductive', col: '#e5484d' }, { k: 'p', name: 'Productive', col: '#2fb457' }, { k: 'o', name: 'Other', col: '#a47551' }];
+    var KIND_PAL = [{ k: 'msg', name: 'Messaging', col: '#3b82f6' }, { k: 'web', name: 'Browser', col: '#f5b301' }, { k: 'video', name: 'Video & streaming', col: '#ef4444' }, { k: 'social', name: 'Social media', col: '#ec4899' }, { k: 'game', name: 'Games', col: '#8b5cf6' }, { k: 'work', name: 'Work & tools', col: '#22c55e' }, { k: 'music', name: 'Music', col: '#f97316' }, { k: 'sys', name: 'System & utilities', col: '#14b8a6' }, { k: 'other', name: 'Other', col: '#a47551' }];
+    var PAL = mode === 'kind' ? KIND_PAL : PROD_PAL, REST = mode === 'kind' ? 'other' : 'o', COL = {}, NAME = {};
+    PAL.forEach(function (g) { COL[g.k] = g.col; NAME[g.k] = g.name; });
+    function guessKind(n) {
+      var b = String(n).toLowerCase().replace(/ \(iphone\)$/, '');
+      if (/whatsapp|messages|imessage|telegram|discord|messenger|signal|facetime|^phone$|viber|slack|teams|skype|zoom|wechat/.test(b)) return 'msg';
+      if (/chrome|safari|firefox|msedge|edge|brave|opera|vivaldi|^google/.test(b)) return 'web';
+      if (/youtube|netflix|twitch|^tv$|disney|prime video|hbo|vlc|plex|crunchyroll/.test(b)) return 'video';
+      if (/instagram|tiktok|snapchat|facebook|reddit|twitter|^x$|bereal|pinterest|threads|linkedin/.test(b)) return 'social';
+      if (/roblox|steam|epic|fisch|minecraft|game|chess|valorant|fortnite|league/.test(b)) return 'game';
+      if (/spotify|music|podcast|soundcloud|audible|shazam/.test(b)) return 'music';
+      if (/claude|chatgpt|code|cursor|notes|notepad|calendar|reminders|mail|gmail|journal|excel|word|powerpnt|onenote|figma|github|terminal|powershell|cmd|devenv|pycharm|books|files|ads|sheets|docs|translate|capcut|autohotkey/.test(b)) return 'work';
+      if (/settings|shortcuts|clock|camera|photos|maps|wallet|calculator|finder|explorer|taskmgr|weather|health|find my|app store|preview|regedit|control/.test(b)) return 'sys';
+      return 'other';
+    }
     function catOf(n) { return cats[n] || 'o'; }
-    var pBy = {}, uBy = {};   // seconds per day in productive / unproductive programs (plus what you adjusted for them)
-    (d.dayApps || []).forEach(function (x) { var c = catOf(x.app); if (c === 'p') pBy[x.day] = (pBy[x.day] || 0) + x.seconds; else if (c === 'u') uBy[x.day] = (uBy[x.day] || 0) + x.seconds; });
-    d.adj.forEach(function (x) { if (!x.app) return; var c = catOf(x.app); if (c === 'p') pBy[x.day] = (pBy[x.day] || 0) + x.seconds; else if (c === 'u') uBy[x.day] = (uBy[x.day] || 0) + x.seconds; });
+    function kindOf(n) { return kinds[n] || guessKind(n); }
+    function grpOf(n) { return mode === 'kind' ? kindOf(n) : catOf(n); }
+    var dayG = {};   // day -> { group -> seconds } (plus what you adjusted by hand for a program)
+    function addG(day, n, sec) { var o = dayG[day] || (dayG[day] = {}), g = grpOf(n); o[g] = (o[g] || 0) + sec; }
+    (d.dayApps || []).forEach(function (x) { addG(x.day, x.app, x.seconds); });
+    d.adj.forEach(function (x) { if (x.app) addG(x.day, x.app, x.seconds); });
     var idleBy = {}, idleOn = d.conf.idleCounts !== 0;   // PC idle per day = recorded idle + on-time nobody accounted for
     (d.days || []).forEach(function (x) { idleBy[x.day] = (x.idle || 0) + Math.max(0, (rtBy[x.day] || 0) - (x.tracked || 0)); });
     d.rt.forEach(function (x) { if (idleBy[x.day] === undefined) idleBy[x.day] = x.seconds; });
@@ -14714,15 +14737,16 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
     if (!selDay || selDay < dayStr(bars - 1) || selDay > today) selDay = today;
 
     var vals = [], sum = 0, max = 1;
-    for (i = bars - 1; i >= 0; i--) { var k = dayStr(i), v = total(k); vals.push({ k: k, v: v, i: i, p: pBy[k] || 0, u: uBy[k] || 0, g: true }); if (i < range) sum += v; if (v > max) max = v; }
+    for (i = bars - 1; i >= 0; i--) { var k = dayStr(i), v = total(k); vals.push({ k: k, v: v, i: i, gs: dayG[k] || {}, g: true }); if (i < range) sum += v; if (v > max) max = v; }
     var hourly = range === 1, hourSum = 0;
     if (hourly) {   // one day: show its 24 hours instead of other days
       var hb = {}, gb = {}; (d.hours || []).forEach(function (x) { hb[x.hour] = x.seconds; hourSum += x.seconds; });
-      (d.hoursApp || []).forEach(function (x) { var o = gb[x.hour] || (gb[x.hour] = { p: 0, u: 0 }), c = catOf(x.app); if (c === 'p') o.p += x.seconds; else if (c === 'u') o.u += x.seconds; });
+      (d.hoursApp || []).forEach(function (x) { var o = gb[x.hour] || (gb[x.hour] = {}), g = grpOf(x.app); o[g] = (o[g] || 0) + x.seconds; });
       // hours recorded before the PC sent program info are estimated from the day's mix and drawn lighter
-      var dayTot = total(today), mixP = dayTot > 0 ? Math.min(1, (pBy[today] || 0) / dayTot) : 0, mixU = dayTot > 0 ? Math.min(1 - mixP, (uBy[today] || 0) / dayTot) : 0;
+      var dayTot = total(today), mix = {}, mixSum = 0, dg = dayG[today] || {};
+      if (dayTot > 0) Object.keys(dg).forEach(function (g) { if (g !== REST && dg[g] > 0) { mix[g] = Math.min(1 - mixSum, dg[g] / dayTot); mixSum += mix[g]; } });
       vals = []; max = 3600;
-      for (i = 0; i < 24; i++) vals.push({ k: pad(i), v: Math.min(hb[i] || 0, 3600), i: i, hour: true, p: gb[i] ? gb[i].p : 0, u: gb[i] ? gb[i].u : 0, g: !!gb[i], est: !gb[i] && (mixP + mixU) > 0, mp: mixP, mu: mixU });
+      for (i = 0; i < 24; i++) vals.push({ k: pad(i), v: Math.min(hb[i] || 0, 3600), i: i, hour: true, gs: gb[i] || {}, g: !!gb[i], est: !gb[i] && mixSum > 0, mix: mix });
     }
     $('stBig').textContent = fmt(sum);
     var lab = dev === 'phone' ? 'iPhone' : dev === 'pc' ? 'PC on' : 'PC on + iPhone';
@@ -14744,7 +14768,7 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
     var legEl = $('stLegend'); if (legEl._avg === undefined) legEl._avg = legEl.innerHTML;
     if (progOn) {
       var anyEst = vals.some(function (x) { return x.est && x.v; });
-      legEl.innerHTML = '<span><i style="background:' + P_COL + '"></i>Productive</span><span><i style="background:' + U_COL + '"></i>Unproductive</span><span><i style="background:' + O_COL + '"></i>Other</span>' + (hourly ? (anyEst ? '<span><i style="background:#9a9aa1;opacity:.6"></i>lighter = estimated from the day</span>' : '') : '<span><i style="background:rgba(128,128,128,.6);width:3px"></i>your average</span>'); legEl.style.display = '';
+      legEl.innerHTML = PAL.map(function (g) { return '<span><i style="background:' + g.col + '"></i>' + g.name + '</span>'; }).join('') + (hourly ? (anyEst ? '<span><i style="background:#9a9aa1;opacity:.6"></i>lighter = estimated from the day</span>' : '') : '<span><i style="background:rgba(128,128,128,.6);width:3px"></i>your average</span>'); legEl.style.display = '';
     } else { legEl.innerHTML = legEl._avg; legEl.style.display = colorsOn && !hourly ? '' : 'none'; }
     function seg(par, secs, col, label, est) { if (secs <= 0) return; var sp = document.createElement('span'); sp.style.flex = secs + ' 1 0'; sp.style.background = col; if (est) sp.style.opacity = '.55'; if (label) sp.title = label + ' ' + fmtSec(secs) + (est ? ' (estimated)' : ''); par.appendChild(sp); }
     axis.innerHTML = ''; hp.innerHTML = '';
@@ -14759,11 +14783,14 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
       var lb = document.createElement('span'); lb.className = 'st-hl'; lb.textContent = x.hour ? x.k : x.k.slice(8); row.appendChild(lb);
       var tr = document.createElement('div'); tr.className = 'st-ht';
       var bar = document.createElement('i'); bar.style.width = pct + '%';
-      if (progOn && x.v) {   // split by group: unproductive | productive | other
+      if (progOn && x.v) {   // split into the groups of the chosen colour guide
         bar.style.display = 'flex'; bar.style.overflow = 'hidden';
-        if (x.g) { var su = Math.min(Math.max(x.u, 0), x.v), sp2 = Math.min(Math.max(x.p, 0), x.v - su); seg(bar, su, U_COL, 'Unproductive'); seg(bar, sp2, P_COL, 'Productive'); seg(bar, x.v - su - sp2, O_COL, 'Other'); }
-        else if (x.est) { var eu = x.v * x.mu, ep = x.v * x.mp; seg(bar, eu, U_COL, 'Unproductive', 1); seg(bar, ep, P_COL, 'Productive', 1); seg(bar, x.v - eu - ep, O_COL, 'Other', 1); }
-        else seg(bar, x.v, '#9a9aa1');
+        var left = x.v, src = x.g ? x.gs : x.est ? x.mix : null, estF = !x.g && x.est;
+        if (!src) seg(bar, x.v, '#9a9aa1');
+        else {
+          PAL.forEach(function (g) { if (g.k === REST) return; var sv = x.g ? Math.min(Math.max(src[g.k] || 0, 0), left) : x.v * (src[g.k] || 0); if (sv > 0) { seg(bar, sv, g.col, g.name, estF); left -= sv; } });
+          seg(bar, left, COL[REST], NAME[REST], estF);
+        }
       } else bar.style.background = colourFor(x.v);
       tr.appendChild(bar);
       if (x.v) {
@@ -14815,16 +14842,16 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
       var nm = document.createElement('b'), pc = document.createElement('span'); pc.className = 'st-pct';
       var label = it.kind === 'app' ? a.app : it.kind === 'idle' ? 'PC idle' : it.kind === 'untracked' ? 'Not tracked' : 'Adjusted by you';
       nm.textContent = label; if (it.kind !== 'app') nm.style.fontStyle = 'italic';
-      var acat = it.kind === 'app' ? (a.cat || catOf(a.app)) : '';
-      if (it.kind === 'app') {   // coloured dot = productive / unproductive / other; tap to change
-        var cdot = document.createElement('span'); cdot.className = 'st-cat'; cdot.style.background = CAT_COL[acat]; cdot.title = CAT_NAME[acat] + ' (tap to change)';
-        cdot.onclick = function () { post('set', { app: a.app, cat: acat === 'p' ? 'u' : acat === 'u' ? 'o' : 'p' }).then(load).catch(function () {}); };
+      var acat = it.kind === 'app' ? grpOf(a.app) : '';
+      if (it.kind === 'app') {   // coloured dot = its group in the current colour guide; tap to change
+        var cdot = document.createElement('span'); cdot.className = 'st-cat'; cdot.style.background = COL[acat] || '#a47551'; cdot.title = (NAME[acat] || '') + ' (tap to change)';
+        cdot.onclick = function () { var ks = PAL.map(function (g) { return g.k; }), nx = ks[(ks.indexOf(acat) + 1) % ks.length], body = { app: a.app }; body[mode === 'kind' ? 'kind' : 'cat'] = nx; post('set', body).then(load).catch(function () {}); };
         nm.insertBefore(cdot, nm.firstChild);
       }
       pc.textContent = it.kind === 'adj' ? '' : (pctText(it.seconds) + (it.kind === 'app' && !a.counts && it.seconds ? ' \u00b7 not counted' : '')); nm.appendChild(pc); n.appendChild(nm);
       var note = '';
       if (note) { var nt = document.createElement('div'); nt.className = 'st-mut'; nt.style.fontSize = '11px'; nt.textContent = note; n.appendChild(nt); }
-      if (it.kind !== 'adj') { var m = document.createElement('div'); m.className = 'st-meter'; var mi = document.createElement('i'); mi.style.width = (it.seconds ? Math.max(it.seconds / base * 100, 1) : 0) + '%'; mi.style.background = it.kind === 'app' ? CAT_COL[acat] : '#9a9aa1'; m.appendChild(mi); n.appendChild(m); }
+      if (it.kind !== 'adj') { var m = document.createElement('div'); m.className = 'st-meter'; var mi = document.createElement('i'); mi.style.width = (it.seconds ? Math.max(it.seconds / base * 100, 1) : 0) + '%'; mi.style.background = it.kind === 'app' ? (progOn ? COL[acat] : '') : '#9a9aa1'; m.appendChild(mi); n.appendChild(m); }
       var t = document.createElement('div'); t.className = 't'; t.textContent = it.kind === 'adj' ? (it.seconds < 0 ? '\u2212' : '+') + fmtShort(Math.abs(it.seconds)) : (it.seconds ? fmtSec(it.seconds) : '-');
       row.appendChild(n); row.appendChild(t);
       if (it.kind === 'app') { row.appendChild(chk(a, 'counts')); row.appendChild(chk(a, 'alive')); } else if (it.kind === 'idle') { row.appendChild(chk({ counts: idleOn }, 'counts', function (v) { return { idleCounts: v ? 1 : 0 }; })); row.appendChild(chk({ alive: 1, counts: 0 }, 'alive')); } else { row.appendChild(document.createElement('div')); row.appendChild(document.createElement('div')); }
@@ -14853,7 +14880,7 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
     if (act !== $('stBrkChk')) $('stBrkChk').checked = !!d.conf.breakOn;
     if (act !== $('stDeskChk')) $('stDeskChk').checked = d.conf.desk !== 0;
     if (act !== $('stColChk')) $('stColChk').checked = colorsOn;
-    if (act !== $('stProgChk')) $('stProgChk').checked = progOn;
+    if (act !== $('stColMode')) $('stColMode').value = mode;
 
     var dv = $('stDevices'); dv.innerHTML = '';
     if (!d.devices.length) dv.textContent = 'No device connected yet';
@@ -14911,7 +14938,7 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
   $('stOpacity').onchange = function () { post('set', { opacity: +$('stOpacity').value }).catch(function () {}); };
   $('stIdle').onchange = function () { post('set', { idle: +$('stIdle').value }).catch(function () {}); };
   $('stColChk').onchange = function () { post('set', { colors: $('stColChk').checked ? 1 : 0 }).then(load).catch(function () {}); };
-  $('stProgChk').onchange = function () { post('set', { progColors: $('stProgChk').checked ? 1 : 0 }).then(load).catch(function () {}); };
+  $('stColMode').onchange = function () { try { localStorage.setItem('stColMode', $('stColMode').value); } catch (e) {} load(); };
   $('stBrkChk').onchange = function () { post('set', { breakOn: $('stBrkChk').checked ? 1 : 0 }).catch(function () {}); };
   $('stBrkMin').onchange = function () { post('set', { breakMin: +$('stBrkMin').value }).catch(function () {}); };
   $('stBrkTest').onclick = function () { var bt = $('stBrkTest'); bt.textContent = 'Sending...'; fetch('/api/test-push', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: 'Time for a break', body: 'This is how the break reminder will look.' }) }).then(function () { bt.textContent = 'Sent'; }).catch(function () { bt.textContent = 'Failed'; }); setTimeout(function () { bt.textContent = 'Send test'; }, 2500); };
@@ -14929,6 +14956,9 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
   if (tbEl) tbEl.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('button'); if (!ov.hidden && b && b.id !== 'globalTabScreenTime') close(); }, true);
   var pb = $('openScreenTimeBtn'); if (pb) pb.addEventListener('click', open);
   window.__openScreenTime = function () { if (ov.hidden) open(); else close(); };
+  var fab = document.createElement('button'); fab.type = 'button'; fab.className = 'st-fab'; fab.title = 'Screen Time'; fab.setAttribute('aria-label', 'Open Screen Time'); fab.innerHTML = '&#9201;';
+  fab.onclick = function () { window.__openScreenTime(); }; document.body.appendChild(fab);   // reachable from every view on phones, where the top-bar button is hidden
+  var fabTick = setInterval(function () { fab.style.display = ov.hidden ? '' : 'none'; }, 300);
 })();
 </script>
 </body>
