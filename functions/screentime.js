@@ -42,6 +42,7 @@ function ensure(db) {
     db.prepare('CREATE TABLE IF NOT EXISTS screentime_hourly_app (day TEXT NOT NULL, device TEXT NOT NULL, hour INTEGER NOT NULL, app TEXT NOT NULL, seconds INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, device, hour, app))'),
   ])
     .then(() => db.prepare('ALTER TABLE screentime_adjust ADD COLUMN app TEXT').run().catch(() => {}))   // which program an adjustment belongs to (ignored if the column already exists)
+    .then(() => db.prepare('ALTER TABLE screentime_apps ADD COLUMN kind TEXT').run().catch(() => {}))     // your own app-type choice (messaging, browser, video ...)
     .then(() => db.prepare('ALTER TABLE screentime_apps ADD COLUMN cat TEXT').run().catch(() => {}))      // your own productive / unproductive / other choice for a program
     .catch((e) => { ready = null; throw e; });
   return ready;
@@ -258,7 +259,7 @@ export async function onRequest({ request, env }) {
       const used = await db.prepare('SELECT app, SUM(seconds) AS seconds FROM screentime_usage WHERE day >= ? AND day <= ?' + dq + ' GROUP BY app').bind(rangeFrom, today).all();
       const days = await db.prepare('SELECT day, SUM(seconds) AS tracked, SUM(CASE WHEN app = ? THEN seconds ELSE 0 END) AS idle FROM screentime_usage WHERE day >= ? AND day <= ?' + dq + ' GROUP BY day').bind('(idle)', barsFrom, today).all();
       const dayApps = (await db.prepare('SELECT day, app, SUM(seconds) AS seconds FROM screentime_usage WHERE day >= ? AND day <= ?' + dq + " AND app NOT LIKE '(%' GROUP BY day, app").bind(barsFrom, today).all()).results;   // per day per program, so the page can colour each day by productive / unproductive / other
-      const apps = await db.prepare('SELECT app, counts, alive, cat FROM screentime_apps').all();
+      const apps = await db.prepare('SELECT app, counts, alive, cat, kind FROM screentime_apps').all();
       const devices = await db.prepare('SELECT device, last_seen FROM screentime_devices ORDER BY last_seen DESC').all();
       const hours = range === 1 ? (await db.prepare('SELECT hour, SUM(seconds) AS seconds FROM screentime_hourly WHERE day = ?' + dq + ' GROUP BY hour ORDER BY hour').bind(today).all()).results : [];
       const hoursApp = range === 1 ? (await db.prepare('SELECT hour, app, SUM(seconds) AS seconds FROM screentime_hourly_app WHERE day = ?' + dq + ' GROUP BY hour, app').bind(today).all()).results : [];
@@ -272,13 +273,13 @@ export async function onRequest({ request, env }) {
         .sort((x, y) => y.seconds - x.seconds || x.app.localeCompare(y.app))
         .slice(0, 150);
 
-      const stored = {};
-      for (const a of apps.results) stored[a.app] = a.cat;
+      const stored = {}, kinds = {};
+      for (const a of apps.results) { stored[a.app] = a.cat; if (a.kind) kinds[a.app] = a.kind; }
       const cats = {};                                                  // productive / unproductive / other for every program the page may meet (your own choice wins over the guess)
       for (const n of new Set([...list.map((a) => a.app), ...dayApps.map((r) => r.app), ...hoursApp.map((r) => r.app)])) cats[n] = stored[n] || defaultCat(n);
 
       return json({
-        rt: rt.results, days: days.results, dayApps, cats, hours, hoursApp, adj: adj.results, apps: list, pseudo: used.results.filter((r) => r.app.startsWith('(')), devices: devices.results, now: Date.now(),
+        rt: rt.results, days: days.results, dayApps, cats, kinds, hours, hoursApp, adj: adj.results, apps: list, pseudo: used.results.filter((r) => r.app.startsWith('(')), devices: devices.results, now: Date.now(),
         conf: { idle: Math.round(c.idle / 60), overlay: c.overlay, corner: c.corner, opacity: c.opacity, desk: c.desk, idleCounts: c.idleCounts, breakOn: c.breakOn, breakMin: c.breakMin, colors: c.colors, progColors: c.progColors },
       });
     }
@@ -336,6 +337,7 @@ export async function onRequest({ request, env }) {
       const st = [db.prepare('INSERT OR IGNORE INTO screentime_apps (app) VALUES (?)').bind(app)];
       if (b.counts !== undefined) st.push(db.prepare('UPDATE screentime_apps SET counts = ? WHERE app = ?').bind(b.counts ? 1 : 0, app));
       if (b.alive !== undefined) st.push(db.prepare('UPDATE screentime_apps SET alive = ? WHERE app = ?').bind(b.alive ? 1 : 0, app));
+      if (b.kind !== undefined) st.push(db.prepare('UPDATE screentime_apps SET kind = ? WHERE app = ?').bind(['msg', 'web', 'video', 'social', 'game', 'work', 'music', 'sys', 'other'].includes(b.kind) ? b.kind : null, app));
       if (b.cat !== undefined) st.push(db.prepare('UPDATE screentime_apps SET cat = ? WHERE app = ?').bind(['p', 'u', 'o'].includes(b.cat) ? b.cat : null, app));
       await db.batch(st);
       return json({ ok: 1 });
