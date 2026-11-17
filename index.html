@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>/* GLOBAL VERSION COUNTER: each file has its own number (this file = index). The corner label shows index + sw.js + server added together. Bump ONLY the number of the file you changed. */ window.__V = { index: 27 };</script>
+<script>/* GLOBAL VERSION COUNTER: each file has its own number (this file = index). The corner label shows index + sw.js + server added together. Bump ONLY the number of the file you changed. */ window.__V = { index: 28 };</script>
   <meta charset="UTF-8" />
   <meta name="viewport" id="viewportMetaTag" content="width=device-width, initial-scale=1.0" />
   <title>Habit Calendar</title>
@@ -4003,9 +4003,10 @@ const PIP_MAX = 3;
       try {
         const r = await fetch('/api/push-check?status=1', { cache: 'no-store' }); const d = await r.json();
         if (!d || !d.last) { el.style.color = '#dc2626'; el.textContent = 'Bell notifications: the checker has NEVER run. The outside cron job must open /api/push-check every minute, otherwise bells stay silent (the test button does not need it).'; return; }
+        const dg = d.diag ? (' Last bell tried: "' + d.diag.title + '" (' + d.diag.time + ') - ' + (d.diag.delivered ? 'delivered to ' + d.diag.delivered + ' phone(s).' : 'NOT delivered: ' + (d.diag.note || 'unknown reason') + '.')) : '';
         const min = Math.round((d.now - d.last) / 60000);
         if (min > 3) { el.style.color = '#dc2626'; el.textContent = 'Bell notifications: last check was ' + (min < 90 ? min + ' min' : Math.round(min / 60) + ' h') + ' ago. The cron job has stopped or runs too rarely - it must open /api/push-check every minute.'; }
-        else { el.style.color = '#16a34a'; el.textContent = 'Bell notifications: checker running (last check ' + (min < 1 ? 'under a minute' : min + ' min') + ' ago).'; }
+        else { el.style.color = '#16a34a'; el.textContent = 'Bell notifications: checker running (last check ' + (min < 1 ? 'under a minute' : min + ' min') + ' ago).' + dg; }
       } catch (e) { el.style.color = '#777'; el.textContent = 'Could not read the bell checker status.'; }
     }
     function loadSettingsFormFromPending() {
