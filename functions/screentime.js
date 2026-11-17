@@ -311,7 +311,10 @@ Gui, ST:New, -Caption +ToolWindow +E0x20 +E0x80 +HwndovHwnd
 Gui, ST:Margin, 0, 0
 Gui, ST:Color, FEFEFE
 Gui, ST:Font, s10 w600, Segoe UI
-Gui, ST:Add, Text, vovTxt cFFFFFF Center w76 h20, 0h 00m
+Gui, ST:Add, Text, vovTxt cFFFFFF +BackgroundTrans Center w76 h20, 0h 00m
+; make the window see-through BEFORE it is ever shown, so a plain box can never appear: only the white numbers are visible
+Gui, ST:Show, Hide x0 y0 w76 h20 NoActivate
+WinSet, TransColor, FEFEFE 140, ahk_id %ovHwnd%
 
 Menu, Tray, Tip, Screen Time
 Menu, Tray, NoStandard
@@ -482,6 +485,7 @@ UpdateOverlay() {
 ; true when no program window is showing (everything closed or minimised): only the desktop and taskbar are left
 DesktopClear() {
     global ovHwnd
+    SysGet, pm, Monitor
     WinGet, ids, List
     Loop, %ids% {
         id := ids%A_Index%
@@ -499,8 +503,13 @@ DesktopClear() {
         WinGetClass, cls, ahk_id %id%
         if (cls = "Progman" || cls = "WorkerW" || cls = "Shell_TrayWnd" || cls = "Shell_SecondaryTrayWnd")
             continue
-        WinGetPos, , , w, h, ahk_id %id%
+        WinGetPos, wx, wy, w, h, ahk_id %id%
         if (w < 40 || h < 40)
+            continue
+        ; only windows on the screen where the counter sits matter (the main monitor); other monitors are ignored
+        cx := wx + w // 2
+        cy := wy + h // 2
+        if (cx < pmL || cx >= pmR || cy < pmT || cy >= pmB)
             continue
         cloaked := 0
         DllCall("dwmapi\\DwmGetWindowAttribute", "Ptr", id, "UInt", 14, "UInt*", cloaked, "UInt", 4)
@@ -525,8 +534,8 @@ ApplyOverlay() {
     x := (corner = "bl" || corner = "tl") ? waLeft + 8 : waRight - w - 8
     y := (corner = "bl" || corner = "br") ? waBottom - h - 6 : waTop + 6
     a := Round(opacity * 2.55)
-    WinSet, TransColor, FEFEFE %a%, ahk_id %ovHwnd%
     Gui, ST:Show, x%x% y%y% w%w% h%h% NoActivate
+    WinSet, TransColor, FEFEFE %a%, ahk_id %ovHwnd%
     ovShown := 1
 }
 
