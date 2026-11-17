@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>/* GLOBAL VERSION COUNTER: each file has its own number (this file = index). The corner label shows index + sw.js + server added together. Bump ONLY the number of the file you changed. */ window.__V = { index: 42 };</script>
+<script>/* GLOBAL VERSION COUNTER: each file has its own number (this file = index). The corner label shows index + sw.js + server added together. Bump ONLY the number of the file you changed. */ window.__V = { index: 43 };</script>
 <script>/* no browser right-click menu anywhere on the site (our own right-click editor / paste popups still work) */ window.addEventListener('contextmenu', function (e) { e.preventDefault(); }, true);</script>
   <meta charset="UTF-8" />
   <meta name="viewport" id="viewportMetaTag" content="width=device-width, initial-scale=1.0" />
@@ -15275,6 +15275,8 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
   $('stDev').onclick = function (e) { var v = e.target.getAttribute && e.target.getAttribute('data-d'); if (!v || v === dev) return; dev = v; load(); };
   function open() {
     var tb = $('globalTopBar'); ov.style.top = (tb ? Math.round(tb.getBoundingClientRect().bottom) : 52) + 'px';
+    range = 1; anchor = null; selDay = null; $('stPickBox').hidden = true; $('stFrom').value = ''; $('stTo').value = '';   // always opens on Today
+    tabsOn($('stTabs').querySelector('[data-r="1"]'));
     ov.hidden = false; load();
     document.documentElement.style.overflow = 'hidden'; document.body.style.overflow = 'hidden';   // the calendar behind must not scroll
     clearInterval(timer); timer = setInterval(function () { if (!document.hidden) load(); }, 30000);
