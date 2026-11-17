@@ -162,7 +162,15 @@ export async function onRequest({ request, env }) {
     // ───────── from the iPhone (token): an app was opened / closed ─────────
     if (api === 'phone') {
       if (!tokenOk(request, env)) return text('Unauthorized', 401);
-      const base = cleanApp(url.searchParams.get('app')).replace(/[()]/g, '').trim();
+      let appRaw = url.searchParams.get('app');
+      if (!appRaw) {                                                    // the Shortcuts "Request Body" can carry it instead: a JSON or Form field named app
+        try {
+          const ct = request.headers.get('Content-Type') || '';
+          if (ct.includes('json')) appRaw = (await request.json()).app;
+          else if (ct.includes('form')) appRaw = (await request.formData()).get('app');
+        } catch (e) {}
+      }
+      const base = cleanApp(typeof appRaw === 'string' ? appRaw : '').replace(/[()]/g, '').trim();
       const ev = url.searchParams.get('e');
       if ((ev !== 'open' && ev !== 'close') || (ev === 'open' && !base)) return text('need e=open with app=<name>, or e=close (app is optional for close)', 400);
       const name = base ? base + ' (iphone)' : '', now = Date.now(), c = await getConf(db), cur = c.phoneOpen;
