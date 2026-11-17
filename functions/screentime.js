@@ -11,7 +11,7 @@
 //   SCREENTIME_TOKEN  (secret) — any long random text; it is baked into the downloaded PC script
 // Uses the same D1 binding as the rest of the site: DB   (tables are created automatically, no sql to run)
 //
-// What is stored
+// What is stored (all of it here in D1; the PC program keeps nothing on disk)
 //   runtime   how long the PC was on each day (the number the PC shows in the corner of its screen)
 //   adjust    time you subtract (or add) by hand on a day, e.g. the PC was on but you were AFK
 //   usage     seconds per program per day (chrome.exe ...), only while you were really using it
@@ -59,6 +59,7 @@ async function getConf(db) {
     overlay: m.overlay === '0' ? 0 : 1,
     corner: CORNERS.includes(m.corner) ? m.corner : 'bl',
     opacity: op >= 10 && op <= 100 ? op : 35,                        // percent
+    colors: m.colors === '0' ? 0 : 1,                                // colour the days by how they compare with the average
     breakOn: m.breakon === '0' ? 0 : 1,
     breakMin: bm >= 15 && bm <= 480 ? bm : 120,                      // minutes of non-stop use before the reminder
     lastBreak: parseInt(m.lastbreak, 10) || 0,
@@ -135,7 +136,8 @@ export async function onRequest({ request, env }) {
         const device = cleanDevice(url.searchParams.get('device'));
         const rt = await db.prepare('SELECT seconds FROM screentime_runtime WHERE day = ? AND device = ?').bind(day, device).first();
         const adj = await db.prepare('SELECT COALESCE(SUM(seconds), 0) AS s FROM screentime_adjust WHERE day = ?').bind(day).first();
-        out += 'runtime=' + (rt ? rt.seconds : 0) + '\nadjust=' + (adj ? adj.s : 0) + '\n';
+        const dv = await db.prepare('SELECT last_seen FROM screentime_devices WHERE device = ?').bind(device).first();
+        out += 'runtime=' + (rt ? rt.seconds : 0) + '\nadjust=' + (adj ? adj.s : 0) + '\nlastseenago=' + (dv ? Math.max(0, Math.round((Date.now() - dv.last_seen) / 1000)) : -1) + '\n';
       }
       const { results } = await db.prepare('SELECT app, counts, alive FROM screentime_apps WHERE counts = 0 OR alive = 1').all();
       for (const r of results) {
@@ -174,7 +176,7 @@ export async function onRequest({ request, env }) {
 
       return json({
         rt: rt.results, adj: adj.results, apps: list, devices: devices.results, now: Date.now(),
-        conf: { idle: Math.round(c.idle / 60), overlay: c.overlay, corner: c.corner, opacity: c.opacity, breakOn: c.breakOn, breakMin: c.breakMin },
+        conf: { idle: Math.round(c.idle / 60), overlay: c.overlay, corner: c.corner, opacity: c.opacity, breakOn: c.breakOn, breakMin: c.breakMin, colors: c.colors },
       });
     }
 
@@ -188,6 +190,7 @@ export async function onRequest({ request, env }) {
         return json({ ok: 1 });
       }
       if (b.overlay !== undefined) { await setConf(db, 'overlay', b.overlay ? 1 : 0); return json({ ok: 1 }); }
+      if (b.colors !== undefined) { await setConf(db, 'colors', b.colors ? 1 : 0); return json({ ok: 1 }); }
       if (b.breakOn !== undefined) { await setConf(db, 'breakon', b.breakOn ? 1 : 0); return json({ ok: 1 }); }
       if (b.breakMin !== undefined) {
         const m = Math.round(Number(b.breakMin));
@@ -244,15 +247,17 @@ export async function onRequest({ request, env }) {
 
 // ======================================== THE PC PROGRAM (AutoHotkey v1.1) ========================================
 // __SERVER__ and __TOKEN__ are filled in when the Screen Time screen's "Download PC script" button is used.
-// Keep this text free of backticks and dollar-brace pairs (it sits inside a JS template string); the one backslash is written doubled on purpose.
+// Keep this text free of backticks and dollar-brace pairs (it sits inside a JS template string).
 const SCRIPT = `; Screen Time tracker - AutoHotkey v1.1
 ; Put this file in the Windows Startup folder (Win+R, type shell:startup) so it starts with the PC.
-;  - Counts how long the PC has been on today (survives turning it off and on; shown faintly in a screen corner).
-;  - Every 5 seconds adds the seconds to the program in front (only program names like chrome.exe, never titles or keys).
-;  - Sends the totals to your site once a minute and reads your settings from the site every 30 seconds.
-;  - After a long non-stop stretch (you choose how long on the site) the site sends a break reminder to your phone.
-; Everything is changed on the site (Screen Time screen), nothing here needs editing.
-; It keeps a small file next to itself (screentime_data.ini) so the day's counter survives restarts and being offline.
+; It writes NOTHING to your disk. When it starts it reads today's numbers and your settings from the site once,
+; then it only sends:
+;  - how long the PC has been on today (shown faintly in a screen corner; if the script is opened later than Windows
+;    started, it catches up on the time it missed)
+;  - every 5 seconds the program in front gets those seconds (program names like chrome.exe only, never titles or keys)
+;  - after a long non-stop stretch (you choose how long on the site) the site sends a break reminder to your phone
+; Totals go to the site once a minute. Your settings (overlay, idle time, which programs count ...) are checked on the
+; site every 30 seconds, so everything is controlled from the Screen Time screen and nothing here needs editing.
 
 #NoEnv
 #SingleInstance Force
@@ -260,42 +265,39 @@ const SCRIPT = `; Screen Time tracker - AutoHotkey v1.1
 #KeyHistory 0
 ListLines Off
 Process, Priority, , Low
-SetWorkingDir %A_ScriptDir%
 
 SERVER := "__SERVER__"
 TOKEN := "__TOKEN__"
 DEVICE := A_ComputerName
-INI := A_ScriptDir . "\\screentime_data.ini"
+idleLimit := 300
 ignore := "|lockapp.exe|logonui.exe|"
 alive := "|"
+showOverlay := 0
+corner := "bl"
+opacity := 35
 adjust := 0
+breakOn := 1
+breakMin := 120
 ovShown := 0
 ovLast := ""
-confSig := ""
 usage := {}
 streak := 0
 idleRun := 0
 warned := 0
 breakPending := 0
+rt := 0
+rtSent := 0
+synced := 0
+confTries := 0
 lastTick := A_TickCount
 today := A_YYYY . "-" . A_MM . "-" . A_DD
-IniRead, rt, %INI%, runtime, %today%, 0
-IniRead, rtSent, %INI%, sent, %today%, 0
-IniRead, showOverlay, %INI%, conf, overlay, 1
-IniRead, corner, %INI%, conf, corner, bl
-IniRead, opacity, %INI%, conf, opacity, 35
-IniRead, idleLimit, %INI%, conf, idle, 300
-IniRead, breakOn, %INI%, conf, breakon, 1
-IniRead, breakMin, %INI%, conf, breakmin, 120
 
-; the faint on-screen counter: no border, never takes clicks, never takes focus, hidden from Alt-Tab
+; the faint on-screen counter: no border, never takes clicks, never takes focus, hidden from Alt-Tab (shown once the site says so)
 Gui, ST:New, +AlwaysOnTop -Caption +ToolWindow +E0x20 +E0x80 +HwndovHwnd
 Gui, ST:Margin, 0, 0
 Gui, ST:Color, 010203
 Gui, ST:Font, s10 w600, Segoe UI
 Gui, ST:Add, Text, vovTxt cA0A0A0 Center w76 h20, 0h 00m
-ApplyOverlay()
-UpdateOverlay()
 
 Menu, Tray, Tip, Screen Time
 Menu, Tray, NoStandard
@@ -306,7 +308,7 @@ OnExit, ExitSub
 SetTimer, Tick, 5000
 SetTimer, FlushTimer, 60000
 SetTimer, ConfTimer, 30000
-SetTimer, FirstConf, -1500
+SetTimer, FirstConf, -300
 return
 
 Tick:
@@ -339,8 +341,17 @@ DoFlush()
 return
 
 ConfTimer:
-FirstConf:
 GetConf()
+return
+
+FirstConf:
+if (GetConf()) {
+    DoFlush()
+} else {
+    confTries += 1
+    if (confTries < 12)
+        SetTimer, FirstConf, -5000
+}
 return
 
 QuitApp:
@@ -390,19 +401,33 @@ TrackApp(gap, exe) {
     usage[key] := (usage.HasKey(key) ? usage[key] : 0) + gap
 }
 
+; the PC stayed on past midnight: a new day starts at zero
 NewDay(d) {
-    global today, rt, rtSent, INI, adjust
+    global today, rt, rtSent, adjust
     DoFlush()
     today := d
-    IniRead, rt, %INI%, runtime, %d%, 0
-    IniRead, rtSent, %INI%, sent, %d%, 0
+    rt := 0
+    rtSent := 0
     adjust := 0
 }
 
-SaveRuntime() {
-    global today, rt, rtSent, INI
-    IniWrite, %rt%, %INI%, runtime, %today%
-    IniWrite, %rtSent%, %INI%, sent, %today%
+; seconds since this Windows session started (log-in time; falls back to Windows' own uptime)
+SessionSecs() {
+    secs := A_TickCount / 1000
+    best := 0
+    try {
+        for proc in ComObjGet("winmgmts:").ExecQuery("Select CreationDate from Win32_Process where Name='explorer.exe'") {
+            cd := SubStr(proc.CreationDate, 1, 14)
+            d := A_Now
+            EnvSub, d, %cd%, Seconds
+            if (d > best)
+                best := d
+        }
+    } catch e {
+    }
+    if (best > 0)
+        secs := best
+    return secs
 }
 
 UpdateOverlay() {
@@ -439,12 +464,13 @@ ApplyOverlay() {
 }
 
 DoFlush() {
-    global usage, rt, rtSent, today, DEVICE, breakPending
+    global usage, rt, rtSent, today, DEVICE, breakPending, synced
     Critical
-    SaveRuntime()
     body := ""
     sent := {}
-    rtWhole := Floor(rt - rtSent)
+    rtWhole := 0
+    if (synced)
+        rtWhole := Floor(rt - rtSent)
     if (rtWhole >= 1)
         body .= "R" . Chr(9) . today . Chr(9) . rtWhole . Chr(10)
     if (breakPending > 0)
@@ -471,17 +497,19 @@ DoFlush() {
         if (usage[key] < 1 && SubStr(key, 1, 10) != nowDay)
             usage.Remove(key)
     }
-    SaveRuntime()
 }
 
+; reads your settings and today's numbers from the site. The first successful read also does the catch-up for the counter.
 GetConf() {
-    global idleLimit, ignore, alive, showOverlay, corner, opacity, adjust, rt, rtSent, today, DEVICE, INI, confSig, breakOn, breakMin
+    global idleLimit, ignore, alive, showOverlay, corner, opacity, adjust, rt, rtSent, synced, today, DEVICE, breakOn, breakMin
     Critical
     r := Http("GET", "/screentime?api=conf&day=" . today . "&device=" . DEVICE)
     if (r = "")
-        return
+        return 0
     newIgnore := "|lockapp.exe|logonui.exe|"
     newAlive := "|"
+    serverRt := 0
+    ago := -1
     for i, line in StrSplit(r, Chr(10), Chr(13)) {
         p := InStr(line, "=")
         if (p < 2)
@@ -506,28 +534,32 @@ GetConf() {
                 breakMin := n
             else if (k = "adjust")
                 adjust := n
-            else if (k = "runtime" && n > rt) {
-                rt := n
-                rtSent := n
-            }
+            else if (k = "runtime")
+                serverRt := n
+            else if (k = "lastseenago")
+                ago := n
         } else if (k = "corner" && (v = "bl" || v = "br" || v = "tl" || v = "tr")) {
             corner := v
         }
     }
     ignore := newIgnore
     alive := newAlive
+    if (!synced) {
+        ; today so far = what the site already has + the time since the site last heard from this PC.
+        ; If the site last heard from it before this Windows session began, it is the whole session so far instead.
+        sinceMid := A_Hour * 3600 + A_Min * 60 + A_Sec
+        sessSecs := SessionSecs()
+        cover := (sessSecs < sinceMid) ? sessSecs : sinceMid
+        add := cover
+        if (ago >= 0 && ago <= sessSecs && ago < add)
+            add := ago
+        rt := serverRt + add
+        rtSent := serverRt
+        synced := 1
+    }
     ApplyOverlay()
     UpdateOverlay()
-    sig := showOverlay . "|" . corner . "|" . opacity . "|" . idleLimit . "|" . breakOn . "|" . breakMin
-    if (sig != confSig) {
-        confSig := sig
-        IniWrite, %showOverlay%, %INI%, conf, overlay
-        IniWrite, %corner%, %INI%, conf, corner
-        IniWrite, %opacity%, %INI%, conf, opacity
-        IniWrite, %idleLimit%, %INI%, conf, idle
-        IniWrite, %breakOn%, %INI%, conf, breakon
-        IniWrite, %breakMin%, %INI%, conf, breakmin
-    }
+    return 1
 }
 
 Http(method, path, body := "") {
