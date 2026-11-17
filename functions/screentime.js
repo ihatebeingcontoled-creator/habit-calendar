@@ -551,13 +551,27 @@ KillOthers() {
     }
 }
 
-; a browser window that is showing YouTube counts as "youtube.com", every other browser window keeps its program name
+; a browser window showing a well-known site counts as that site (youtube.com, claude.ai ...), every other browser window keeps its program name.
+; To add a site: put  TitleWord=name  in the list below (the word as it shows at the end of the browser tab title), separated by |
 SiteName(exe) {
     if (exe != "chrome.exe" && exe != "msedge.exe" && exe != "firefox.exe" && exe != "brave.exe" && exe != "opera.exe" && exe != "vivaldi.exe")
         return exe
     WinGetTitle, ttl, A
-    if RegExMatch(ttl, "(^|[^A-Za-z0-9 ] )YouTube( and [0-9]+ more pages?)?( ?[^A-Za-z0-9 ]|$)")
-        return "youtube.com"
+    sites := "YouTube Studio=youtube studio|YouTube=youtube.com|Claude=claude.ai|ChatGPT=chatgpt.com|Instagram=instagram.com|Facebook=facebook.com|Reddit=reddit.com|TikTok=tiktok.com|Netflix=netflix.com|Twitch=twitch.tv|Discord=discord.com|WhatsApp=whatsapp web|Gmail=gmail.com|Google Docs=google docs|Google Sheets=google sheets|Google Slides=google slides|GitHub=github.com|Spotify=spotify web|LinkedIn=linkedin.com|Pinterest=pinterest.com|Canva=canva.com|Notion=notion.so|Cloudflare=cloudflare.com|Roblox=roblox.com|Wikipedia=wikipedia.org|TradingView=tradingview.com|Forex Factory=forexfactory.com|Maven=maventrading.com|Mark The Trade=markthetrade.com|Stripe=stripe.com|Rekvizitai=rekvizitai.vz.lt|Google Ads=google ads|Google Meet=google meet|Mano dienynas=manodienynas.lt|Manus=manus.im|NotebookLM=notebooklm|Airtable=airtable.com|Make=make.com|Kick=kick.com|Doversus=doversus|Tascentvo=tascentvo|Furlota=furlota.lt|OneDrive=onedrive|PowerPoint=powerpoint web"
+    Loop, Parse, sites, |
+    {
+        p := InStr(A_LoopField, "=")
+        if RegExMatch(ttl, "(^|[^A-Za-z0-9 ] )" . SubStr(A_LoopField, 1, p - 1) . "( and [0-9]+ more pages?)?( ?[^A-Za-z0-9 ]|$)")
+            return SubStr(A_LoopField, p + 1)
+    }
+    ; any other site: the tab title usually ends with the site name ("Headline - Delfi", "Query - Google Search"), so that last part is used as the name.
+    ; Tabs whose title has no such ending (New Tab, a plain page title) stay under the browser's name.
+    tt := RegExReplace(ttl, "( and [0-9]+ more pages?)? - (Google Chrome|Microsoft.*Edge|Mozilla Firefox|Brave|Opera|Vivaldi).*$")
+    if RegExMatch(tt, "^.* (-|[|]) ([^-|]{2,25})$", m) {
+        s := Trim(StrReplace(m2, A_Tab, ""))
+        if (s != "" && !RegExMatch(s, "^[(0-9]"))
+            return s
+    }
     return exe
 }
 
