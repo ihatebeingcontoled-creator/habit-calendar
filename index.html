@@ -1631,6 +1631,7 @@
     }
 
     .day-title {
+      font-family: var(--title-font, inherit);
       font-size: 10.5px; font-weight: 600; color: #333; text-align: center; line-height: 1.25;
       padding: 0 2px; width: 100%; overflow: hidden; word-break: break-word;
     }
@@ -3471,6 +3472,23 @@ body.tb-bottom .au { top: 0 !important; bottom: calc(52px + env(safe-area-inset-
             <span class="switch-track"></span>
           </label>
         </div>
+
+        <div class="settings-cell settings-cell-charlimit">
+          <span class="settings-cell-label">Month font:</span>
+          <select id="titleFontSelect" class="settings-number-input-sm" style="width:auto;max-width:150px">
+            <option value="">Default</option>
+            <option value="Arial, Helvetica, sans-serif">Arial</option>
+            <option value="'Trebuchet MS', sans-serif">Trebuchet</option>
+            <option value="Verdana, Geneva, sans-serif">Verdana</option>
+            <option value="Georgia, serif">Georgia</option>
+            <option value="'Times New Roman', Times, serif">Times</option>
+            <option value="'Courier New', monospace">Courier</option>
+            <option value="Impact, 'Arial Narrow Bold', sans-serif">Impact</option>
+            <option value="'Comic Sans MS', 'Comic Sans', cursive">Comic Sans</option>
+            <option value="'Brush Script MT', cursive">Script</option>
+            <option value="Palatino, 'Palatino Linotype', serif">Palatino</option>
+          </select>
+        </div>
       </div>
 
       <button type="button" class="targets-btn" id="editTargetsBtn" style="margin-top:8px; padding:9px 14px; font-size:12px;">⚙ Edit Daily Targets</button>
@@ -3776,6 +3794,7 @@ const PIP_MAX = 3;
       mobileTitleLimit:        35,
       desktopTitleLimitEnabled: false,
       desktopTitleLimit:       60,
+      titleFont:               '',
       nightMode:               false,
       warnUnsavedChanges:      true,
       language:                'en',
@@ -3845,6 +3864,7 @@ const PIP_MAX = 3;
     });
 
     function applySettingsEffects() {
+      document.documentElement.style.setProperty('--title-font', settings.titleFont || 'inherit');   // font of the day titles in the month view
       applyStatsBarVisibility();
       applyNightMode();
       applyZoomSetting();
@@ -3931,6 +3951,7 @@ const PIP_MAX = 3;
       document.getElementById('toggleDesktopTitleLimit').checked  = pendingSettings.desktopTitleLimitEnabled;
       document.getElementById('desktopTitleLimitInput').value     = pendingSettings.desktopTitleLimit;
       document.getElementById('desktopTitleLimitInput').disabled  = !pendingSettings.desktopTitleLimitEnabled;
+      document.getElementById('titleFontSelect').value            = pendingSettings.titleFont || '';
       document.getElementById('toggleNightMode').checked          = pendingSettings.nightMode;
       document.getElementById('toggleWarnUnsaved').checked        = pendingSettings.warnUnsavedChanges;
       document.getElementById('toggleDisableZoom').checked        = pendingSettings.disableZoom;
@@ -5724,6 +5745,10 @@ const PIP_MAX = 3;
       pendingSettings.desktopTitleLimit = Number.isFinite(n) && n > 0 ? n : DEFAULT_SETTINGS.desktopTitleLimit;
     });
 
+    document.getElementById('titleFontSelect').addEventListener('change', (e) => {
+      pendingSettings.titleFont = e.target.value;
+    });
+
     document.getElementById('toggleNightMode').addEventListener('change', (e) => {
       pendingSettings.nightMode = e.target.checked;
     });
@@ -5781,6 +5806,7 @@ const PIP_MAX = 3;
         if (c.get('settings')) settings = { ...DEFAULT_SETTINGS, ...c.get('settings') };
       } catch (e) {}
       const paintAll = () => {
+        document.documentElement.style.setProperty('--title-font', settings.titleFont || 'inherit');
         applyStatsBarVisibility();
         applyNightMode();
         applyZoomSetting();
@@ -14792,14 +14818,14 @@ body.night-mode .st-fab { background: rgba(40,40,42,.92); color: #f5f5f5; }
           PAL.forEach(function (g) { if (g.k === REST) return; var sv = Math.min(Math.max(x.gs[g.k] || 0, 0), left); if (sv > 0) { seg(bar, sv, g.col, g.name); left -= sv; } });
           seg(bar, left, COL[REST], NAME[REST]);
         } else {         // one hour: recorded part solid, the rest estimated and lighter
-          var kn = 0, sc = x.v / Math.max(1, Object.keys(x.gs).reduce(function (a, g) { return a + x.gs[g]; }, 0));
+          var tot = {}, kn = 0, sc = x.v / Math.max(1, Object.keys(x.gs).reduce(function (a, g) { return a + x.gs[g]; }, 0));
           sc = sc < 1 ? sc : 1;                                       // never draw more than the hour holds
-          PAL.forEach(function (g) { var sv = (x.gs[g.k] || 0) * sc; if (sv > 0) { seg(bar, sv, g.col, g.name); kn += sv; } });
+          PAL.forEach(function (g) { var sv = (x.gs[g.k] || 0) * sc; if (sv > 0) { tot[g.k] = sv; kn += sv; } });
           var rem = x.v - kn;
-          if (rem > 1) {
-            if (x.unatSum > 0) PAL.forEach(function (g) { var sv = rem * (x.unat[g.k] || 0) / x.unatSum; if (sv > 0) seg(bar, sv, g.col, g.name, 1); });
-            else seg(bar, rem, '#9a9aa1');
-          }
+          if (rem > 1 && x.unatSum > 0) PAL.forEach(function (g) { var sv = rem * (x.unat[g.k] || 0) / x.unatSum; if (sv > 0) tot[g.k] = (tot[g.k] || 0) + sv; });   // recorded + estimated time of one colour is ONE piece
+          else if (rem > 1) tot.__none = rem;
+          PAL.forEach(function (g) { if (tot[g.k] > 0) seg(bar, tot[g.k], g.col, g.name); });
+          if (tot.__none) seg(bar, tot.__none, '#9a9aa1');
         }
       } else bar.style.background = colourFor(x.v);
       tr.appendChild(bar);
