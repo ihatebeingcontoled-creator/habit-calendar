@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>/* GLOBAL VERSION COUNTER: each file has its own number (this file = index). The corner label shows index + sw.js + server added together. Bump ONLY the number of the file you changed. */ window.__V = { index: 36 };</script>
+<script>/* GLOBAL VERSION COUNTER: each file has its own number (this file = index). The corner label shows index + sw.js + server added together. Bump ONLY the number of the file you changed. */ window.__V = { index: 37 };</script>
 <script>/* no browser right-click menu anywhere on the site (our own right-click editor / paste popups still work) */ window.addEventListener('contextmenu', function (e) { e.preventDefault(); }, true);</script>
   <meta charset="UTF-8" />
   <meta name="viewport" id="viewportMetaTag" content="width=device-width, initial-scale=1.0" />
@@ -7677,7 +7677,7 @@ const PIP_MAX = 3;
         hideTimer = setTimeout(() => {
           el.classList.remove('show');
           hideUndo();
-        }, canUndo ? 2500 : 1000);
+        }, canUndo ? 5000 : 1000);
       }
       function error() {
         ensure(); if (!el) return;
@@ -7708,6 +7708,9 @@ const PIP_MAX = 3;
       let serverCache = null;    // dateKey -> array of plain (serialized) events, once loaded
       let loadPromise = null;
       let syncTimer = null;
+      const UNDO_MAX = 5, UNDO_MS = 5000;   // keeps the last 5 actions, each undoable for 5 seconds
+      let undoStack = [];
+      const pruneUndo = () => { const now = Date.now(); undoStack = undoStack.filter((u) => now - u.t <= UNDO_MS).slice(-UNDO_MAX); };
       let lastUndo = null;       // { dates: [dateKey...], previous: {dateKey: [plain events]} } for the most recent synced batch
 
       function genId() {
@@ -7840,7 +7843,7 @@ const PIP_MAX = 3;
 
           serverCache = serverCache || {};
           dates.forEach((dk) => { serverCache[dk] = entries[dk]; });
-          lastUndo = { dates, previous };
+          undoStack.push({ dates, previous, t: Date.now() }); pruneUndo();
           SyncIndicator.synced(true);
         } catch {
           // Put the dates back so the next edit (or this retry) picks
@@ -7864,9 +7867,10 @@ const PIP_MAX = 3;
       // failed sync (it isn't one), so it's caught and logged on its
       // own instead of falling into the same catch as the fetch.
       async function undoLast() {
-        const undo = lastUndo;
+        if (dirtyDates.size) await flushNow();   // an edit that has not synced yet counts as the newest action
+        pruneUndo();
+        const undo = undoStack.pop();
         if (!undo) return;
-        lastUndo = null;
         clearTimeout(syncTimer); // a pending debounced flush from an in-progress edit could otherwise fire right after and re-apply what we're about to undo
 
         const entries = {};
@@ -7886,7 +7890,7 @@ const PIP_MAX = 3;
         }
 
         if (!r || !r.ok) {
-          lastUndo = undo; // put it back so the person can retry
+          undoStack.push(undo); // put it back so the person can retry
           SyncIndicator.error();
           return;
         }
@@ -7915,7 +7919,8 @@ const PIP_MAX = 3;
           console.error('Undo succeeded but repainting the view failed:', uiErr);
         }
 
-        SyncIndicator.synced(false);
+        pruneUndo();
+        SyncIndicator.synced(undoStack.length > 0);
       }
 
       // Sends whatever's dirty right away, skipping the 4s wait —
@@ -7976,6 +7981,14 @@ const PIP_MAX = 3;
     })();
 
     SyncIndicator.bindUndo(() => EventStore.undoLast());
+    // Ctrl+Z / Cmd+Z: undoes one action per press (up to the last 5, from the past 5 seconds); typing inside a text box keeps its own undo
+    document.addEventListener('keydown', (e) => {
+      if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey || (e.key || '').toLowerCase() !== 'z') return;
+      const t = e.target;
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+      e.preventDefault();
+      EventStore.undoLast();
+    });
 
     // A record only ever has ONE live box in the DOM at a time — but
     // that box can be mounted by either DayTimeGrid (the single-day
