@@ -2943,6 +2943,7 @@ async function insertEvent(db, { date, start, dur, title, color, description, no
 }
 
 const TOOLS = [
+  { name: 'get_screen_time', description: 'How long the owner used the PC and the iPhone (the Screen Time page of the calendar site). Returns total time, time per device, per program/app, per day and per group (messaging, browser, video, social, games, work, music, system), all in seconds plus readable text. Use app to look at one program on both devices, e.g. app "youtube" adds the PC (youtube.com in Chrome) and the iPhone YouTube app together. Defaults to today. PC idle time is reported separately. Names of iPhone apps end with "(iphone)".', inputSchema: { type: 'object', properties: { from_date: { type: 'string', description: 'YYYY-MM-DD (default today)' }, to_date: { type: 'string', description: 'YYYY-MM-DD (default = from_date)' }, device: { type: 'string', enum: ['all', 'pc', 'iphone'], description: 'default all' }, app: { type: 'string', description: 'only programs whose name contains this text, e.g. youtube, chrome, instagram, viber' } } } },
   { name: 'get_day_overview', description: 'EVERYTHING saved for one day in one call: calendar events, the habit numbers and notes (including "What productive did you do today"), money spent/earned, the saved AI summary, the ads entry, and attached files. Defaults to today. Use it for "what did I do today?".', inputSchema: { type: 'object', properties: { date: { type: 'string', description: 'YYYY-MM-DD (default today)' } } } },
   { name: 'get_habits', description: 'Reads the daily habit tracker (push-ups, pages read, pull-ups, breath hold, pips, woke at 5, and the three notes) for a date or a date range.', inputSchema: { type: 'object', properties: { from_date: { type: 'string', description: 'YYYY-MM-DD (default today)' }, to_date: { type: 'string', description: 'YYYY-MM-DD (default from_date)' } } } },
   { name: 'update_habits', description: 'Writes to one day of the habit tracker (default today). Use productive_note for the box "What productive did you do today", reading_note for "What was today\'s reading about?", extra_note for "Anything else". Notes are APPENDED to what is already there unless note_mode is "replace". Counters (pushups, reading_pages, pullups, one_hand_pushups, breath_hold_seconds) are ADDED to the current number unless counter_mode is "set". Pips are 0 to 3. To fill the productive note from a conversation, write a short plain summary of what the owner got done.', inputSchema: { type: 'object', properties: { date: { type: 'string', description: 'YYYY-MM-DD (default today)' }, productive_note: { type: 'string' }, reading_note: { type: 'string' }, extra_note: { type: 'string' }, note_mode: { type: 'string', enum: ['append', 'replace'] }, title: { type: 'string', description: 'The day title' }, pushups: { type: 'integer' }, reading_pages: { type: 'integer' }, pullups: { type: 'integer' }, one_hand_pushups: { type: 'integer' }, breath_hold_seconds: { type: 'integer' }, counter_mode: { type: 'string', enum: ['add', 'set'] }, stretch_pips: { type: 'integer', description: '0-3' }, l_sit_pips: { type: 'integer', description: '0-3' }, productive_pips: { type: 'integer', description: '0-3' }, card_trick_pips: { type: 'integer', description: '0-3' }, woke_at_5: { type: 'boolean' } } } },
@@ -3152,6 +3153,58 @@ async function callToolInner(name, a, env) {
     out.files = await q(async () => (await db.prepare('SELECT id, name, type, size FROM files WHERE date = ?').bind(d).all()).results);
     return say(out);
   }
+  if (name === 'get_screen_time') {
+    const from = dayOrToday(a.from_date), to = dayOrToday(a.to_date || a.from_date || undefined);
+    if (!from || !to) return say('Dates must look like 2026-11-20.', true);
+    const dev = a.device === 'pc' || a.device === 'iphone' ? a.device : 'all';
+    const dq = dev === 'iphone' ? " AND device = 'iphone'" : dev === 'pc' ? " AND device != 'iphone'" : '';
+    const needle = typeof a.app === 'string' ? a.app.trim().toLowerCase() : '';
+    const fmtT = (sec) => { sec = Math.max(0, Math.round(sec)); const h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), r = sec % 60; return ((h ? h + 'h ' : '') + (h || m ? m + 'm ' : '') + (h ? '' : r + 's')).trim(); };
+    const kindOf = (n) => {
+      const b = String(n).toLowerCase().replace(/ \(iphone\)$/, '');
+      if (/whatsapp|messages|imessage|telegram|discord|messenger|signal|facetime|^phone$|viber|slack|teams|skype|zoom|wechat/.test(b)) return 'messaging';
+      if (/chrome|safari|firefox|msedge|edge|brave|opera|vivaldi|^google/.test(b)) return 'browser';
+      if (/youtube|netflix|twitch|^tv$|disney|prime video|hbo|vlc|plex|crunchyroll/.test(b)) return 'video';
+      if (/instagram|tiktok|snapchat|facebook|reddit|twitter|^x$|bereal|pinterest|threads|linkedin/.test(b)) return 'social';
+      if (/roblox|steam|epic|fisch|minecraft|game|chess|valorant|fortnite|league/.test(b)) return 'games';
+      if (/spotify|music|podcast|soundcloud|audible|shazam/.test(b)) return 'music';
+      if (/claude|chatgpt|code|cursor|notes|notepad|calendar|reminders|mail|gmail|journal|excel|word|powerpnt|onenote|figma|github|terminal|powershell|cmd|devenv|pycharm|books|files|ads|sheets|docs|translate|capcut|autohotkey/.test(b)) return 'work';
+      if (/settings|shortcuts|clock|camera|photos|maps|wallet|calculator|finder|explorer|taskmgr|weather|health|find my|app store|preview|regedit|control/.test(b)) return 'system';
+      return 'other';
+    };
+    let usage, adj, kinds = {}, rt;
+    try {
+      usage = (await db.prepare('SELECT day, device, app, SUM(seconds) AS seconds FROM screentime_usage WHERE day >= ? AND day <= ?' + dq + ' GROUP BY day, device, app').bind(from, to).all()).results;
+      adj = dev === 'iphone' ? [] : (await db.prepare('SELECT day, app, SUM(seconds) AS seconds FROM screentime_adjust WHERE day >= ? AND day <= ? GROUP BY day, app').bind(from, to).all()).results;
+      rt = (await db.prepare('SELECT device, SUM(seconds) AS seconds FROM screentime_runtime WHERE day >= ? AND day <= ?' + dq + ' GROUP BY device').bind(from, to).all()).results;
+      for (const r of (await db.prepare('SELECT app, kind FROM screentime_apps WHERE kind IS NOT NULL').all()).results) kinds[r.app] = r.kind;
+    } catch (e) { return say('No screen time has been recorded yet (the Screen Time page has not received data).', true); }
+    const labelOf = { msg: 'messaging', web: 'browser', video: 'video', social: 'social', game: 'games', work: 'work', music: 'music', sys: 'system', other: 'other' };
+    const byApp = {}, byDay = {}, byDevice = {}, byGroup = {};
+    let idle = 0, total = 0;
+    const add = (day, device, app, sec) => {
+      if (!sec) return;
+      if (app === '(idle)') { idle += sec; return; }
+      if (String(app).startsWith('(')) return;
+      if (needle && !String(app).toLowerCase().includes(needle)) return;
+      const key = app, g = labelOf[kinds[app]] || kindOf(app), dv = device === 'iphone' ? 'iphone' : 'pc';
+      byApp[key] = byApp[key] || { app, device: dv, seconds: 0 }; byApp[key].seconds += sec;
+      byDay[day] = (byDay[day] || 0) + sec; byDevice[dv] = (byDevice[dv] || 0) + sec; byGroup[g] = (byGroup[g] || 0) + sec; total += sec;
+    };
+    for (const r of usage) add(r.day, r.device, r.app, r.seconds);
+    let manual = 0;
+    for (const r of adj) { if (r.app) add(r.day, 'pc', r.app, r.seconds); else manual += r.seconds; }
+    const list = (o, keyName) => Object.entries(o).sort((x, y) => y[1] - x[1]).map(([k, v]) => ({ [keyName]: k, seconds: v, text: fmtT(v) }));
+    const apps = Object.values(byApp).sort((x, y) => y.seconds - x.seconds).slice(0, 40).map((x) => ({ ...x, text: fmtT(x.seconds), group: labelOf[kinds[x.app]] || kindOf(x.app) }));
+    const out = { from, to, device: dev, filter: needle || undefined, total_seconds: total, total: fmtT(total), by_device: list(byDevice, 'device'), by_group: list(byGroup, 'group'), by_app: apps, by_day: Object.entries(byDay).sort().map(([day, v]) => ({ day, seconds: v, text: fmtT(v) })) };
+    if (!needle && dev !== 'iphone') {
+      out.pc_idle = { seconds: idle, text: fmtT(idle), note: 'time the PC was on but you were away; not counted in the totals above' };
+      out.pc_on_time_seconds = rt.filter((r) => r.device !== 'iphone').reduce((n, r) => n + r.seconds, 0);
+      if (manual) out.manual_adjustment_seconds = manual;
+    }
+    if (!total) out.hint = 'Nothing recorded for that period' + (needle ? ' and program name' : '') + '. Phone times only exist from when the iPhone automations were set up; PC times from when the tracker was installed.';
+    return say(out);
+  }
   if (name === 'get_habits') {
     const from = dayOrToday(a.from_date), to = dayOrToday(a.to_date || a.from_date || undefined);
     if (!from || !to) return say('Dates must look like 2026-11-20.', true);
@@ -3296,7 +3349,7 @@ async function onRequest({ request, env }) {
 })();
 
 // version counter of THIS file (added into the number shown in the page corner; bump it only when this file changes)
-const FILE_VERSION = 6;
+const FILE_VERSION = 7;
 const M_version = { onRequest: () => new Response(JSON.stringify({ v: FILE_VERSION }), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } }) };
 
 // ================================ ROUTER ================================
