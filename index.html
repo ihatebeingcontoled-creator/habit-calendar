@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>/* GLOBAL VERSION COUNTER: each file has its own number (this file = index). The corner label shows index + sw.js + server added together. Bump ONLY the number of the file you changed. */ window.__V = { index: 12 };</script>
+<script>/* GLOBAL VERSION COUNTER: each file has its own number (this file = index). The corner label shows index + sw.js + server added together. Bump ONLY the number of the file you changed. */ window.__V = { index: 13 };</script>
   <meta charset="UTF-8" />
   <meta name="viewport" id="viewportMetaTag" content="width=device-width, initial-scale=1.0" />
   <title>Habit Calendar</title>
@@ -11934,7 +11934,22 @@ const PIP_MAX = 3;
         cameFromWeek = true;
         SelectedDayState.set(d.getFullYear(), d.getMonth(), d.getDate());
         close(true);
-        if (typeof DayViewScroll !== 'undefined' &&
+        if (window.matchMedia('(max-width: 760px)').matches) {
+          // Phone: no full-screen Day view any more. Stay on the Month view (on that day's month) and jump
+          // straight down, with no animation, to the day panel that sits under the month grid.
+          cameFromWeek = false;
+          if (viewYear !== d.getFullYear() || viewMonth !== d.getMonth()) {
+            viewYear = d.getFullYear();
+            viewMonth = d.getMonth();
+            renderCalendar();
+          }
+          const jump = () => {
+            const sdEl = document.querySelector('.sd');
+            if (sdEl) sdEl.scrollIntoView({ block: 'start', behavior: 'instant' });
+          };
+          jump();
+          requestAnimationFrame(jump); // once more after the week overlay has fully released the page scroll
+        } else if (typeof DayViewScroll !== 'undefined' &&
             typeof DayViewState !== 'undefined' &&
             DayViewState.get() === DayViewState.STATES.CALENDAR) {
           DayViewScroll.triggerForward();
