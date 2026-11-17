@@ -39,9 +39,10 @@ function ensure(db) {
     db.prepare('CREATE TABLE IF NOT EXISTS screentime_runtime (day TEXT NOT NULL, device TEXT NOT NULL, seconds INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, device))'),
     db.prepare('CREATE TABLE IF NOT EXISTS screentime_hourly (day TEXT NOT NULL, device TEXT NOT NULL, hour INTEGER NOT NULL, seconds INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, device, hour))'),
     db.prepare('CREATE TABLE IF NOT EXISTS screentime_adjust (id INTEGER PRIMARY KEY AUTOINCREMENT, day TEXT NOT NULL, seconds INTEGER NOT NULL, created INTEGER)'),
-    db.prepare('CREATE TABLE IF NOT EXISTS screentime_hourly_grp (day TEXT NOT NULL, device TEXT NOT NULL, hour INTEGER NOT NULL, grp TEXT NOT NULL, seconds INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, device, hour, grp))'),
+    db.prepare('CREATE TABLE IF NOT EXISTS screentime_hourly_app (day TEXT NOT NULL, device TEXT NOT NULL, hour INTEGER NOT NULL, app TEXT NOT NULL, seconds INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, device, hour, app))'),
   ])
     .then(() => db.prepare('ALTER TABLE screentime_adjust ADD COLUMN app TEXT').run().catch(() => {}))   // which program an adjustment belongs to (ignored if the column already exists)
+    .then(() => db.prepare('ALTER TABLE screentime_apps ADD COLUMN cat TEXT').run().catch(() => {}))      // your own productive / unproductive / other choice for a program
     .catch((e) => { ready = null; throw e; });
   return ready;
 }
@@ -68,7 +69,7 @@ async function getConf(db) {
     desk: m.desk === '0' ? 0 : 1,                                    // 1 = show the counter only when no program window is open
     idleCounts: m.idlecounts === '0' ? 0 : 1,                        // 1 = PC idle time counts toward the PC on-time
     colors: m.colors === '0' ? 0 : 1,                                // colour the days by how they compare with the average
-    progColors: m.progcolors === '0' ? 0 : 1,                        // colour the bars by program instead: red = YouTube, green = Chrome, brown = everything else
+    progColors: m.progcolors === '0' ? 0 : 1,                        // colour the bars by productive (green) / unproductive (red) / other (brown)
     breakOn: m.breakon === '0' ? 0 : 1,
     breakMin: bm >= 15 && bm <= 480 ? bm : 120,                      // minutes of non-stop use before the reminder
     lastBreak: parseInt(m.lastbreak, 10) || 0,
@@ -77,6 +78,15 @@ async function getConf(db) {
   };
 }
 const setConf = (db, k, v) => db.prepare('INSERT INTO screentime_conf (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v').bind(k, String(v)).run();
+
+// Productive (p) / unproductive (u) / other (o). This is only the starting guess; you can change any program on the Screen Time page.
+const CAT_U = /youtube|tiktok|instagram|snapchat|facebook|netflix|twitch|reddit|roblox|steam|epicgames|chess|\bgames?\b/;
+const CAT_P = /^(chrome|safari|firefox|msedge|brave|opera|vivaldi|claude|google ads|calculator|calendar|notes|reminders|books|files|mail|gmail|journal|translate|preview|code|cursor|notepad|notepad\+\+|devenv|pycharm|excel|winword|powerpnt|onenote|windowsterminal|powershell|cmd|github desktop|figma|capcut)(\.exe)?$/;
+function defaultCat(app) {
+  const b = String(app).replace(/ \(iphone\)$/, '');
+  if (b === 'tv' || CAT_U.test(b)) return 'u';
+  return CAT_P.test(b) ? 'p' : 'o';
+}
 
 const tzOk = (z) => { try { new Intl.DateTimeFormat('en-CA', { timeZone: z }); return true; } catch (e) { return false; } };
 // local day, hour and seconds left in that hour, for a moment in time
@@ -122,10 +132,10 @@ export async function onRequest({ request, env }) {
             st.push(db.prepare('INSERT INTO screentime_hourly (day, device, hour, seconds) VALUES (?, ?, ?, ?) ON CONFLICT(day, device, hour) DO UPDATE SET seconds = seconds + excluded.seconds').bind(f[1], device, hr, Math.min(secs, 3600)));
           continue;
         }
-        if (f[0] === 'G') {                                           // G <tab> day <tab> hour <tab> y|c|o <tab> seconds   = time in one colour group inside one hour
-          const hr = parseInt(f[2], 10), secs = parseInt(f[4], 10);
-          if (DAY.test(f[1] || '') && hr >= 0 && hr <= 23 && ['y', 'c', 'o'].includes(f[3]) && secs >= 1)
-            st.push(db.prepare('INSERT INTO screentime_hourly_grp (day, device, hour, grp, seconds) VALUES (?, ?, ?, ?, ?) ON CONFLICT(day, device, hour, grp) DO UPDATE SET seconds = seconds + excluded.seconds').bind(f[1], device, hr, f[3], Math.min(secs, 3600)));
+        if (f[0] === 'G') {                                           // G <tab> day <tab> hour <tab> program <tab> seconds   = time in one program inside one hour
+          const hr = parseInt(f[2], 10), secs = parseInt(f[4], 10), gapp = cleanApp(f[3]);
+          if (DAY.test(f[1] || '') && hr >= 0 && hr <= 23 && gapp && !gapp.startsWith('(') && secs >= 1)
+            st.push(db.prepare('INSERT INTO screentime_hourly_app (day, device, hour, app, seconds) VALUES (?, ?, ?, ?, ?) ON CONFLICT(day, device, hour, app) DO UPDATE SET seconds = seconds + excluded.seconds').bind(f[1], device, hr, gapp, Math.min(secs, 3600)));
           continue;
         }
         if (f[0] === 'R') {                                           // R <tab> day <tab> seconds   = PC-on time
@@ -174,13 +184,13 @@ export async function onRequest({ request, env }) {
       const ev = url.searchParams.get('e');
       if ((ev !== 'open' && ev !== 'close') || (ev === 'open' && !base)) return text('need e=open with app=<name>, or e=close (app is optional for close)', 400);
       const name = base ? base + ' (iphone)' : '', now = Date.now(), c = await getConf(db), cur = c.phoneOpen;
-      // a close with no app name (the "all apps" Shortcuts setup) ends whatever is open, unless an app was opened in the last 3 seconds:
+      // a close with no app name (the "all apps" Shortcuts setup) ends whatever is open, unless an app was opened in the last 2 seconds:
       // when you switch from app A to app B, iOS can send B's open before A's close, and that close must not end B
       const anyClose = ev === 'close' && !base;
       let keep = false;
       const st = [db.prepare('INSERT INTO screentime_devices (device, last_seen) VALUES (?, ?) ON CONFLICT(device) DO UPDATE SET last_seen = excluded.last_seen').bind('iphone', now)];
       // only one app is in front at a time: opening any app ends whatever was still "open" (e.g. a close iOS never sent), closing ends the matching one
-      if (anyClose && cur && cur.t && now - cur.t < 3000) keep = true;
+      if (anyClose && cur && cur.t && now - cur.t < 2000) keep = true;
       if (cur && cur.t && !keep && (ev === 'open' || anyClose || cur.app === name)) {
         let secs = Math.min(Math.round((now - cur.t) / 1000), PHONE_MAX);
         const row = await db.prepare('SELECT counts FROM screentime_apps WHERE app = ?').bind(cur.app).first();
@@ -193,7 +203,7 @@ export async function onRequest({ request, env }) {
             st.push(db.prepare('INSERT INTO screentime_usage (day, device, app, seconds) VALUES (?, ?, ?, ?) ON CONFLICT(day, device, app) DO UPDATE SET seconds = seconds + excluded.seconds').bind(p.day, 'iphone', cur.app, n));
             st.push(db.prepare('INSERT INTO screentime_hourly (day, device, hour, seconds) VALUES (?, ?, ?, ?) ON CONFLICT(day, device, hour) DO UPDATE SET seconds = seconds + excluded.seconds').bind(p.day, 'iphone', p.hour, n));
             st.push(db.prepare('INSERT INTO screentime_runtime (day, device, seconds) VALUES (?, ?, ?) ON CONFLICT(day, device) DO UPDATE SET seconds = seconds + excluded.seconds').bind(p.day, 'iphone', n));
-            st.push(db.prepare('INSERT INTO screentime_hourly_grp (day, device, hour, grp, seconds) VALUES (?, ?, ?, ?, ?) ON CONFLICT(day, device, hour, grp) DO UPDATE SET seconds = seconds + excluded.seconds').bind(p.day, 'iphone', p.hour, base === 'youtube' ? 'y' : base === 'chrome' ? 'c' : 'o', n));
+            st.push(db.prepare('INSERT INTO screentime_hourly_app (day, device, hour, app, seconds) VALUES (?, ?, ?, ?, ?) ON CONFLICT(day, device, hour, app) DO UPDATE SET seconds = seconds + excluded.seconds').bind(p.day, 'iphone', p.hour, cur.app, n));
             t += n * 1000; left -= n;
           }
         }
@@ -246,23 +256,29 @@ export async function onRequest({ request, env }) {
       const rt = await db.prepare('SELECT day, SUM(seconds) AS seconds FROM screentime_runtime WHERE day >= ? AND day <= ?' + dq + ' GROUP BY day ORDER BY day').bind(barsFrom, today).all();
       const adj = dev === 'phone' ? { results: [] } : await db.prepare('SELECT id, day, seconds, app FROM screentime_adjust WHERE day >= ? AND day <= ? ORDER BY id').bind(barsFrom, today).all();   // adjustments are about the PC (AFK)
       const used = await db.prepare('SELECT app, SUM(seconds) AS seconds FROM screentime_usage WHERE day >= ? AND day <= ?' + dq + ' GROUP BY app').bind(rangeFrom, today).all();
-      const days = await db.prepare('SELECT day, SUM(seconds) AS tracked, SUM(CASE WHEN app = ? THEN seconds ELSE 0 END) AS idle, SUM(CASE WHEN app IN (?, ?) THEN seconds ELSE 0 END) AS yt, SUM(CASE WHEN app IN (?, ?) THEN seconds ELSE 0 END) AS chrome FROM screentime_usage WHERE day >= ? AND day <= ?' + dq + ' GROUP BY day').bind('(idle)', 'youtube.com', 'youtube (iphone)', 'chrome.exe', 'chrome (iphone)', barsFrom, today).all();
-      const apps = await db.prepare('SELECT app, counts, alive FROM screentime_apps').all();
+      const days = await db.prepare('SELECT day, SUM(seconds) AS tracked, SUM(CASE WHEN app = ? THEN seconds ELSE 0 END) AS idle FROM screentime_usage WHERE day >= ? AND day <= ?' + dq + ' GROUP BY day').bind('(idle)', barsFrom, today).all();
+      const dayApps = (await db.prepare('SELECT day, app, SUM(seconds) AS seconds FROM screentime_usage WHERE day >= ? AND day <= ?' + dq + " AND app NOT LIKE '(%' GROUP BY day, app").bind(barsFrom, today).all()).results;   // per day per program, so the page can colour each day by productive / unproductive / other
+      const apps = await db.prepare('SELECT app, counts, alive, cat FROM screentime_apps').all();
       const devices = await db.prepare('SELECT device, last_seen FROM screentime_devices ORDER BY last_seen DESC').all();
       const hours = range === 1 ? (await db.prepare('SELECT hour, SUM(seconds) AS seconds FROM screentime_hourly WHERE day = ?' + dq + ' GROUP BY hour ORDER BY hour').bind(today).all()).results : [];
-      const hoursG = range === 1 ? (await db.prepare('SELECT hour, grp, SUM(seconds) AS seconds FROM screentime_hourly_grp WHERE day = ?' + dq + ' GROUP BY hour, grp').bind(today).all()).results : [];
+      const hoursApp = range === 1 ? (await db.prepare('SELECT hour, app, SUM(seconds) AS seconds FROM screentime_hourly_app WHERE day = ?' + dq + ' GROUP BY hour, app').bind(today).all()).results : [];
       const c = await getConf(db);
 
       const secs = {};
       for (const r of used.results) secs[r.app] = r.seconds;
       const list = apps.results
-        .map((a) => ({ app: a.app, seconds: secs[a.app] || 0, counts: a.counts ? 1 : 0, alive: a.alive ? 1 : 0 }))
+        .map((a) => ({ app: a.app, seconds: secs[a.app] || 0, counts: a.counts ? 1 : 0, alive: a.alive ? 1 : 0, cat: a.cat || defaultCat(a.app) }))
         .filter((a) => a.seconds > 0 || !a.counts || a.alive)
         .sort((x, y) => y.seconds - x.seconds || x.app.localeCompare(y.app))
         .slice(0, 150);
 
+      const stored = {};
+      for (const a of apps.results) stored[a.app] = a.cat;
+      const cats = {};                                                  // productive / unproductive / other for every program the page may meet (your own choice wins over the guess)
+      for (const n of new Set([...list.map((a) => a.app), ...dayApps.map((r) => r.app), ...hoursApp.map((r) => r.app)])) cats[n] = stored[n] || defaultCat(n);
+
       return json({
-        rt: rt.results, days: days.results, hours, hoursG, adj: adj.results, apps: list, pseudo: used.results.filter((r) => r.app.startsWith('(')), devices: devices.results, now: Date.now(),
+        rt: rt.results, days: days.results, dayApps, cats, hours, hoursApp, adj: adj.results, apps: list, pseudo: used.results.filter((r) => r.app.startsWith('(')), devices: devices.results, now: Date.now(),
         conf: { idle: Math.round(c.idle / 60), overlay: c.overlay, corner: c.corner, opacity: c.opacity, desk: c.desk, idleCounts: c.idleCounts, breakOn: c.breakOn, breakMin: c.breakMin, colors: c.colors, progColors: c.progColors },
       });
     }
@@ -320,6 +336,7 @@ export async function onRequest({ request, env }) {
       const st = [db.prepare('INSERT OR IGNORE INTO screentime_apps (app) VALUES (?)').bind(app)];
       if (b.counts !== undefined) st.push(db.prepare('UPDATE screentime_apps SET counts = ? WHERE app = ?').bind(b.counts ? 1 : 0, app));
       if (b.alive !== undefined) st.push(db.prepare('UPDATE screentime_apps SET alive = ? WHERE app = ?').bind(b.alive ? 1 : 0, app));
+      if (b.cat !== undefined) st.push(db.prepare('UPDATE screentime_apps SET cat = ? WHERE app = ?').bind(['p', 'u', 'o'].includes(b.cat) ? b.cat : null, app));
       await db.batch(st);
       return json({ ok: 1 });
     }
@@ -570,10 +587,11 @@ Bump(name, gap) {
     global usage, grp
     key := A_YYYY . "-" . A_MM . "-" . A_DD . "|" . name
     usage[key] := (usage.HasKey(key) ? usage[key] : 0) + gap
-    ; per hour and per colour group (y = YouTube, c = Chrome, o = everything else) for the coloured bars on the site
-    g := (name = "youtube.com") ? "y" : (name = "chrome.exe") ? "c" : "o"
-    gk := A_YYYY . "-" . A_MM . "-" . A_DD . "|" . (A_Hour + 0) . "|" . g
-    grp[gk] := (grp.HasKey(gk) ? grp[gk] : 0) + gap
+    ; per hour and per program, so the site can colour every hour by productive / unproductive / other
+    if (SubStr(name, 1, 1) != "(") {
+        gk := A_YYYY . "-" . A_MM . "-" . A_DD . "|" . (A_Hour + 0) . "|" . name
+        grp[gk] := (grp.HasKey(gk) ? grp[gk] : 0) + gap
+    }
 }
 
 ; the PC stayed on past midnight: a new day starts at zero
