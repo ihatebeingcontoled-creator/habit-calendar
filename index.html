@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>/* GLOBAL VERSION COUNTER: each file has its own number (this file = index). The corner label shows index + sw.js + server added together. Bump ONLY the number of the file you changed. */ window.__V = { index: 21 };</script>
+<script>/* GLOBAL VERSION COUNTER: each file has its own number (this file = index). The corner label shows index + sw.js + server added together. Bump ONLY the number of the file you changed. */ window.__V = { index: 22 };</script>
   <meta charset="UTF-8" />
   <meta name="viewport" id="viewportMetaTag" content="width=device-width, initial-scale=1.0" />
   <title>Habit Calendar</title>
@@ -14706,7 +14706,10 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
     var rtBy = {}, adjBy = {}, i;
     d.rt.forEach(function (x) { rtBy[x.day] = x.seconds; });
     d.adj.forEach(function (x) { adjBy[x.day] = (adjBy[x.day] || 0) + x.seconds; });
-    function total(k) { var v = (rtBy[k] || 0) + (adjBy[k] || 0); return v < 0 ? 0 : v; }
+    var idleBy = {}, idleOn = d.conf.idleCounts !== 0;   // PC idle per day = recorded idle + on-time nobody accounted for
+    (d.days || []).forEach(function (x) { idleBy[x.day] = (x.idle || 0) + Math.max(0, (rtBy[x.day] || 0) - (x.tracked || 0)); });
+    d.rt.forEach(function (x) { if (idleBy[x.day] === undefined) idleBy[x.day] = x.seconds; });
+    function total(k) { var v = (rtBy[k] || 0) + (adjBy[k] || 0) - (idleOn ? 0 : (idleBy[k] || 0)); return v < 0 ? 0 : v; }
     var today = dayStr(0), colorsOn = d.conf.colors !== 0;
     if (!selDay || selDay < dayStr(bars - 1) || selDay > today) selDay = today;
 
@@ -14777,27 +14780,28 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
     (d.pseudo || []).forEach(function (x) { if (x.app === '(idle)') idleSec += x.seconds; });
     trackedSec = idleSec; d.apps.forEach(function (a) { trackedSec += a.seconds; });
     var untrackedSec = Math.max(0, rtRange - trackedSec), base = Math.max(rtRange, trackedSec, 1);
+    idleSec += untrackedSec; untrackedSec = 0;
     var items = d.apps.map(function (a) { return { kind: 'app', a: a, seconds: a.seconds }; });
-    if (idleSec) items.push({ kind: 'idle', seconds: idleSec });
+    if (idleSec >= 30) items.push({ kind: 'idle', seconds: idleSec });
     if (untrackedSec >= 30) items.push({ kind: 'untracked', seconds: untrackedSec });
     items.sort(function (x, y) { return y.seconds - x.seconds; });
     if (adjRange) items.push({ kind: 'adj', seconds: adjRange });
     var box = $('stApps'), keep = box.scrollTop; box.innerHTML = '';
     function pctText(sec) { var p = sec / base * 100; return !sec ? '' : p < 1 ? '<1%' : Math.round(p) + '%'; }
     items.forEach(function (it) {
-      var row = document.createElement('div'), a = it.a, counts = it.kind !== 'app' || !!a.counts;
+      var row = document.createElement('div'), a = it.a, counts = it.kind === 'idle' ? idleOn : (it.kind !== 'app' || !!a.counts);
       row.className = 'st-row' + (counts ? '' : ' off');
       var n = document.createElement('div'); n.className = 'st-name';
       var nm = document.createElement('b'), pc = document.createElement('span'); pc.className = 'st-pct';
       var label = it.kind === 'app' ? a.app : it.kind === 'idle' ? 'PC idle' : it.kind === 'untracked' ? 'Not tracked' : 'Adjusted by you';
       nm.textContent = label; if (it.kind !== 'app') nm.style.fontStyle = 'italic';
       pc.textContent = it.kind === 'adj' ? '' : (pctText(it.seconds) + (it.kind === 'app' && !a.counts && it.seconds ? ' \u00b7 not counted' : '')); nm.appendChild(pc); n.appendChild(nm);
-      var note = it.kind === 'idle' ? 'PC on, but no keyboard or mouse for a while' : it.kind === 'untracked' ? 'before the PC program started, or programs it skipped' : '';
+      var note = '';
       if (note) { var nt = document.createElement('div'); nt.className = 'st-mut'; nt.style.fontSize = '11px'; nt.textContent = note; n.appendChild(nt); }
       if (it.kind !== 'adj') { var m = document.createElement('div'); m.className = 'st-meter'; var mi = document.createElement('i'); mi.style.width = (it.seconds ? Math.max(it.seconds / base * 100, 1) : 0) + '%'; if (it.kind !== 'app') mi.style.background = '#9a9aa1'; m.appendChild(mi); n.appendChild(m); }
       var t = document.createElement('div'); t.className = 't'; t.textContent = it.kind === 'adj' ? (it.seconds < 0 ? '\u2212' : '+') + fmtShort(Math.abs(it.seconds)) : (it.seconds ? fmtShort(it.seconds) : '-');
       row.appendChild(n); row.appendChild(t);
-      if (it.kind === 'app') { row.appendChild(chk(a, 'counts')); row.appendChild(chk(a, 'alive')); } else { row.appendChild(document.createElement('div')); row.appendChild(document.createElement('div')); }
+      if (it.kind === 'app') { row.appendChild(chk(a, 'counts')); row.appendChild(chk(a, 'alive')); } else if (it.kind === 'idle') { row.appendChild(chk({ counts: idleOn }, 'counts', function (v) { return { idleCounts: v ? 1 : 0 }; })); row.appendChild(chk({ alive: 1, counts: 0 }, 'alive')); } else { row.appendChild(document.createElement('div')); row.appendChild(document.createElement('div')); }
       box.appendChild(row);
     });
     box.scrollTop = keep;
@@ -14821,10 +14825,11 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
     }
   }
 
-  function chk(a, field) {
+  function chk(a, field, custom) {
     var w = document.createElement('div'); w.className = 'c'; var c = document.createElement('input'); c.type = 'checkbox'; c.checked = !!a[field];
     if (field === 'alive' && !a.counts) c.disabled = true;
-    c.onchange = function () { var b = { app: a.app }; b[field] = c.checked; post('set', b).then(load).catch(function () { c.checked = !c.checked; }); };
+    if (custom) c.disabled = false;
+    c.onchange = function () { var b = custom ? custom(c.checked) : { app: a.app }; if (!custom) b[field] = c.checked; post('set', b).then(load).catch(function () { c.checked = !c.checked; }); };
     w.appendChild(c); return w;
   }
 
