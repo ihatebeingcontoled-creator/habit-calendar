@@ -1920,9 +1920,19 @@ async function sendPush(sub, payloadObj, env) {
   });
 }
 
-async function onRequestGet({ env }) {
+const LATE_MS = 10 * 60 * 1000;
+
+async function onRequestGet({ env, request }) {
   try {
     const nowMs = Date.now();
+
+    // The Settings page asks "is the outside cron job calling me?" with ?status=1 - answered from the time of the last real check.
+    if (new URL(request.url).searchParams.get('status')) {
+      let last = null;
+      try { const r = await env.DB.prepare('SELECT sent_at FROM sent_notifications WHERE event_id = ?').bind('__push_check__').first(); last = r ? r.sent_at : null; } catch (e) { /* table not there yet */ }
+      return json({ ok: true, last, now: nowMs });
+    }
+    try { await env.DB.prepare('INSERT OR REPLACE INTO sent_notifications (event_id, sent_at) VALUES (?, ?)').bind('__push_check__', nowMs).run(); } catch (e) { /* only a status note */ }
 
     // ── due events (unchanged) ──
     const { results } = await env.DB.prepare(
@@ -1937,7 +1947,7 @@ async function onRequestGet({ env }) {
       // tests/projects made by the Test tab (ids mdtest-/mdproj-) notify ONE DAY BEFORE, at the same clock time
       ev.isAuto = /^md(test|proj)-/.test(String(ev.id || ''));
       const eventMs = zonedTimeToUtc(y, mo, ev.isAuto ? d - 1 : d, hh, mi, 'Europe/Vilnius');
-      if (eventMs <= nowMs && eventMs > nowMs - 90 * 1000) {
+      if (eventMs <= nowMs && eventMs > nowMs - LATE_MS) {   // due, and not more than 10 minutes late: a slow or skipped cron run no longer loses the bell (sent_notifications stops doubles)
         ev.timeLabel = `${pad(hh)}:${pad(mi)}`;
         due.push(ev);
       }
@@ -1959,7 +1969,7 @@ async function onRequestGet({ env }) {
     // year without colliding with this year's row (or with event ids).
     const { y: ty, mo: tmo, d: td } = todayInTZ('Europe/Vilnius');
     const midnightMs = zonedTimeToUtc(ty, tmo, td, 0, 0, 'Europe/Vilnius');
-    const inMidnightWindow = nowMs >= midnightMs && nowMs < midnightMs + 90 * 1000;
+    const inMidnightWindow = nowMs >= midnightMs && nowMs < midnightMs + 30 * 60 * 1000;
 
     let dueBirthdays = [];
     if (inMidnightWindow) {
@@ -3349,7 +3359,7 @@ async function onRequest({ request, env }) {
 })();
 
 // version counter of THIS file (added into the number shown in the page corner; bump it only when this file changes)
-const FILE_VERSION = 7;
+const FILE_VERSION = 8;
 const M_version = { onRequest: () => new Response(JSON.stringify({ v: FILE_VERSION }), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } }) };
 
 // ================================ ROUTER ================================
