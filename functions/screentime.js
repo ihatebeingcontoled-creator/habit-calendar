@@ -337,7 +337,7 @@ export async function onRequest({ request, env }) {
       const st = [db.prepare('INSERT OR IGNORE INTO screentime_apps (app) VALUES (?)').bind(app)];
       if (b.counts !== undefined) st.push(db.prepare('UPDATE screentime_apps SET counts = ? WHERE app = ?').bind(b.counts ? 1 : 0, app));
       if (b.alive !== undefined) st.push(db.prepare('UPDATE screentime_apps SET alive = ? WHERE app = ?').bind(b.alive ? 1 : 0, app));
-      if (b.kind !== undefined) st.push(db.prepare('UPDATE screentime_apps SET kind = ? WHERE app = ?').bind(['msg', 'web', 'video', 'social', 'game', 'work', 'music', 'sys', 'other'].includes(b.kind) ? b.kind : null, app));
+      if (b.kind !== undefined) st.push(db.prepare('UPDATE screentime_apps SET kind = ? WHERE app = ?').bind(['msg', 'web', 'video', 'social', 'game', 'work', 'claude', 'music', 'sys', 'other'].includes(b.kind) ? b.kind : null, app));
       if (b.cat !== undefined) st.push(db.prepare('UPDATE screentime_apps SET cat = ? WHERE app = ?').bind(['p', 'u', 'o'].includes(b.cat) ? b.cat : null, app));
       await db.batch(st);
       return json({ ok: 1 });
