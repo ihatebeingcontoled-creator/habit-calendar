@@ -365,6 +365,9 @@ confTries := 0
 lastTick := A_TickCount
 today := A_YYYY . "-" . A_MM . "-" . A_DD
 
+; close any other copy of this tracker that is still running (an old download such as "screentime (1).ahk" would keep counting the browser as chrome.exe)
+KillOthers()
+
 ; the on-screen counter: plain white numbers, a little see-through, never takes clicks or focus, hidden from Alt-Tab.
 ; It is shown once the site says so, and (unless you turn that off on the site) only while no program window is open.
 Gui, ST:New, -Caption +ToolWindow +E0x20 +E0x80 +HwndovHwnd
@@ -379,6 +382,7 @@ WinSet, TransColor, FEFEFE 140, ahk_id %ovHwnd%
 Menu, Tray, Tip, Screen Time
 Menu, Tray, NoStandard
 Menu, Tray, Add, Send now, SendNow
+Menu, Tray, Add, Test YouTube (5 s), TestYT
 Menu, Tray, Add, Quit, QuitApp
 OnExit, ExitSub
 
@@ -453,6 +457,35 @@ ExitSub:
 DoFlush()
 ExitApp
 return
+
+; tray -> "Test YouTube": click the browser window within 5 seconds, then it shows what the script sees there
+TestYT:
+ToolTip, Click the browser window now - checking in 5 seconds
+SetTimer, DoTestYT, -5000
+return
+
+DoTestYT:
+ToolTip
+WinGet, tp, ProcessName, A
+StringLower, tp, tp
+WinGetTitle, tt, A
+tr := SiteName(tp)
+MsgBox, 0, Screen Time test, % "program: " . tp . Chr(10) . "title: " . tt . Chr(10) . "counted as: " . tr
+return
+
+; ends every other running copy of this tracker (any AutoHotkey process whose command line mentions screentime)
+KillOthers() {
+    me := DllCall("GetCurrentProcessId")
+    try {
+        for proc in ComObjGet("winmgmts:").ExecQuery("Select ProcessId, CommandLine from Win32_Process where Name like 'AutoHotkey%'") {
+            if (proc.ProcessId = me)
+                continue
+            if InStr(proc.CommandLine, "screentime")
+                Process, Close, % proc.ProcessId
+        }
+    } catch e {
+    }
+}
 
 ; a browser window that is showing YouTube counts as "youtube.com", every other browser window keeps its program name
 SiteName(exe) {
