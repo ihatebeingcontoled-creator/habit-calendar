@@ -492,7 +492,7 @@ SiteName(exe) {
     if (exe != "chrome.exe" && exe != "msedge.exe" && exe != "firefox.exe" && exe != "brave.exe" && exe != "opera.exe" && exe != "vivaldi.exe")
         return exe
     WinGetTitle, ttl, A
-    if RegExMatch(ttl, "(^|- )YouTube( and [0-9]+ more pages?)?( [^A-Za-z0-9]|$)")
+    if RegExMatch(ttl, "(^|[^A-Za-z0-9 ] )YouTube( and [0-9]+ more pages?)?( ?[^A-Za-z0-9 ]|$)")
         return "youtube.com"
     return exe
 }
