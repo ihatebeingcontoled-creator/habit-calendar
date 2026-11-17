@@ -196,7 +196,7 @@ ol{margin:10px 0 0;padding-left:20px;display:grid;gap:6px;font-size:14px}
 code{background:var(--line);padding:1px 6px;border-radius:6px;font-size:13px}
 .err{color:#dc2626;font-size:14px;margin-top:8px}
 </style></head><body><main>
-<div class="top"><h1>Screen Time</h1><div class="tabs" id="tabs"><button data-r="1">Today</button><button data-r="7" class="on">7 days</button><button data-r="30">30 days</button></div></div>
+<div class="top"><div><a href="/" style="color:var(--acc);text-decoration:none;font-size:14px">&larr; Calendar</a><h1>Screen Time</h1></div><div class="tabs" id="tabs"><button data-r="1">Today</button><button data-r="7" class="on">7 days</button><button data-r="30">30 days</button></div></div>
 <div class="card"><div class="mut" id="totLabel">Total</div><div class="big" id="total">…</div><div class="mut" id="avg"></div><div class="bars" id="bars"></div></div>
 <div class="card"><h2>Apps</h2>
 <div class="row head"><div>App</div><div style="text-align:right">Time</div><div>Counts</div><div title="Counts even with no keyboard or mouse">Idle OK</div></div>
