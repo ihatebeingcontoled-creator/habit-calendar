@@ -14770,9 +14770,9 @@ body.night-mode .st-fab { background: rgba(40,40,42,.92); color: #f5f5f5; }
     var legEl = $('stLegend'); if (legEl._avg === undefined) legEl._avg = legEl.innerHTML;
     if (progOn) {
       var anyEst = vals.some(function (x) { return x.hour && x.unatSum > 0 && x.v > 0; });
-      legEl.innerHTML = PAL.map(function (g) { return '<span><i style="background:' + g.col + '"></i>' + g.name + '</span>'; }).join('') + (hourly ? (anyEst ? '<span><i style="background:#9a9aa1;opacity:.6"></i>lighter = estimated from the day</span>' : '') : '<span><i style="background:rgba(128,128,128,.6);width:3px"></i>your average</span>'); legEl.style.display = '';
+      legEl.innerHTML = PAL.map(function (g) { return '<span><i style="background:' + g.col + '"></i>' + g.name + '</span>'; }).join('') + (hourly ? (anyEst ? '<span><i style="background:repeating-linear-gradient(135deg,#9a9aa1 0 3px,rgba(255,255,255,.7) 3px 6px)"></i>striped = estimated (same colour, no per-app record)</span>' : '') : '<span><i style="background:rgba(128,128,128,.6);width:3px"></i>your average</span>'); legEl.style.display = '';
     } else { legEl.innerHTML = legEl._avg; legEl.style.display = colorsOn && !hourly ? '' : 'none'; }
-    function seg(par, secs, col, label, est) { if (secs <= 0) return; var sp = document.createElement('span'); sp.style.flex = secs + ' 1 0'; sp.style.background = col; if (est) sp.style.opacity = '.55'; if (label) sp.title = label + ' ' + fmtSec(secs) + (est ? ' (estimated)' : ''); par.appendChild(sp); }
+    function seg(par, secs, col, label, est) { if (secs <= 0) return; var sp = document.createElement('span'); sp.style.flex = secs + ' 1 0'; sp.style.background = est ? 'repeating-linear-gradient(135deg, ' + col + ' 0 6px, rgba(255,255,255,.55) 6px 12px)' : col; sp.dataset.f = secs; sp.dataset.t = fmtSec(secs); if (label) sp.title = label + ' ' + fmtSec(secs) + (est ? ' (estimated)' : ''); par.appendChild(sp); }
     axis.innerHTML = ''; hp.innerHTML = '';
     for (var gv = step; gv <= axisMax; gv += step) {
       var gl = document.createElement('span'); gl.textContent = axisLabel(gv); gl.style.left = (gv / axisMax * 100) + '%'; axis.appendChild(gl);
@@ -14805,8 +14805,20 @@ body.night-mode .st-fab { background: rgba(40,40,42,.92); color: #f5f5f5; }
       tr.appendChild(bar);
       if (x.v) {
         var em = document.createElement('em'); em.textContent = fmtShort(x.v);
-        if (pct > 80) { em.style.right = 'calc(' + (100 - pct) + '% + 6px)'; em.style.color = '#fff'; } else { em.style.left = 'calc(' + pct + '% + 6px)'; }
+        if (pct > 86) { em.style.right = '4px'; em.style.background = 'rgba(255,255,255,.88)'; em.style.color = '#111'; em.style.padding = '1px 6px'; em.style.borderRadius = '8px'; } else { em.style.left = 'calc(' + pct + '% + 6px)'; }   // short bars: label right after the bar; near-full bars: dark label pinned to the right end so it is readable on any colour
         tr.appendChild(em);
+      }
+      if (bar.children.length > 1) {   // hover a row: every piece becomes the same size and the bar slides to the middle, so tiny pieces are easy to point at
+        row.onmouseenter = function () {
+          bar.style.transition = 'left .28s ease, width .28s ease'; bar.style.left = '12%'; bar.style.width = '76%'; bar.style.top = '4%'; bar.style.bottom = '4%'; bar.style.borderRadius = '8px';
+          Array.prototype.forEach.call(bar.children, function (c) { c.style.transition = 'flex-grow .28s ease'; c.style.flexGrow = 1; c.style.display = 'flex'; c.style.alignItems = 'center'; c.style.justifyContent = 'center'; c.style.fontSize = '10px'; c.style.fontWeight = '700'; c.style.color = '#fff'; c.style.textShadow = '0 1px 2px rgba(0,0,0,.55)'; c.style.overflow = 'hidden'; c.textContent = c.dataset.t || ''; });
+          var e2 = tr.querySelector('em'); if (e2) e2.style.opacity = '0';
+        };
+        row.onmouseleave = function () {
+          bar.style.left = '0'; bar.style.width = pct + '%'; bar.style.top = ''; bar.style.bottom = ''; bar.style.borderRadius = '';
+          Array.prototype.forEach.call(bar.children, function (c) { c.style.flexGrow = c.dataset.f; c.textContent = ''; });
+          var e2 = tr.querySelector('em'); if (e2) e2.style.opacity = '';
+        };
       }
       row.appendChild(tr);
       if (!x.hour) row.onclick = function () { selDay = x.k; render(d, bars); };
