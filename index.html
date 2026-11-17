@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>/* GLOBAL VERSION COUNTER: each file has its own number (this file = index). The corner label shows index + sw.js + server added together. Bump ONLY the number of the file you changed. */ window.__V = { index: 28 };</script>
+<script>/* GLOBAL VERSION COUNTER: each file has its own number (this file = index). The corner label shows index + sw.js + server added together. Bump ONLY the number of the file you changed. */ window.__V = { index: 33 };</script>
+<script>/* no browser right-click menu anywhere on the site (our own right-click editor / paste popups still work) */ window.addEventListener('contextmenu', function (e) { e.preventDefault(); }, true);</script>
   <meta charset="UTF-8" />
   <meta name="viewport" id="viewportMetaTag" content="width=device-width, initial-scale=1.0" />
   <title>Habit Calendar</title>
@@ -1630,6 +1631,26 @@
       font-size: 9px; line-height: 1; pointer-events: none; z-index: 2;
     }
 
+    .evp { position: fixed; z-index: 4000; width: 290px; background: #fff; color: #111; border: 1px solid rgba(0,0,0,.14); border-radius: 14px; padding: 10px; box-shadow: 0 12px 34px rgba(0,0,0,.28); display: flex; flex-direction: column; gap: 8px; font-family: inherit; }
+    .evp input[type=text], .evp textarea, .evp input[type=time] { font: inherit; font-size: 13px; border: 1.5px solid #e2e2e6; border-radius: 9px; padding: 7px 9px; background: #fafafa; color: #111; outline: none; width: 100%; box-sizing: border-box; }
+    .evp input:focus, .evp textarea:focus { border-color: #3b82f6; }
+    .evp .evp-title { font-weight: 700; font-size: 14px; }
+    .evp textarea { resize: vertical; min-height: 64px; }
+    .evp-row { display: flex; align-items: center; gap: 6px; } .evp-row input[type=time] { flex: 1; min-width: 0; }
+    .evp-colors { display: flex; flex-wrap: wrap; gap: 6px; }
+    .evp-sw { width: 22px; height: 22px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; }
+    .evp-sw.on { border-color: #111; box-shadow: 0 0 0 2px #fff inset; }
+    .evp-btns button { flex: 1; font: inherit; font-size: 12px; font-weight: 700; border: 1.5px solid #e2e2e6; background: #f4f4f6; border-radius: 9px; padding: 7px 4px; cursor: pointer; color: #111; }
+    .evp-btns button.on { background: #fff3cd; border-color: #f5b301; }
+    .evp-top { gap: 6px; }
+    .evp-top .evp-title { flex: 1; min-width: 0; width: auto; }
+    .evp-del { flex: none; width: 34px; align-self: stretch; display: flex; align-items: center; justify-content: center; padding: 0; border: 1.5px solid #e2e2e6; background: #f4f4f6; color: #dc2626; border-radius: 9px; cursor: pointer; }
+    .evp-del:hover { background: #fee2e2; border-color: #fca5a5; }
+    .evp-del.sure { background: #dc2626; border-color: #dc2626; color: #fff; }
+    body.night-mode .evp-del { background: #2a2a2d; border-color: #3a3a3c; } body.night-mode .evp-del.sure { background: #dc2626; color: #fff; }
+    body.night-mode .evp { background: #1c1c1e; color: #f5f5f5; border-color: #3a3a3c; }
+    body.night-mode .evp input[type=text], body.night-mode .evp textarea, body.night-mode .evp input[type=time] { background: #2a2a2d; color: #f5f5f5; border-color: #3a3a3c; color-scheme: dark; }
+    body.night-mode .evp-btns button { background: #2a2a2d; color: #f5f5f5; border-color: #3a3a3c; } body.night-mode .evp-btns button.on { background: #4a3d10; border-color: #f5b301; }
     .font-chips { display: flex; flex-wrap: wrap; gap: 6px; }
     .font-chip { border: 1.5px solid #d9d9de; background: #fafafa; color: #111; border-radius: 10px; padding: 6px 11px; font-size: 15px; line-height: 1.1; cursor: pointer; }
     .font-chip.on { border-color: #3b82f6; background: #e8f0ff; box-shadow: 0 0 0 1px #3b82f6 inset; }
@@ -2357,6 +2378,8 @@
          the day columns/headers below is now inert without a
          snap-type on this ancestor — harmless to leave in place. */
     }
+    @media (hover: hover) and (pointer: fine) { .week-view-daycol, .week-view-daycol-header { cursor: grab; } }
+    .week-view-scroll.wv-panning, .week-view-scroll.wv-panning * { cursor: grabbing !important; user-select: none !important; }
     .week-view-grid {
       position: relative;
       display: grid;
@@ -2977,7 +3000,7 @@
 }
   </style>
   <style id="sdStyles">
-body.ads-mode .legend-panel, body.test-mode .legend-panel { display: none !important; }
+body.test-mode .legend-panel { display: none !important; }
 .sd-money { display: none; padding: 12px 10px 22px; }
 .sd.sd-moneymode .sd-grid { display: none; } .sd.sd-moneymode .sd-money { display: block; }
 .sd.sd-moneymode .sd-pill.pri { display: none; }
@@ -7929,6 +7952,13 @@ const PIP_MAX = 3;
         markDirty(record.dateKey);
       }
 
+      // Which record owns this box element (used by the right-click editor on PC).
+      function findByEl(el) {
+        let found = null;
+        byDate.forEach((list) => { for (const r of list) { if (r.el === el) { found = r; return; } } });
+        return found;
+      }
+
       function remove(record) {
         if (!record || !record.dateKey) return;
         const list = getForDate(record.dateKey);
@@ -7938,7 +7968,7 @@ const PIP_MAX = 3;
       }
 
       return {
-        dateKeyFor, selectedDateKey, getForDate, create, save, remove,
+        dateKeyFor, selectedDateKey, getForDate, create, save, remove, findByEl,
         whenReady, getAllSnapshot, flushNow, undoLast, reloadFromServer,
       };
     })();
@@ -10406,6 +10436,88 @@ const PIP_MAX = 3;
 
       function isOpen() { return !!currentRecord; }
 
+      // ───────── PC only: right-click a box -> a small editor opens right next to the mouse; clicking away (or Esc) saves it ─────────
+      let popEl = null, popRecord = null, popDel = false;
+      const finePointer = () => window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+
+      function closePopup() {
+        if (!popEl || !popRecord) return;
+        const record = popRecord, pop = popEl;
+        popEl = null; popRecord = null; popDel = false;
+        const f = (sel) => pop.querySelector(sel);
+        record.type = f('.evp-title').value.trim();
+        record.description = f('.evp-desc').value;
+        const sm = hhmmToMinutes(f('.evp-start').value), em = hhmmToMinutes(f('.evp-end').value);
+        if (sm !== null && record.el) {
+          let dur = em !== null ? em - sm : record.durationMinutes;
+          if (dur <= 0) dur = record.durationMinutes;
+          record.startMinutes = Math.max(0, Math.min(24 * 60 - 5, sm));
+          record.durationMinutes = Math.max(5, dur);
+          DayTimeGrid.positionEventBox(record.el, record.startMinutes, record.durationMinutes);
+          DayTimeGrid.recomputeOverlapLayout();
+        }
+        pop.remove();
+        if (record.el) commitRecordToBox(record);   // saves to the server and repaints the box
+        else EventStore.save(record);
+      }
+
+      function openPopup(record, x, y) {
+        closePopup();
+        if (currentRecord) close();
+        popRecord = record; popDel = false;
+        const pop = document.createElement('div');
+        pop.className = 'evp';
+        pop.innerHTML =
+          '<div class="evp-row evp-top"><button type="button" class="evp-del" title="Delete (click twice)" aria-label="Delete"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg></button><input class="evp-title" type="text" placeholder="Title" maxlength="200"></div>' +
+          '<div class="evp-row"><input class="evp-start" type="time"><span>-</span><input class="evp-end" type="time"></div>' +
+          '<textarea class="evp-desc" rows="4" placeholder="Notes"></textarea>' +
+          '<div class="evp-colors"></div>' +
+          '<div class="evp-row evp-btns"><button type="button" class="evp-bell">Bell</button><button type="button" class="evp-lock">Lock</button></div>';
+        const f = (sel) => pop.querySelector(sel);
+        f('.evp-title').value = record.type || '';
+        f('.evp-desc').value = record.description || '';
+        f('.evp-start').value = minutesToHHMM(record.startMinutes);
+        f('.evp-end').value = minutesToHHMM(Math.min(24 * 60 - 1, record.startMinutes + record.durationMinutes));
+        COLOR_SWATCHES.forEach((hex) => {
+          const b = document.createElement('button'); b.type = 'button'; b.className = 'evp-sw' + ((record.color || '') === hex ? ' on' : ''); b.style.background = hex;
+          b.addEventListener('click', () => { selectColor(record, hex); pop.querySelectorAll('.evp-sw').forEach((o) => o.classList.toggle('on', o === b)); });
+          f('.evp-colors').appendChild(b);
+        });
+        const bell = f('.evp-bell'), lock = f('.evp-lock'), del = f('.evp-del');
+        const paintBtns = () => { bell.classList.toggle('on', !!record.notify); lock.classList.toggle('on', !!record.locked); bell.textContent = record.notify ? 'Bell: on' : 'Bell: off'; lock.textContent = record.locked ? 'Locked' : 'Lock'; };
+        paintBtns();
+        bell.addEventListener('click', () => { toggleNotify(record); paintBtns(); });
+        lock.addEventListener('click', () => { toggleLocked(record); paintBtns(); });
+        del.addEventListener('click', () => {
+          if (!popDel) { popDel = true; del.classList.add('sure'); del.title = 'Click again to delete'; return; }
+          const pr = popRecord; popEl = null; popRecord = null; popDel = false; pop.remove(); deleteRecord(pr);
+        });
+        f('.evp-title').addEventListener('input', () => { record.type = f('.evp-title').value; if (record.el) renderBoxFace(record); EventStore.save(record); });
+        f('.evp-desc').addEventListener('input', () => { record.description = f('.evp-desc').value; if (record.el) renderBoxFace(record); EventStore.save(record); });
+        document.body.appendChild(pop);
+        popEl = pop;
+        // right next to the mouse, kept inside the window
+        const w = pop.offsetWidth, h = pop.offsetHeight;
+        pop.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, x + 12)) + 'px';
+        pop.style.top = Math.max(8, Math.min(window.innerHeight - h - 8, y + 8)) + 'px';
+        setTimeout(() => { const t = f('.evp-title'); t.focus(); t.select(); }, 30);
+      }
+
+      document.addEventListener('contextmenu', (e) => {
+        if (!finePointer()) return;
+        const boxEl = e.target.closest && e.target.closest('.day-time-grid-event-box');
+        if (!boxEl || e.target.closest('.day-time-grid-event-box-editor')) return;   // inside an open inline editor the normal menu (paste) stays
+        const record = EventStore.findByEl(boxEl);
+        if (!record) return;
+        e.preventDefault(); e.stopPropagation();
+        openPopup(record, e.clientX, e.clientY);
+      }, true);
+      // clicking anywhere outside the panel saves and closes it
+      document.addEventListener('pointerdown', (e) => { if (popEl && !popEl.contains(e.target)) closePopup(); }, true);
+      document.addEventListener('keydown', (e) => { if (popEl && e.key === 'Escape') { e.preventDefault(); closePopup(); } });
+      window.addEventListener('blur', () => { if (popEl) closePopup(); });
+
+
       // Drops the open-editor reference without saving/committing
       // anything — used only when EventStore.undoLast() has just
       // pulled the record's data (and its whole date's boxes) out
@@ -10413,7 +10525,7 @@ const PIP_MAX = 3;
       // keep writing through a now-stale object.
       function forgetCurrent() { currentRecord = null; }
 
-      return { open, close, renderBoxFace, updateTimeLabel, updateFaceTime, isOpen, forgetCurrent };
+      return { open, close, renderBoxFace, updateTimeLabel, updateFaceTime, isOpen, forgetCurrent, openPopup, closePopup };
     })();
 
     const RepeatDaysModal = (() => {
@@ -12178,6 +12290,34 @@ const PIP_MAX = 3;
         document.addEventListener('pointerup', onScrollAreaPointerUp, { passive: true });
         document.addEventListener('pointercancel', onScrollAreaPointerUp, { passive: true });
         window.addEventListener('blur', onScrollAreaPointerUp); // safety net if the pointer is released outside the window
+        // PC: press on empty space (or on the day names at the top) with the mouse and drag to look around.
+        // Empty grid = both directions, the day-name row = sideways only. A click that ended a drag is swallowed.
+        (function () {
+          let id = null, sx = 0, sy = 0, sl = 0, st = 0, moved = false, sideways = false, swallow = false;
+          scrollEl.addEventListener('pointerdown', (e) => {
+            if (e.pointerType !== 'mouse' || e.button !== 0 || id !== null) return;
+            const t = e.target;
+            if (t.closest('.day-time-grid-event-box, .week-view-hold-indicator, button, input, textarea')) return;
+            const head = !!t.closest('.week-view-daycol-header');
+            const empty = t === gridEl || t.classList.contains('week-view-daycol') || t.classList.contains('week-view-hour-line') || t.classList.contains('week-view-now-line') || t.classList.contains('week-view-now-dot') || t.classList.contains('week-view-hour-label') || !!t.closest('.week-view-gutter-body');
+            if (!head && !empty) return;
+            id = e.pointerId; sx = e.clientX; sy = e.clientY; sl = scrollEl.scrollLeft; st = scrollEl.scrollTop; moved = false; sideways = head;
+            document.addEventListener('pointermove', onMove); document.addEventListener('pointerup', onUp); document.addEventListener('pointercancel', onUp);
+          });
+          function onMove(e) {
+            if (e.pointerId !== id) return;
+            const dx = e.clientX - sx, dy = e.clientY - sy;
+            if (!moved && Math.hypot(dx, dy) > 5) { moved = true; scrollEl.classList.add('wv-panning'); }
+            if (moved) { scrollEl.scrollLeft = sl - dx; if (!sideways) scrollEl.scrollTop = st - dy; }
+          }
+          function onUp(e) {
+            if (e.pointerId !== id) return;
+            document.removeEventListener('pointermove', onMove); document.removeEventListener('pointerup', onUp); document.removeEventListener('pointercancel', onUp);
+            id = null; scrollEl.classList.remove('wv-panning');
+            if (moved) { swallow = true; setTimeout(() => { swallow = false; }, 0); }
+          }
+          scrollEl.addEventListener('click', (e) => { if (swallow) { e.stopPropagation(); e.preventDefault(); } }, true);
+        })();
         if (gotoTodayBtn) gotoTodayBtn.addEventListener('click', goToToday);
         if (backToWeekBtn) backToWeekBtn.addEventListener('click', open);
         if (typeof DayViewState !== 'undefined') {
@@ -14825,7 +14965,7 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
     if (mode !== 'prod' && mode !== 'off') mode = 'kind';
     var progOn = mode !== 'off', cats = d.cats || {}, kinds = d.kinds || {};
     var PROD_PAL = [{ k: 'u', name: 'Unproductive', col: '#e5484d' }, { k: 'p', name: 'Productive', col: '#2fb457' }, { k: 'o', name: 'Other', col: '#a47551' }];
-    var KIND_PAL = [{ k: 'msg', name: 'Messaging', col: '#3b82f6' }, { k: 'web', name: 'Browser', col: '#f5b301' }, { k: 'video', name: 'Video & streaming', col: '#ef4444' }, { k: 'social', name: 'Social media', col: '#ec4899' }, { k: 'game', name: 'Games', col: '#8b5cf6' }, { k: 'work', name: 'Work & tools', col: '#22c55e' }, { k: 'music', name: 'Music', col: '#f97316' }, { k: 'sys', name: 'System & utilities', col: '#14b8a6' }, { k: 'other', name: 'Other', col: '#a47551' }];
+    var KIND_PAL = [{ k: 'msg', name: 'Messaging', col: '#3b82f6' }, { k: 'web', name: 'Browser', col: '#f5b301' }, { k: 'video', name: 'Video & streaming', col: '#ef4444' }, { k: 'social', name: 'Social media', col: '#ec4899' }, { k: 'game', name: 'Games', col: '#8b5cf6' }, { k: 'work', name: 'Work & tools', col: '#22c55e' }, { k: 'claude', name: 'Claude', col: '#f97316' }, { k: 'music', name: 'Music', col: '#06b6d4' }, { k: 'sys', name: 'System & utilities', col: '#14b8a6' }, { k: 'other', name: 'Other', col: '#a47551' }];
     var PAL = mode === 'kind' ? KIND_PAL : PROD_PAL, REST = mode === 'kind' ? 'other' : 'o', COL = {}, NAME = {};
     PAL.forEach(function (g) { COL[g.k] = g.col; NAME[g.k] = g.name; });
     function guessKind(n) {
@@ -14835,6 +14975,7 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
       if (/youtube|netflix|twitch|^tv$|disney|prime video|hbo|vlc|plex|crunchyroll/.test(b)) return 'video';
       if (/instagram|tiktok|snapchat|facebook|reddit|twitter|^x$|bereal|pinterest|threads|linkedin/.test(b)) return 'social';
       if (/roblox|steam|epic|fisch|minecraft|game|chess|valorant|fortnite|league/.test(b)) return 'game';
+      if (/^claude/.test(b)) return 'claude';
       if (/spotify|music|podcast|soundcloud|audible|shazam/.test(b)) return 'music';
       if (/claude|chatgpt|code|cursor|notes|notepad|calendar|reminders|mail|gmail|journal|excel|word|powerpnt|onenote|figma|github|terminal|powershell|cmd|devenv|pycharm|books|files|ads|sheets|docs|translate|capcut|autohotkey/.test(b)) return 'work';
       if (/settings|shortcuts|clock|camera|photos|maps|wallet|calculator|finder|explorer|taskmgr|weather|health|find my|app store|preview|regedit|control/.test(b)) return 'sys';
