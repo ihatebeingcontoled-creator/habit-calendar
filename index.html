@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>/* GLOBAL VERSION COUNTER: each file has its own number (this file = index). The corner label shows index + sw.js + server added together. Bump ONLY the number of the file you changed. */ window.__V = { index: 25 };</script>
+<script>/* GLOBAL VERSION COUNTER: each file has its own number (this file = index). The corner label shows index + sw.js + server added together. Bump ONLY the number of the file you changed. */ window.__V = { index: 27 };</script>
   <meta charset="UTF-8" />
   <meta name="viewport" id="viewportMetaTag" content="width=device-width, initial-scale=1.0" />
   <title>Habit Calendar</title>
@@ -2013,6 +2013,28 @@
     .settings-cell { min-width: 0; }
     .settings-cell-charlimit { gap: 5px; }
 
+    /* Settings: grouped into sections. PC = wide window, sections side by side. Phone = each section collapsed to one summary line. */
+    .set-secs { display: grid; grid-template-columns: 1fr; gap: 12px; margin-bottom: 12px; }
+    .set-sec { border: 1.5px solid #ececec; border-radius: 14px; background: #fff; overflow: hidden; }
+    .set-sec-head { width: 100%; display: flex; align-items: center; gap: 10px; background: #f6f6f8; border: 0; padding: 11px 14px; font-family: inherit; text-align: left; cursor: pointer; color: #111; }
+    .set-sec-title { font-size: 13px; font-weight: 800; letter-spacing: .2px; }
+    .set-sec-sum { flex: 1; min-width: 0; font-size: 11.5px; color: #777; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: right; }
+    .set-sec-chev { font-size: 12px; color: #888; transition: transform .2s; }
+    .set-sec.closed .set-sec-chev { transform: rotate(-90deg); }
+    .set-sec-body { padding: 10px 12px 4px; }
+    .set-sec-body .settings-grid { margin-bottom: 8px; }
+    body.night-mode .set-sec { background: #151517; border-color: #2c2c2e; } body.night-mode .set-sec-head { background: #1f1f22; color: #f5f5f5; } body.night-mode .set-sec-sum { color: #999; }
+    @media (min-width: 900px) {
+      .settings-modal { max-width: min(1080px, 94vw) !important; width: min(1080px, 94vw); }
+      .set-secs { grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+      .set-sec.set-wide { grid-column: 1 / -1; }
+      .set-sec-head { cursor: default; pointer-events: none; padding: 13px 18px; } .set-sec-title { font-size: 14px; } .set-sec-sum, .set-sec-chev { display: none; }
+      .set-sec-body { padding: 14px 18px 8px; } .set-sec-body .settings-grid { gap: 10px; }
+      .set-sec-body .settings-cell { padding: 11px 13px; } .set-sec-body .settings-cell-label { font-size: 13px; }
+      .set-sec.set-wide .set-sec-body .settings-grid { grid-template-columns: 1fr 1fr; }
+      .set-sec .font-chip { font-size: 16px; padding: 8px 14px; }
+    }
+    @media (max-width: 899px) { .set-sec.closed .set-sec-body { display: none; } }
     .lang-btn { transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.2s; color: #555; }
     .lang-btn:hover { background: #f4f4f4; border-color: #ccc; }
     .lang-btn.active {
@@ -3326,7 +3348,7 @@ body.tb-bottom .au { top: 0 !important; bottom: calc(52px + env(safe-area-inset-
   </div>
 
   <div class="overlay" id="settingsOverlay">
-    <div class="modal" style="max-width: 480px;">
+    <div class="modal settings-modal" style="max-width: 480px;">
       <div class="modal-head">
         <span class="modal-title" id="settingsModalTitleEl">Settings</span>
         <button class="close-btn" id="settingsCloseBtn">&times;</button>
@@ -3375,26 +3397,11 @@ body.tb-bottom .au { top: 0 !important; bottom: calc(52px + env(safe-area-inset-
         </div>
       </div>
 
-      <div class="settings-grid">
-        <div class="settings-cell">
-          <button type="button" class="info-btn" id="dailyTargetsInfoBtn" data-info="Shows a daily targets bar and lets you track progress toward goals you set for each day.">i</button>
-          <span class="settings-cell-label" id="dailyTargetsLabelEl">Daily targets</span>
-          <label class="switch switch-sm">
-            <input type="checkbox" id="toggleDailyTargets">
-            <span class="switch-track"></span>
-          </label>
-        </div>
-
-        <div class="settings-cell">
-          <button type="button" class="info-btn" id="statsBarInfoBtn" data-info="Shows a summary bar with stats about your month, like completion rates and streaks.">i</button>
-          <span class="settings-cell-label" id="statsBarLabelEl">Stats bar</span>
-          <label class="switch switch-sm">
-            <input type="checkbox" id="toggleStatsBar">
-            <span class="switch-track"></span>
-          </label>
-        </div>
-
-        <div class="settings-cell">
+      <div class="set-secs">
+      <div class="set-sec " data-sec="look">
+        <button type="button" class="set-sec-head"><span class="set-sec-title">Look &amp; behaviour</span><span class="set-sec-sum"></span><span class="set-sec-chev">▾</span></button>
+        <div class="set-sec-body"><div class="settings-grid">
+<div class="settings-cell">
           <button type="button" class="info-btn" id="nightModeInfoBtn" data-info="Switches the app to a darker color scheme, easier on the eyes in low light.">i</button>
           <span class="settings-cell-label" id="nightModeLabelEl">Night mode</span>
           <label class="switch switch-sm">
@@ -3402,17 +3409,7 @@ body.tb-bottom .au { top: 0 !important; bottom: calc(52px + env(safe-area-inset-
             <span class="switch-track"></span>
           </label>
         </div>
-
-        <div class="settings-cell">
-          <button type="button" class="info-btn" id="warnUnsavedInfoBtn" data-info="Warns you before closing a day or leaving settings if you have unsaved changes.">i</button>
-          <span class="settings-cell-label" id="warnUnsavedLabelEl">Unsaved warning</span>
-          <label class="switch switch-sm">
-            <input type="checkbox" id="toggleWarnUnsaved">
-            <span class="switch-track"></span>
-          </label>
-        </div>
-
-        <div class="settings-cell">
+<div class="settings-cell">
           <button type="button" class="info-btn" id="menuBottomInfoBtn" data-info="Puts the bar with Money / Week / Month / Ads / Test at the bottom of the screen instead of the top. Saved only on this device, so your phone and PC can differ.">i</button>
           <span class="settings-cell-label" id="menuBottomLabelEl">Menu bar at bottom</span>
           <label class="switch switch-sm">
@@ -3420,8 +3417,7 @@ body.tb-bottom .au { top: 0 !important; bottom: calc(52px + env(safe-area-inset-
             <span class="switch-track"></span>
           </label>
         </div>
-
-        <div class="settings-cell">
+<div class="settings-cell">
           <button type="button" class="info-btn" id="disableZoomInfoBtn" data-info="Turns off pinch-to-zoom and double-tap zoom on phones, and Ctrl+scroll / Ctrl +/- zoom on PC. Applies to this website only, on every device you're synced to.">i</button>
           <span class="settings-cell-label" id="disableZoomLabelEl">Disable zoom</span>
           <label class="switch switch-sm">
@@ -3429,8 +3425,41 @@ body.tb-bottom .au { top: 0 !important; bottom: calc(52px + env(safe-area-inset-
             <span class="switch-track"></span>
           </label>
         </div>
-
-        <div class="settings-cell">
+<div class="settings-cell">
+          <button type="button" class="info-btn" id="warnUnsavedInfoBtn" data-info="Warns you before closing a day or leaving settings if you have unsaved changes.">i</button>
+          <span class="settings-cell-label" id="warnUnsavedLabelEl">Unsaved warning</span>
+          <label class="switch switch-sm">
+            <input type="checkbox" id="toggleWarnUnsaved">
+            <span class="switch-track"></span>
+          </label>
+        </div>
+        </div></div>
+      </div>
+      <div class="set-sec " data-sec="show">
+        <button type="button" class="set-sec-head"><span class="set-sec-title">Calendar display</span><span class="set-sec-sum"></span><span class="set-sec-chev">▾</span></button>
+        <div class="set-sec-body"><div class="settings-grid">
+<div class="settings-cell">
+          <button type="button" class="info-btn" id="dailyTargetsInfoBtn" data-info="Shows a daily targets bar and lets you track progress toward goals you set for each day.">i</button>
+          <span class="settings-cell-label" id="dailyTargetsLabelEl">Daily targets</span>
+          <label class="switch switch-sm">
+            <input type="checkbox" id="toggleDailyTargets">
+            <span class="switch-track"></span>
+          </label>
+        </div>
+<div class="settings-cell">
+          <button type="button" class="info-btn" id="statsBarInfoBtn" data-info="Shows a summary bar with stats about your month, like completion rates and streaks.">i</button>
+          <span class="settings-cell-label" id="statsBarLabelEl">Stats bar</span>
+          <label class="switch switch-sm">
+            <input type="checkbox" id="toggleStatsBar">
+            <span class="switch-track"></span>
+          </label>
+        </div>
+        </div></div>
+      </div>
+      <div class="set-sec " data-sec="money">
+        <button type="button" class="set-sec-head"><span class="set-sec-title">Money calendar</span><span class="set-sec-sum"></span><span class="set-sec-chev">▾</span></button>
+        <div class="set-sec-body"><div class="settings-grid">
+<div class="settings-cell">
           <button type="button" class="info-btn" data-info="Shows a + or − in front of each day&#39;s amount on the Money calendar. PC only (phones stay compact). Saved on this device.">i</button>
           <span class="settings-cell-label">Money: +/− signs</span>
           <label class="switch switch-sm">
@@ -3438,8 +3467,7 @@ body.tb-bottom .au { top: 0 !important; bottom: calc(52px + env(safe-area-inset-
             <span class="switch-track"></span>
           </label>
         </div>
-
-        <div class="settings-cell">
+<div class="settings-cell">
           <button type="button" class="info-btn" data-info="Shows the € symbol in front of each day&#39;s amount on the Money calendar. PC only. Saved on this device.">i</button>
           <span class="settings-cell-label">Money: € symbol</span>
           <label class="switch switch-sm">
@@ -3447,8 +3475,7 @@ body.tb-bottom .au { top: 0 !important; bottom: calc(52px + env(safe-area-inset-
             <span class="switch-track"></span>
           </label>
         </div>
-
-        <div class="settings-cell">
+<div class="settings-cell">
           <button type="button" class="info-btn" data-info="Shows the full amount with cents even for 100 and above (instead of whole euros only). PC only. Saved on this device.">i</button>
           <span class="settings-cell-label">Money: full amounts</span>
           <label class="switch switch-sm">
@@ -3456,8 +3483,12 @@ body.tb-bottom .au { top: 0 !important; bottom: calc(52px + env(safe-area-inset-
             <span class="switch-track"></span>
           </label>
         </div>
-
-        <div class="settings-cell settings-cell-charlimit">
+        </div></div>
+      </div>
+      <div class="set-sec set-wide" data-sec="titles">
+        <button type="button" class="set-sec-head"><span class="set-sec-title">Month titles</span><span class="set-sec-sum"></span><span class="set-sec-chev">▾</span></button>
+        <div class="set-sec-body"><div class="settings-grid">
+<div class="settings-cell settings-cell-charlimit">
           <button type="button" class="info-btn" id="phoneCharsInfoBtn" data-info="Truncates day titles on phone screens once they pass this many characters.">i</button>
           <span class="settings-cell-label" id="phoneCharsLabelEl">Phone chars:</span>
           <input type="number" id="mobileTitleLimitInput" class="settings-number-input-sm" min="1" max="200" value="35">
@@ -3466,8 +3497,7 @@ body.tb-bottom .au { top: 0 !important; bottom: calc(52px + env(safe-area-inset-
             <span class="switch-track"></span>
           </label>
         </div>
-
-        <div class="settings-cell settings-cell-charlimit">
+<div class="settings-cell settings-cell-charlimit">
           <button type="button" class="info-btn" id="pcCharsInfoBtn" data-info="Truncates day titles on desktop screens once they pass this many characters.">i</button>
           <span class="settings-cell-label" id="pcCharsLabelEl">PC chars:</span>
           <input type="number" id="desktopTitleLimitInput" class="settings-number-input-sm" min="1" max="200" value="60">
@@ -3476,14 +3506,16 @@ body.tb-bottom .au { top: 0 !important; bottom: calc(52px + env(safe-area-inset-
             <span class="switch-track"></span>
           </label>
         </div>
-
-        <div class="font-pick" style="grid-column:1 / -1;width:100%">
+<div class="font-pick" style="grid-column:1 / -1;width:100%">
           <div class="settings-cell-label" style="margin:6px 0 4px">Month title font - PC:</div>
           <div class="font-chips" id="fontChipsPc"></div>
           <div class="settings-cell-label" style="margin:10px 0 4px">Month title font - iPhone:</div>
           <div class="font-chips" id="fontChipsMobile"></div>
         </div>
+        </div></div>
       </div>
+      </div>
+
 
       <button type="button" class="targets-btn" id="editTargetsBtn" style="margin-top:8px; padding:9px 14px; font-size:12px;">⚙ Edit Daily Targets</button>
 
@@ -3494,6 +3526,7 @@ body.tb-bottom .au { top: 0 !important; bottom: calc(52px + env(safe-area-inset-
         <button type="button" class="targets-btn" id="testPushBtn" style="margin-top:0; padding:9px 14px; font-size:12px; width:auto; flex:1;">🔔 Send Test Notification</button>
         <button type="button" class="targets-btn" id="forcePushToggleBtn" style="margin-top:0; padding:9px 14px; font-size:12px; width:auto; flex:1;" aria-expanded="false">⚡ Force Send</button>
       </div>
+      <div id="pushCronStatus" style="margin-top:6px;font-size:12px;line-height:1.35;color:#777"></div>
       <div class="fs-push-panel" id="forcePushPanel">
         <div class="fs-push-panel-inner">
           <label class="fs-push-label" for="forcePushSubject">Subject</label>
@@ -3964,6 +3997,17 @@ const PIP_MAX = 3;
       }
     }
 
+    // Bells are sent by an outside cron job that must open /api/push-check about every minute. This line shows whether it does.
+    async function checkPushCron() {
+      const el = document.getElementById('pushCronStatus'); if (!el) return;
+      try {
+        const r = await fetch('/api/push-check?status=1', { cache: 'no-store' }); const d = await r.json();
+        if (!d || !d.last) { el.style.color = '#dc2626'; el.textContent = 'Bell notifications: the checker has NEVER run. The outside cron job must open /api/push-check every minute, otherwise bells stay silent (the test button does not need it).'; return; }
+        const min = Math.round((d.now - d.last) / 60000);
+        if (min > 3) { el.style.color = '#dc2626'; el.textContent = 'Bell notifications: last check was ' + (min < 90 ? min + ' min' : Math.round(min / 60) + ' h') + ' ago. The cron job has stopped or runs too rarely - it must open /api/push-check every minute.'; }
+        else { el.style.color = '#16a34a'; el.textContent = 'Bell notifications: checker running (last check ' + (min < 1 ? 'under a minute' : min + ' min') + ' ago).'; }
+      } catch (e) { el.style.color = '#777'; el.textContent = 'Could not read the bell checker status.'; }
+    }
     function loadSettingsFormFromPending() {
       document.getElementById('toggleDailyTargets').checked      = pendingSettings.dailyTargetsEnabled;
       document.getElementById('toggleStatsBar').checked           = pendingSettings.showStatsBar;
@@ -3973,7 +4017,9 @@ const PIP_MAX = 3;
       document.getElementById('toggleDesktopTitleLimit').checked  = pendingSettings.desktopTitleLimitEnabled;
       document.getElementById('desktopTitleLimitInput').value     = pendingSettings.desktopTitleLimit;
       document.getElementById('desktopTitleLimitInput').disabled  = !pendingSettings.desktopTitleLimitEnabled;
+      checkPushCron();
       renderFontChips();
+      if (typeof updateSetSummaries === 'function') updateSetSummaries();
       document.getElementById('toggleNightMode').checked          = pendingSettings.nightMode;
       document.getElementById('toggleWarnUnsaved').checked        = pendingSettings.warnUnsavedChanges;
       document.getElementById('toggleDisableZoom').checked        = pendingSettings.disableZoom;
@@ -5767,6 +5813,27 @@ const PIP_MAX = 3;
       pendingSettings.desktopTitleLimit = Number.isFinite(n) && n > 0 ? n : DEFAULT_SETTINGS.desktopTitleLimit;
     });
 
+
+
+    // Settings sections: tap a header to open or close it on a phone; the summary line shows what is switched on.
+    function updateSetSummaries() {
+      document.querySelectorAll('.set-sec').forEach((sec) => {
+        const on = [];
+        sec.querySelectorAll('.settings-cell').forEach((c) => { const t = c.querySelector('input[type=checkbox]'), l = c.querySelector('.settings-cell-label'); if (t && t.checked && !c.querySelector('input[type=number]') && l) on.push(l.textContent.replace(/:$/, '').trim()); });
+        let txt = on.length ? on.slice(0, 2).join(', ') + (on.length > 2 ? ' +' + (on.length - 2) : '') : 'all off';
+        if (sec.dataset.sec === 'titles') {
+          const pc = document.getElementById('toggleMobileTitleLimit'), dc = document.getElementById('toggleDesktopTitleLimit');
+          txt = 'phone ' + (pc && pc.checked ? document.getElementById('mobileTitleLimitInput').value + ' chars' : 'no limit') + ' · pc ' + (dc && dc.checked ? document.getElementById('desktopTitleLimitInput').value + ' chars' : 'no limit');
+        }
+        const el = sec.querySelector('.set-sec-sum'); if (el) el.textContent = txt;
+      });
+    }
+    document.querySelectorAll('.set-sec-head').forEach((h) => h.addEventListener('click', () => h.parentElement.classList.toggle('closed')));
+    document.getElementById('settingsOverlay').addEventListener('change', updateSetSummaries);
+    document.getElementById('settingsOverlay').addEventListener('input', updateSetSummaries);
+    document.getElementById('settingsOverlay').addEventListener('click', () => setTimeout(updateSetSummaries, 0));
+    document.querySelectorAll('.set-sec').forEach((x) => x.classList.add('closed'));
+    updateSetSummaries();
 
     document.getElementById('toggleNightMode').addEventListener('change', (e) => {
       pendingSettings.nightMode = e.target.checked;
