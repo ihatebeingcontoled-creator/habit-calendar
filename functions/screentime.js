@@ -265,6 +265,22 @@ export async function onRequest({ request, env }) {
       const hoursApp = range === 1 ? (await db.prepare('SELECT hour, app, SUM(seconds) AS seconds FROM screentime_hourly_app WHERE day = ?' + dq + ' GROUP BY hour, app').bind(today).all()).results : [];
       const c = await getConf(db);
 
+      // "Counts" switched off = the time disappears from the bars and totals, also what was recorded before (the list below still shows it, greyed out)
+      const uncSet = new Set(apps.results.filter((a) => !a.counts && !String(a.app).startsWith('(')).map((a) => a.app));
+      if (uncSet.size) {
+        const unc = [...uncSet], ph = unc.map(() => '?').join(',');
+        const ud = await db.prepare('SELECT day, SUM(seconds) AS s FROM screentime_usage WHERE day >= ? AND day <= ?' + dq + ' AND app IN (' + ph + ') GROUP BY day').bind(barsFrom, today, ...unc).all();
+        const uDay = {}; for (const r of ud.results) uDay[r.day] = r.s || 0;
+        for (const r of rt.results) r.seconds = Math.max(0, r.seconds - (uDay[r.day] || 0));
+        for (const r of days.results) r.tracked = Math.max(0, r.tracked - (uDay[r.day] || 0));
+        for (let i = dayApps.length - 1; i >= 0; i--) if (uncSet.has(dayApps[i].app)) dayApps.splice(i, 1);
+        if (range === 1) {
+          const uh = await db.prepare('SELECT hour, SUM(seconds) AS s FROM screentime_hourly_app WHERE day = ?' + dq + ' AND app IN (' + ph + ') GROUP BY hour').bind(today, ...unc).all();
+          for (const r of uh.results) { const h = hours.find((x) => x.hour === r.hour); if (h) h.seconds = Math.max(0, h.seconds - r.s); }
+          for (let i = hoursApp.length - 1; i >= 0; i--) if (uncSet.has(hoursApp[i].app)) hoursApp.splice(i, 1);
+        }
+      }
+
       const secs = {};
       for (const r of used.results) secs[r.app] = r.seconds;
       const list = apps.results
