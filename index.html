@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>/* GLOBAL VERSION COUNTER: each file has its own number (this file = index). The corner label shows index + sw.js + server added together. Bump ONLY the number of the file you changed. */ window.__V = { index: 37 };</script>
+<script>/* GLOBAL VERSION COUNTER: each file has its own number (this file = index). The corner label shows index + sw.js + server added together. Bump ONLY the number of the file you changed. */ window.__V = { index: 38 };</script>
 <script>/* no browser right-click menu anywhere on the site (our own right-click editor / paste popups still work) */ window.addEventListener('contextmenu', function (e) { e.preventDefault(); }, true);</script>
   <meta charset="UTF-8" />
   <meta name="viewport" id="viewportMetaTag" content="width=device-width, initial-scale=1.0" />
@@ -7911,7 +7911,9 @@ const PIP_MAX = 3;
           if (typeof DayTimeGrid !== 'undefined' && DayTimeGrid.forceRerenderDate) {
             undo.dates.forEach((dk) => DayTimeGrid.forceRerenderDate(dk));
           }
+          if (typeof WeekView !== 'undefined' && WeekView.isOpen() && WeekView.refreshDates) WeekView.refreshDates(undo.dates);
           if (typeof renderCalendar === 'function') renderCalendar();
+          document.dispatchEvent(new CustomEvent('evp-changed'));   // Month side panel repaints
         } catch (uiErr) {
           // The undo itself is already confirmed and correct at this
           // point — only the repaint hiccuped. Log it rather than
@@ -10507,7 +10509,6 @@ const PIP_MAX = 3;
         bell.addEventListener('click', () => { toggleNotify(record); paintBtns(); });
         lock.addEventListener('click', () => { toggleLocked(record); paintBtns(); });
         del.addEventListener('click', () => {
-          if (!popDel) { popDel = true; del.classList.add('sure'); del.title = 'Click again to delete'; return; }
           const pr = popRecord; popEl = null; popRecord = null; popDel = false; pop.remove(); deleteRecord(pr);
           try { document.dispatchEvent(new CustomEvent('evp-changed')); } catch (er) {}
         });
@@ -12052,6 +12053,16 @@ const PIP_MAX = 3;
         records.forEach((record) => buildWeekEventBox(record, colEls[idx]));
       }
 
+      // Undo: wipe and redraw every event box of the given dates (only those currently showing as columns)
+      function refreshDates(dateKeys) {
+        dateKeys.forEach((dateKey) => {
+          const idx = dates.findIndex((d) => EventStore.dateKeyFor(d.getFullYear(), d.getMonth(), d.getDate()) === dateKey);
+          if (idx === -1 || !colEls[idx]) return;
+          colEls[idx].querySelectorAll('.day-time-grid-event-box').forEach((b) => b.remove());
+          EventStore.getForDate(dateKey).forEach((record) => { record.el = null; buildWeekEventBox(record, colEls[idx]); });
+        });
+      }
+
       function weekMinutesFromClientY(colEl, clientY) {
         const rect = colEl.getBoundingClientRect();
         const localY = clientY - rect.top;
@@ -12453,7 +12464,7 @@ const PIP_MAX = 3;
       (window.__liveHooks = window.__liveHooks || {}).week = function () {   // live feed: repaint the open Week view
         if (!isOpen) return false; render(); return true;
       };
-      return { init, open, close, isOpen: () => isOpen, goToDate, renderNewEventsForDate, setHourHeight, getHourHeight: () => cfg.hourHeight, setColWidth, getColWidth: () => cfg.colWidth, getCurrentDate: currentCenteredDate };
+      return { init, open, close, isOpen: () => isOpen, goToDate, renderNewEventsForDate, refreshDates, setHourHeight, getHourHeight: () => cfg.hourHeight, setColWidth, getColWidth: () => cfg.colWidth, getCurrentDate: currentCenteredDate };
     })();
     WeekView.init();
 
