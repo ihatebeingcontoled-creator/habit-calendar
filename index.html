@@ -14592,6 +14592,7 @@ body.night-mode .st-row { border-top-color: #2c2c2e; }
 body.night-mode .st-set { border-top-color: #2c2c2e; }
 .st-set > span { min-width: 0; }
 .st-set select { font: inherit; font-size: 13px; border-radius: 9px; border: 1.5px solid #e2e2e6; background: #f7f7f9; color: inherit; padding: 5px 7px; max-width: 120px; } body.night-mode .st-set select { background: #2c2c2e; border-color: #3a3a3c; }
+.st-adjsel { font: inherit; font-size: 13px; border-radius: 9px; border: 1.5px solid #e2e2e6; background: #f7f7f9; color: inherit; padding: 5px 7px; height: 34px; max-width: 190px; } body.night-mode .st-adjsel { background: #2c2c2e; border-color: #3a3a3c; }
 .st-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #9a9aa1; margin-right: 5px; } .st-dot.on { background: #22a559; }
 .st-sheet { position: absolute; inset: 0; z-index: 5; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; padding: 16px; }
 .st-sheet[hidden] { display: none; }
@@ -14631,10 +14632,11 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
           <div class="st-adjrow">
             <input type="number" id="stH" min="0" max="23" placeholder="0" inputmode="numeric"><span>h</span>
             <input type="number" id="stM" min="0" max="59" placeholder="0" inputmode="numeric"><span>min</span>
+            <select id="stAdjApp" class="st-adjsel" title="Which program this time belongs to"><option value="">Whole day (no program)</option></select>
             <button type="button" class="st-btn" id="stSubBtn">Subtract</button>
             <button type="button" class="st-btn ghost" id="stAddBtn">Add</button>
           </div>
-          <div class="st-mut" style="margin-top:6px">PC on but you were away? Subtract it from the day picked above (tap a day to switch).</div>
+          <div class="st-mut" style="margin-top:6px">PC on but you were away? Subtract it from the day picked above (tap a day to switch). Pick a program to take the time off just that program (e.g. YouTube).</div>
           <div class="st-chips" id="stAdjList"></div>
         </div>
       </div>
@@ -14656,6 +14658,7 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
             <div class="st-set"><span>Break reminder (phone)</span><input type="checkbox" id="stBrkChk"></div>
             <div class="st-set"><span title="A break = 5 minutes without using the PC">Remind after</span><select id="stBrkMin"><option value="30">30 min</option><option value="45">45 min</option><option value="60">1 hour</option><option value="90">1 h 30</option><option value="120">2 hours</option><option value="150">2 h 30</option><option value="180">3 hours</option><option value="240">4 hours</option></select></div>
             <div class="st-set"><span>Colour the days</span><input type="checkbox" id="stColChk"></div>
+            <div class="st-set"><span title="Bars are split by program: red = YouTube, green = Chrome, brown = everything else">Colour by program</span><input type="checkbox" id="stProgChk"></div>
             <div class="st-set"><span>Test the reminder</span><button type="button" class="st-btn ghost sm" id="stBrkTest">Send test</button></div>
           </div>
           <div class="st-mut" style="margin-top:6px;font-size:11.5px">Changes reach the PC within 30 seconds. A break = 5 minutes without using the PC.</div>
@@ -14719,6 +14722,9 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
     var rtBy = {}, adjBy = {}, i;
     d.rt.forEach(function (x) { rtBy[x.day] = x.seconds; });
     d.adj.forEach(function (x) { adjBy[x.day] = (adjBy[x.day] || 0) + x.seconds; });
+    var progOn = d.conf.progColors !== 0, ytBy = {}, chBy = {};   // seconds per day in YouTube / Chrome (plus what you adjusted for those programs)
+    (d.days || []).forEach(function (x) { ytBy[x.day] = x.yt || 0; chBy[x.day] = x.chrome || 0; });
+    d.adj.forEach(function (x) { if (x.app === 'youtube.com' || x.app === 'youtube (iphone)') ytBy[x.day] = (ytBy[x.day] || 0) + x.seconds; else if (x.app === 'chrome.exe' || x.app === 'chrome (iphone)') chBy[x.day] = (chBy[x.day] || 0) + x.seconds; });
     var idleBy = {}, idleOn = d.conf.idleCounts !== 0;   // PC idle per day = recorded idle + on-time nobody accounted for
     (d.days || []).forEach(function (x) { idleBy[x.day] = (x.idle || 0) + Math.max(0, (rtBy[x.day] || 0) - (x.tracked || 0)); });
     d.rt.forEach(function (x) { if (idleBy[x.day] === undefined) idleBy[x.day] = x.seconds; });
@@ -14727,12 +14733,13 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
     if (!selDay || selDay < dayStr(bars - 1) || selDay > today) selDay = today;
 
     var vals = [], sum = 0, max = 1;
-    for (i = bars - 1; i >= 0; i--) { var k = dayStr(i), v = total(k); vals.push({ k: k, v: v, i: i }); if (i < range) sum += v; if (v > max) max = v; }
+    for (i = bars - 1; i >= 0; i--) { var k = dayStr(i), v = total(k); vals.push({ k: k, v: v, i: i, yt: ytBy[k] || 0, ch: chBy[k] || 0, g: true }); if (i < range) sum += v; if (v > max) max = v; }
     var hourly = range === 1, hourSum = 0;
     if (hourly) {   // one day: show its 24 hours instead of other days
-      var hb = {}; (d.hours || []).forEach(function (x) { hb[x.hour] = x.seconds; hourSum += x.seconds; });
+      var hb = {}, gb = {}; (d.hours || []).forEach(function (x) { hb[x.hour] = x.seconds; hourSum += x.seconds; });
+      (d.hoursG || []).forEach(function (x) { var o = gb[x.hour] || (gb[x.hour] = { y: 0, c: 0 }); if (x.grp === 'y' || x.grp === 'c') o[x.grp] += x.seconds; });
       vals = []; max = 3600;
-      for (i = 0; i < 24; i++) vals.push({ k: pad(i), v: Math.min(hb[i] || 0, 3600), i: i, hour: true });
+      for (i = 0; i < 24; i++) vals.push({ k: pad(i), v: Math.min(hb[i] || 0, 3600), i: i, hour: true, yt: gb[i] ? gb[i].y : 0, ch: gb[i] ? gb[i].c : 0, g: !!gb[i] });
     }
     $('stBig').textContent = fmt(sum);
     var lab = dev === 'phone' ? 'iPhone' : dev === 'pc' ? 'PC on' : 'PC on + iPhone';
@@ -14751,7 +14758,11 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
     var avg = hourly ? 0 : withData.length ? withData.reduce(function (a, x) { return a + x.v; }, 0) / withData.length : 0;
     function colourFor(v) { if (!v) return '#9a9aa1'; if (hourly || !colorsOn || !avg) return '#0a84ff'; var r = v / avg; return r > 1.15 ? '#ef4444' : r >= 0.85 ? '#0a84ff' : r >= 0.5 ? '#eab308' : '#22c55e'; }
     function axisLabel(sec) { return sec >= 3600 ? (sec % 3600 ? Math.floor(sec / 3600) + 'h 30m' : sec / 3600 + 'h') : sec / 60 + 'm'; }
-    $('stLegend').style.display = colorsOn && !hourly ? '' : 'none';
+    var legEl = $('stLegend'); if (legEl._avg === undefined) legEl._avg = legEl.innerHTML;
+    if (progOn) {
+      legEl.innerHTML = '<span><i style="background:#ef4444"></i>YouTube</span><span><i style="background:#22c55e"></i>Chrome</span><span><i style="background:#8b5e3c"></i>everything else</span>' + (hourly ? '<span><i style="background:#9a9aa1"></i>no program info (recorded earlier)</span>' : '<span><i style="background:rgba(128,128,128,.6);width:3px"></i>your average</span>'); legEl.style.display = '';
+    } else { legEl.innerHTML = legEl._avg; legEl.style.display = colorsOn && !hourly ? '' : 'none'; }
+    function seg(par, secs, col) { if (secs <= 0) return; var sp = document.createElement('span'); sp.style.flex = secs + ' 1 0'; sp.style.background = col; par.appendChild(sp); }
     axis.innerHTML = ''; hp.innerHTML = '';
     for (var gv = step; gv <= axisMax; gv += step) {
       var gl = document.createElement('span'); gl.textContent = axisLabel(gv); gl.style.left = (gv / axisMax * 100) + '%'; axis.appendChild(gl);
@@ -14763,7 +14774,13 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
       var row = document.createElement('div'); row.className = 'st-hr' + (!x.hour && x.k === realToday() ? ' today' : '') + (!x.hour && x.k === selDay ? ' sel' : ''); row.title = (x.hour ? x.k + ':00' : x.k) + '  ' + fmtShort(x.v);
       var lb = document.createElement('span'); lb.className = 'st-hl'; lb.textContent = x.hour ? x.k : x.k.slice(8); row.appendChild(lb);
       var tr = document.createElement('div'); tr.className = 'st-ht';
-      var bar = document.createElement('i'); bar.style.width = pct + '%'; bar.style.background = colourFor(x.v); tr.appendChild(bar);
+      var bar = document.createElement('i'); bar.style.width = pct + '%';
+      if (progOn && x.v) {   // split by program: red YouTube | green Chrome | brown everything else
+        bar.style.display = 'flex'; bar.style.overflow = 'hidden';
+        var sy = Math.min(Math.max(x.yt, 0), x.v), sc = Math.min(Math.max(x.ch, 0), x.v - sy);
+        if (!x.g) seg(bar, x.v, '#9a9aa1'); else { seg(bar, sy, '#ef4444'); seg(bar, sc, '#22c55e'); seg(bar, x.v - sy - sc, '#8b5e3c'); }
+      } else bar.style.background = colourFor(x.v);
+      tr.appendChild(bar);
       if (x.v) {
         var em = document.createElement('em'); em.textContent = fmtShort(x.v);
         if (pct > 80) { em.style.right = 'calc(' + (100 - pct) + '% + 6px)'; em.style.color = '#fff'; } else { em.style.left = 'calc(' + pct + '% + 6px)'; }
@@ -14782,7 +14799,7 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
     var chips = $('stAdjList'); chips.innerHTML = '';
     d.adj.filter(function (x) { return x.day === selDay; }).forEach(function (x) {
       var c = document.createElement('span'); c.className = 'st-chip';
-      c.appendChild(document.createTextNode((x.seconds < 0 ? '−' : '+') + fmtShort(Math.abs(x.seconds))));
+      c.appendChild(document.createTextNode((x.seconds < 0 ? '−' : '+') + fmtShort(Math.abs(x.seconds)) + (x.app ? ' ' + x.app : '')));
       var rm = document.createElement('button'); rm.type = 'button'; rm.title = 'Undo'; rm.textContent = '✕';
       rm.onclick = function () { post('set', { delAdj: x.id }).then(function () { load(); }); };
       c.appendChild(rm); chips.appendChild(c);
@@ -14791,12 +14808,15 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
     // where the time goes: programs + idle + not tracked (+ what you adjusted by hand) add up to the PC on-time
     var rangeFrom = dayStr(range - 1), rtRange = 0, adjRange = 0, idleSec = 0, trackedSec = 0;
     d.rt.forEach(function (x) { if (x.day >= rangeFrom) rtRange += x.seconds; });
-    d.adj.forEach(function (x) { if (x.day >= rangeFrom) adjRange += x.seconds; });
+    var adjApp = {};
+    d.adj.forEach(function (x) { if (x.day < rangeFrom) return; if (x.app) adjApp[x.app] = (adjApp[x.app] || 0) + x.seconds; else adjRange += x.seconds; });
+    var appsL = d.apps.map(function (a) { var sv = a.seconds + (adjApp[a.app] || 0); return { app: a.app, seconds: sv < 0 ? 0 : sv, counts: a.counts, alive: a.alive }; });
+    Object.keys(adjApp).forEach(function (n) { if (!appsL.some(function (a) { return a.app === n; })) appsL.push({ app: n, seconds: Math.max(0, adjApp[n]), counts: 1, alive: 0 }); });
     (d.pseudo || []).forEach(function (x) { if (x.app === '(idle)') idleSec += x.seconds; });
-    trackedSec = idleSec; d.apps.forEach(function (a) { trackedSec += a.seconds; });
+    trackedSec = idleSec; appsL.forEach(function (a) { trackedSec += a.seconds; });
     var untrackedSec = Math.max(0, rtRange - trackedSec), base = Math.max(rtRange, trackedSec, 1);
     idleSec += untrackedSec; untrackedSec = 0;
-    var items = d.apps.map(function (a) { return { kind: 'app', a: a, seconds: a.seconds }; });
+    var items = appsL.map(function (a) { return { kind: 'app', a: a, seconds: a.seconds }; });
     if (idleSec >= 30) items.push({ kind: 'idle', seconds: idleSec });
     if (untrackedSec >= 30) items.push({ kind: 'untracked', seconds: untrackedSec });
     items.sort(function (x, y) { return y.seconds - x.seconds; });
@@ -14822,6 +14842,18 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
     box.scrollTop = keep;
     $('stAppsEmpty').style.display = items.length ? 'none' : 'block';
 
+    var asel = $('stAdjApp');
+    if (asel !== document.activeElement) {
+      var want = ['', 'youtube.com', 'chrome.exe'];
+      appsL.forEach(function (a) { if (a.app.charAt(0) !== '(' && want.indexOf(a.app) < 0) want.push(a.app); });
+      var wkey = want.join('|');
+      if (asel._key !== wkey) {
+        var curv = asel.value; asel.innerHTML = '';
+        want.forEach(function (n) { var o = document.createElement('option'); o.value = n; o.textContent = n === '' ? 'Whole day (no program)' : n === 'youtube.com' ? 'YouTube (youtube.com)' : n === 'chrome.exe' ? 'Chrome (chrome.exe)' : n; asel.appendChild(o); });
+        asel.value = want.indexOf(curv) >= 0 ? curv : ''; asel._key = wkey;
+      }
+    }
+
     // settings (don't overwrite something the person is touching right now)
     var act = document.activeElement;
     function put(id, val) { var e = $(id); if (e === act) return; if (e.tagName === 'SELECT') { var has = false; Array.prototype.forEach.call(e.options, function (o) { if (o.value === String(val)) has = true; }); if (!has) { var o = document.createElement('option'); o.value = o.textContent = val; e.appendChild(o); } } e.value = String(val); }
@@ -14830,6 +14862,7 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
     if (act !== $('stBrkChk')) $('stBrkChk').checked = !!d.conf.breakOn;
     if (act !== $('stDeskChk')) $('stDeskChk').checked = d.conf.desk !== 0;
     if (act !== $('stColChk')) $('stColChk').checked = colorsOn;
+    if (act !== $('stProgChk')) $('stProgChk').checked = progOn;
 
     var dv = $('stDevices'); dv.innerHTML = '';
     if (!d.devices.length) dv.textContent = 'No device connected yet';
@@ -14850,7 +14883,7 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
   function adjust(sign) {
     var h = parseInt($('stH').value, 10) || 0, m = parseInt($('stM').value, 10) || 0, mins = h * 60 + m;
     if (!mins) { $('stH').focus(); return; }
-    post('set', { adjDay: selDay || dayStr(0), adjMin: sign * mins }).then(function () { $('stH').value = ''; $('stM').value = ''; load(); }).catch(function () {});
+    post('set', { adjDay: selDay || dayStr(0), adjMin: sign * mins, adjApp: $('stAdjApp').value }).then(function () { $('stH').value = ''; $('stM').value = ''; load(); }).catch(function () {});
   }
   $('stSubBtn').onclick = function () { adjust(-1); };
   $('stAddBtn').onclick = function () { adjust(1); };
@@ -14885,6 +14918,7 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
   $('stOpacity').onchange = function () { post('set', { opacity: +$('stOpacity').value }).catch(function () {}); };
   $('stIdle').onchange = function () { post('set', { idle: +$('stIdle').value }).catch(function () {}); };
   $('stColChk').onchange = function () { post('set', { colors: $('stColChk').checked ? 1 : 0 }).then(load).catch(function () {}); };
+  $('stProgChk').onchange = function () { post('set', { progColors: $('stProgChk').checked ? 1 : 0 }).then(load).catch(function () {}); };
   $('stBrkChk').onchange = function () { post('set', { breakOn: $('stBrkChk').checked ? 1 : 0 }).catch(function () {}); };
   $('stBrkMin').onchange = function () { post('set', { breakMin: +$('stBrkMin').value }).catch(function () {}); };
   $('stBrkTest').onclick = function () { var bt = $('stBrkTest'); bt.textContent = 'Sending...'; fetch('/api/test-push', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: 'Time for a break', body: 'This is how the break reminder will look.' }) }).then(function () { bt.textContent = 'Sent'; }).catch(function () { bt.textContent = 'Failed'; }); setTimeout(function () { bt.textContent = 'Send test'; }, 2500); };
