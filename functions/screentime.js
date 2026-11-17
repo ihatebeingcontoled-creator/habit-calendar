@@ -15,7 +15,7 @@
 //   runtime   how long the PC was on each day (the number the PC shows in the corner of its screen)
 //   adjust    time you subtract (or add) by hand on a day, e.g. the PC was on but you were AFK
 //   usage     seconds per program per day (chrome.exe ...), only while you were really using it
-//   settings  idle minutes, which apps count, overlay on/off, overlay corner, overlay strength, break reminder on/off + minutes
+//   settings  idle minutes, which apps count, overlay on/off, overlay only on an empty desktop, overlay corner, overlay strength, break reminder on/off + minutes
 //   break     when the PC reports N minutes of non-stop use, a phone notification is sent through the site's existing push system
 //             (this file only raises the alert; the gate in _middleware.js sends it, see the X-Screentime-Alert header)
 // POSTs are used for everything the page asks for on purpose: sw.js caches GETs, and these must never be cached.
@@ -35,6 +35,7 @@ function ensure(db) {
     db.prepare('CREATE TABLE IF NOT EXISTS screentime_conf (k TEXT PRIMARY KEY, v TEXT)'),
     db.prepare('CREATE TABLE IF NOT EXISTS screentime_devices (device TEXT PRIMARY KEY, last_seen INTEGER)'),
     db.prepare('CREATE TABLE IF NOT EXISTS screentime_runtime (day TEXT NOT NULL, device TEXT NOT NULL, seconds INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, device))'),
+    db.prepare('CREATE TABLE IF NOT EXISTS screentime_hourly (day TEXT NOT NULL, device TEXT NOT NULL, hour INTEGER NOT NULL, seconds INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, device, hour))'),
     db.prepare('CREATE TABLE IF NOT EXISTS screentime_adjust (id INTEGER PRIMARY KEY AUTOINCREMENT, day TEXT NOT NULL, seconds INTEGER NOT NULL, created INTEGER)'),
   ]).catch((e) => { ready = null; throw e; });
   return ready;
@@ -58,7 +59,8 @@ async function getConf(db) {
     idle: idle >= 30 ? idle : 300,                                   // seconds
     overlay: m.overlay === '0' ? 0 : 1,
     corner: CORNERS.includes(m.corner) ? m.corner : 'bl',
-    opacity: op >= 10 && op <= 100 ? op : 35,                        // percent
+    opacity: op >= 10 && op <= 100 ? op : 55,                        // percent
+    desk: m.desk === '0' ? 0 : 1,                                    // 1 = show the counter only when no program window is open
     colors: m.colors === '0' ? 0 : 1,                                // colour the days by how they compare with the average
     breakOn: m.breakon === '0' ? 0 : 1,
     breakMin: bm >= 15 && bm <= 480 ? bm : 120,                      // minutes of non-stop use before the reminder
@@ -95,6 +97,12 @@ export async function onRequest({ request, env }) {
           if (mins >= 1 && mins <= 1440) breakMins = mins;
           continue;
         }
+        if (f[0] === 'H') {                                           // H <tab> day <tab> hour <tab> seconds   = PC-on time inside one hour of the day
+          const hr = parseInt(f[2], 10), secs = parseInt(f[3], 10);
+          if (DAY.test(f[1] || '') && hr >= 0 && hr <= 23 && secs >= 1)
+            st.push(db.prepare('INSERT INTO screentime_hourly (day, device, hour, seconds) VALUES (?, ?, ?, ?) ON CONFLICT(day, device, hour) DO UPDATE SET seconds = seconds + excluded.seconds').bind(f[1], device, hr, Math.min(secs, 3600)));
+          continue;
+        }
         if (f[0] === 'R') {                                           // R <tab> day <tab> seconds   = PC-on time
           const secs = parseInt(f[2], 10);
           if (DAY.test(f[1] || '') && secs >= 1)
@@ -104,7 +112,7 @@ export async function onRequest({ request, env }) {
         const app = cleanApp(f[1]);                                   // day <tab> app <tab> seconds   = time in a program
         const secs = parseInt(f[2], 10);
         if (!DAY.test(f[0] || '') || !app || !(secs >= 1)) continue;
-        st.push(db.prepare('INSERT OR IGNORE INTO screentime_apps (app) VALUES (?)').bind(app));
+        if (!app.startsWith('(')) st.push(db.prepare('INSERT OR IGNORE INTO screentime_apps (app) VALUES (?)').bind(app));   // names in brackets, like (idle), are not programs: no Counts switch
         st.push(db.prepare('INSERT INTO screentime_usage (day, device, app, seconds) VALUES (?, ?, ?, ?) ON CONFLICT(day, device, app) DO UPDATE SET seconds = seconds + excluded.seconds')
           .bind(f[0], device, app, Math.min(secs, 86400)));
       }
@@ -130,7 +138,7 @@ export async function onRequest({ request, env }) {
       if (request.method !== 'GET') return text('Method not allowed', 405);
       if (!tokenOk(request, env)) return text('Unauthorized', 401);
       const c = await getConf(db);
-      let out = 'idle=' + c.idle + '\noverlay=' + c.overlay + '\ncorner=' + c.corner + '\nopacity=' + c.opacity + '\nbreakon=' + c.breakOn + '\nbreakmin=' + c.breakMin + '\n';
+      let out = 'idle=' + c.idle + '\noverlay=' + c.overlay + '\ncorner=' + c.corner + '\nopacity=' + c.opacity + '\ndesk=' + c.desk + '\nbreakon=' + c.breakOn + '\nbreakmin=' + c.breakMin + '\n';
       const day = url.searchParams.get('day') || '';
       if (DAY.test(day)) {
         const device = cleanDevice(url.searchParams.get('device'));
@@ -164,6 +172,7 @@ export async function onRequest({ request, env }) {
       const used = await db.prepare('SELECT app, SUM(seconds) AS seconds FROM screentime_usage WHERE day >= ? AND day <= ? GROUP BY app').bind(rangeFrom, today).all();
       const apps = await db.prepare('SELECT app, counts, alive FROM screentime_apps').all();
       const devices = await db.prepare('SELECT device, last_seen FROM screentime_devices ORDER BY last_seen DESC').all();
+      const hours = range === 1 ? (await db.prepare('SELECT hour, SUM(seconds) AS seconds FROM screentime_hourly WHERE day = ? GROUP BY hour ORDER BY hour').bind(today).all()).results : [];
       const c = await getConf(db);
 
       const secs = {};
@@ -175,8 +184,8 @@ export async function onRequest({ request, env }) {
         .slice(0, 150);
 
       return json({
-        rt: rt.results, adj: adj.results, apps: list, devices: devices.results, now: Date.now(),
-        conf: { idle: Math.round(c.idle / 60), overlay: c.overlay, corner: c.corner, opacity: c.opacity, breakOn: c.breakOn, breakMin: c.breakMin, colors: c.colors },
+        rt: rt.results, hours, adj: adj.results, apps: list, pseudo: used.results.filter((r) => r.app.startsWith('(')), devices: devices.results, now: Date.now(),
+        conf: { idle: Math.round(c.idle / 60), overlay: c.overlay, corner: c.corner, opacity: c.opacity, desk: c.desk, breakOn: c.breakOn, breakMin: c.breakMin, colors: c.colors },
       });
     }
 
@@ -190,6 +199,7 @@ export async function onRequest({ request, env }) {
         return json({ ok: 1 });
       }
       if (b.overlay !== undefined) { await setConf(db, 'overlay', b.overlay ? 1 : 0); return json({ ok: 1 }); }
+      if (b.desk !== undefined) { await setConf(db, 'desk', b.desk ? 1 : 0); return json({ ok: 1 }); }
       if (b.colors !== undefined) { await setConf(db, 'colors', b.colors ? 1 : 0); return json({ ok: 1 }); }
       if (b.breakOn !== undefined) { await setConf(db, 'breakon', b.breakOn ? 1 : 0); return json({ ok: 1 }); }
       if (b.breakMin !== undefined) {
@@ -274,7 +284,9 @@ ignore := "|lockapp.exe|logonui.exe|"
 alive := "|"
 showOverlay := 0
 corner := "bl"
-opacity := 35
+opacity := 55
+deskOnly := 1
+deskClear := 1
 adjust := 0
 breakOn := 1
 breakMin := 120
@@ -287,17 +299,19 @@ warned := 0
 breakPending := 0
 rt := 0
 rtSent := 0
+hrs := {}
 synced := 0
 confTries := 0
 lastTick := A_TickCount
 today := A_YYYY . "-" . A_MM . "-" . A_DD
 
-; the faint on-screen counter: no border, never takes clicks, never takes focus, hidden from Alt-Tab (shown once the site says so)
-Gui, ST:New, +AlwaysOnTop -Caption +ToolWindow +E0x20 +E0x80 +HwndovHwnd
+; the on-screen counter: plain white numbers, a little see-through, never takes clicks or focus, hidden from Alt-Tab.
+; It is shown once the site says so, and (unless you turn that off on the site) only while no program window is open.
+Gui, ST:New, -Caption +ToolWindow +E0x20 +E0x80 +HwndovHwnd
 Gui, ST:Margin, 0, 0
-Gui, ST:Color, 010203
+Gui, ST:Color, FEFEFE
 Gui, ST:Font, s10 w600, Segoe UI
-Gui, ST:Add, Text, vovTxt cA0A0A0 Center w76 h20, 0h 00m
+Gui, ST:Add, Text, vovTxt cFFFFFF Center w76 h20, 0h 00m
 
 Menu, Tray, Tip, Screen Time
 Menu, Tray, NoStandard
@@ -309,6 +323,7 @@ SetTimer, Tick, 5000
 SetTimer, FlushTimer, 60000
 SetTimer, ConfTimer, 30000
 SetTimer, FirstConf, -300
+SetTimer, DeskTimer, 1000
 return
 
 Tick:
@@ -328,11 +343,23 @@ if (gap > 30) {
     return
 }
 rt += gap
+hk := d . "|" . (A_Hour + 0)
+hrs[hk] := (hrs.HasKey(hk) ? hrs[hk] : 0) + gap
 WinGet, exe, ProcessName, A
 StringLower, exe, exe
 TrackApp(gap, exe)
 Streak(gap, exe)
 UpdateOverlay()
+return
+
+DeskTimer:
+if (showOverlay && deskOnly) {
+    c := DesktopClear()
+    if (c != deskClear) {
+        deskClear := c
+        ApplyOverlay()
+    }
+}
 return
 
 FlushTimer:
@@ -389,15 +416,23 @@ Streak(gap, exe) {
     }
 }
 
+; every 5 seconds the seconds go to the program in front, or to "(idle)" when nobody has used the PC for longer than the idle limit
 TrackApp(gap, exe) {
-    global ignore, alive, idleLimit, usage
+    global ignore, alive, idleLimit
+    if (A_TimeIdlePhysical > idleLimit * 1000 && !InStr(alive, "|" . exe . "|")) {
+        Bump("(idle)", gap)
+        return
+    }
     if (exe = "")
         return
     if InStr(ignore, "|" . exe . "|")
         return
-    if (A_TimeIdlePhysical > idleLimit * 1000 && !InStr(alive, "|" . exe . "|"))
-        return
-    key := A_YYYY . "-" . A_MM . "-" . A_DD . "|" . exe
+    Bump(exe, gap)
+}
+
+Bump(name, gap) {
+    global usage
+    key := A_YYYY . "-" . A_MM . "-" . A_DD . "|" . name
     usage[key] := (usage.HasKey(key) ? usage[key] : 0) + gap
 }
 
@@ -444,9 +479,41 @@ UpdateOverlay() {
     }
 }
 
+; true when no program window is showing (everything closed or minimised): only the desktop and taskbar are left
+DesktopClear() {
+    global ovHwnd
+    WinGet, ids, List
+    Loop, %ids% {
+        id := ids%A_Index%
+        if (id = ovHwnd)
+            continue
+        WinGet, mm, MinMax, ahk_id %id%
+        if (mm = -1)
+            continue
+        WinGet, st, Style, ahk_id %id%
+        if !(st & 0x10000000)
+            continue
+        WinGet, ex, ExStyle, ahk_id %id%
+        if (ex & 0x80 || ex & 0x20 || ex & 0x08000000)
+            continue
+        WinGetClass, cls, ahk_id %id%
+        if (cls = "Progman" || cls = "WorkerW" || cls = "Shell_TrayWnd" || cls = "Shell_SecondaryTrayWnd")
+            continue
+        WinGetPos, , , w, h, ahk_id %id%
+        if (w < 40 || h < 40)
+            continue
+        cloaked := 0
+        DllCall("dwmapi\\DwmGetWindowAttribute", "Ptr", id, "UInt", 14, "UInt*", cloaked, "UInt", 4)
+        if (cloaked)
+            continue
+        return 0
+    }
+    return 1
+}
+
 ApplyOverlay() {
-    global showOverlay, corner, opacity, ovHwnd, ovShown
-    if (!showOverlay) {
+    global showOverlay, corner, opacity, ovHwnd, ovShown, deskOnly, deskClear
+    if (!showOverlay || (deskOnly && !deskClear)) {
         if (ovShown)
             Gui, ST:Hide
         ovShown := 0
@@ -458,16 +525,27 @@ ApplyOverlay() {
     x := (corner = "bl" || corner = "tl") ? waLeft + 8 : waRight - w - 8
     y := (corner = "bl" || corner = "br") ? waBottom - h - 6 : waTop + 6
     a := Round(opacity * 2.55)
-    WinSet, TransColor, 010203 %a%, ahk_id %ovHwnd%
+    WinSet, TransColor, FEFEFE %a%, ahk_id %ovHwnd%
     Gui, ST:Show, x%x% y%y% w%w% h%h% NoActivate
     ovShown := 1
 }
 
 DoFlush() {
-    global usage, rt, rtSent, today, DEVICE, breakPending, synced
+    global usage, rt, rtSent, today, DEVICE, breakPending, synced, hrs
     Critical
     body := ""
     sent := {}
+    hsent := {}
+    if (synced) {
+        for hkey, hsecs in hrs {
+            hw := Floor(hsecs)
+            if (hw < 1)
+                continue
+            hp := StrSplit(hkey, "|")
+            body .= "H" . Chr(9) . hp[1] . Chr(9) . hp[2] . Chr(9) . hw . Chr(10)
+            hsent[hkey] := hw
+        }
+    }
     rtWhole := 0
     if (synced)
         rtWhole := Floor(rt - rtSent)
@@ -490,6 +568,8 @@ DoFlush() {
         return
     if (rtWhole >= 1)
         rtSent += rtWhole
+    for hkey, hw in hsent
+        hrs[hkey] := hrs[hkey] - hw
     breakPending := 0
     nowDay := A_YYYY . "-" . A_MM . "-" . A_DD
     for key, whole in sent {
@@ -501,7 +581,7 @@ DoFlush() {
 
 ; reads your settings and today's numbers from the site. The first successful read also does the catch-up for the counter.
 GetConf() {
-    global idleLimit, ignore, alive, showOverlay, corner, opacity, adjust, rt, rtSent, synced, today, DEVICE, breakOn, breakMin
+    global idleLimit, ignore, alive, showOverlay, corner, opacity, adjust, rt, rtSent, synced, today, DEVICE, breakOn, breakMin, deskOnly, hrs
     Critical
     r := Http("GET", "/screentime?api=conf&day=" . today . "&device=" . DEVICE)
     if (r = "")
@@ -528,6 +608,8 @@ GetConf() {
                 showOverlay := (n ? 1 : 0)
             else if (k = "opacity" && n >= 10 && n <= 100)
                 opacity := n
+            else if (k = "desk")
+                deskOnly := (n ? 1 : 0)
             else if (k = "breakon")
                 breakOn := (n ? 1 : 0)
             else if (k = "breakmin" && n >= 15 && n <= 480)
@@ -555,6 +637,18 @@ GetConf() {
             add := ago
         rt := serverRt + add
         rtSent := serverRt
+        ; spread the caught-up time backwards over the hours it belongs to
+        left := add
+        hh := A_Hour + 0
+        avail := A_Min * 60 + A_Sec
+        while (left > 0 && hh >= 0) {
+            take := (left < avail) ? left : avail
+            hk := today . "|" . hh
+            hrs[hk] := (hrs.HasKey(hk) ? hrs[hk] : 0) + take
+            left -= take
+            hh -= 1
+            avail := 3600
+        }
         synced := 1
     }
     ApplyOverlay()
