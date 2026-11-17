@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>/* GLOBAL VERSION COUNTER: each file has its own number (this file = index). The corner label shows index + sw.js + server added together. Bump ONLY the number of the file you changed. */ window.__V = { index: 11 };</script>
+<script>/* GLOBAL VERSION COUNTER: each file has its own number (this file = index). The corner label shows index + sw.js + server added together. Bump ONLY the number of the file you changed. */ window.__V = { index: 12 };</script>
   <meta charset="UTF-8" />
   <meta name="viewport" id="viewportMetaTag" content="width=device-width, initial-scale=1.0" />
   <title>Habit Calendar</title>
@@ -3055,7 +3055,10 @@ body.night-mode .bd-row { background: #1a1a1a; border-color: #333; } body.night-
 .global-topbar-tab, .global-topbar-selectday, .global-topbar-tz-btn { height: 36px; min-height: 36px; padding-top: 0 !important; padding-bottom: 0 !important; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; box-sizing: border-box; }
 .global-topbar-tab { padding-left: 16px; padding-right: 16px; }
 .sd-nav { width: 36px; height: 36px; }
-.sd-pill, .sd-total { min-height: 36px; font-size: 13px; padding-top: 0; padding-bottom: 0; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; }
+.sd-pill, .sd-total { min-height: 36px; font-size: 13px; padding-top: 0; padding-bottom: 0; align-items: center; justify-content: center; box-sizing: border-box; }
+.sd-pill { display: inline-flex; }
+/* Screen Time button: PC only (the phone top bar is too narrow for it) */
+@media (max-width: 760px) { #globalTabScreenTime { display: none !important; } }
 body .au .au-b:not(.au-pg), body .au-modal .au-b:not(.au-pg) { min-height: 36px; min-width: 36px; padding: 0 1em; font-size: 14px; border-radius: 10px; box-sizing: border-box; }
 body .au .au-b.sm, body .au-modal .au-b.sm { font-size: 14px; padding: 0 1em; border-radius: 10px; }
 body .au .au-btns .au-b { min-height: 0; }
@@ -3126,6 +3129,7 @@ body.tb-bottom .au { top: 0 !important; bottom: calc(52px + env(safe-area-inset-
            display label (see TimezoneModal below) — it doesn't shift
            any event times or grid positions, same as the old
            auto-detected corner label it replaces. -->
+      <button type="button" class="global-topbar-selectday" id="globalTabScreenTime" title="Open Screen Time" onclick="location.href='/screentime'">&#9201; Screen Time</button>
       <button type="button" class="global-topbar-tz-btn" id="globalTzBtn" title="Select timezone">
         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><polyline points="12 7 12 12 16 14"></polyline></svg>
         <span id="globalTzLabel">GMT+00:00</span>
