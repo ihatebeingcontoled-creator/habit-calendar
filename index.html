@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>/* GLOBAL VERSION COUNTER: each file has its own number (this file = index). The corner label shows index + sw.js + server added together. Bump ONLY the number of the file you changed. */ window.__V = { index: 33 };</script>
+<script>/* GLOBAL VERSION COUNTER: each file has its own number (this file = index). The corner label shows index + sw.js + server added together. Bump ONLY the number of the file you changed. */ window.__V = { index: 36 };</script>
 <script>/* no browser right-click menu anywhere on the site (our own right-click editor / paste popups still work) */ window.addEventListener('contextmenu', function (e) { e.preventDefault(); }, true);</script>
   <meta charset="UTF-8" />
   <meta name="viewport" id="viewportMetaTag" content="width=device-width, initial-scale=1.0" />
@@ -2378,6 +2378,8 @@
          the day columns/headers below is now inert without a
          snap-type on this ancestor — harmless to leave in place. */
     }
+    .week-view-scroll { -webkit-user-select: none; user-select: none; }
+    .week-view-scroll input, .week-view-scroll textarea { -webkit-user-select: text; user-select: text; }
     @media (hover: hover) and (pointer: fine) { .week-view-daycol, .week-view-daycol-header { cursor: grab; } }
     .week-view-scroll.wv-panning, .week-view-scroll.wv-panning * { cursor: grabbing !important; user-select: none !important; }
     .week-view-grid {
@@ -10448,17 +10450,20 @@ const PIP_MAX = 3;
         record.type = f('.evp-title').value.trim();
         record.description = f('.evp-desc').value;
         const sm = hhmmToMinutes(f('.evp-start').value), em = hhmmToMinutes(f('.evp-end').value);
-        if (sm !== null && record.el) {
+        if (sm !== null) {
           let dur = em !== null ? em - sm : record.durationMinutes;
           if (dur <= 0) dur = record.durationMinutes;
           record.startMinutes = Math.max(0, Math.min(24 * 60 - 5, sm));
           record.durationMinutes = Math.max(5, dur);
-          DayTimeGrid.positionEventBox(record.el, record.startMinutes, record.durationMinutes);
-          DayTimeGrid.recomputeOverlapLayout();
+          if (record.el) {
+            DayTimeGrid.positionEventBox(record.el, record.startMinutes, record.durationMinutes);
+            DayTimeGrid.recomputeOverlapLayout();
+          }
         }
         pop.remove();
         if (record.el) commitRecordToBox(record);   // saves to the server and repaints the box
         else EventStore.save(record);
+        try { document.dispatchEvent(new CustomEvent('evp-changed')); } catch (er) {}   // the Month side panel repaints
       }
 
       function openPopup(record, x, y) {
@@ -10472,7 +10477,7 @@ const PIP_MAX = 3;
           '<div class="evp-row"><input class="evp-start" type="time"><span>-</span><input class="evp-end" type="time"></div>' +
           '<textarea class="evp-desc" rows="4" placeholder="Notes"></textarea>' +
           '<div class="evp-colors"></div>' +
-          '<div class="evp-row evp-btns"><button type="button" class="evp-bell">Bell</button><button type="button" class="evp-lock">Lock</button></div>';
+          '<div class="evp-row evp-btns"><button type="button" class="evp-bell">Bell</button><button type="button" class="evp-lock">Lock</button><button type="button" class="evp-copy">Copy to days</button></div>';
         const f = (sel) => pop.querySelector(sel);
         f('.evp-title').value = record.type || '';
         f('.evp-desc').value = record.description || '';
@@ -10491,6 +10496,11 @@ const PIP_MAX = 3;
         del.addEventListener('click', () => {
           if (!popDel) { popDel = true; del.classList.add('sure'); del.title = 'Click again to delete'; return; }
           const pr = popRecord; popEl = null; popRecord = null; popDel = false; pop.remove(); deleteRecord(pr);
+          try { document.dispatchEvent(new CustomEvent('evp-changed')); } catch (er) {}
+        });
+        f('.evp-copy').addEventListener('click', () => {
+          const pr = popRecord; closePopup();   // saves what was typed, then opens the same "repeat across days" window the bell hold opens
+          if (pr) RepeatDaysModal.open(pr);
         });
         f('.evp-title').addEventListener('input', () => { record.type = f('.evp-title').value; if (record.el) renderBoxFace(record); EventStore.save(record); });
         f('.evp-desc').addEventListener('input', () => { record.description = f('.evp-desc').value; if (record.el) renderBoxFace(record); EventStore.save(record); });
@@ -10920,6 +10930,7 @@ const PIP_MAX = 3;
           });
           const n = touchedDates.size;
           toast('Copied to ' + n + (n === 1 ? ' day.' : ' days.'));
+          try { document.dispatchEvent(new CustomEvent('evp-changed')); } catch (er) {}
         } catch {
           toast('Save failed — try again.', true);
         }
@@ -12301,9 +12312,17 @@ const PIP_MAX = 3;
             const head = !!t.closest('.week-view-daycol-header');
             const empty = t === gridEl || t.classList.contains('week-view-daycol') || t.classList.contains('week-view-hour-line') || t.classList.contains('week-view-now-line') || t.classList.contains('week-view-now-dot') || t.classList.contains('week-view-hour-label') || !!t.closest('.week-view-gutter-body');
             if (!head && !empty) return;
+            try { const sel = window.getSelection(); if (sel) sel.removeAllRanges(); } catch (er) {}
             id = e.pointerId; sx = e.clientX; sy = e.clientY; sl = scrollEl.scrollLeft; st = scrollEl.scrollTop; moved = false; sideways = head;
             document.addEventListener('pointermove', onMove); document.addEventListener('pointerup', onUp); document.addEventListener('pointercancel', onUp);
           });
+          scrollEl.addEventListener('mousedown', (e) => {
+            if (e.button !== 0) return;
+            const t = e.target;
+            if (t.closest('.day-time-grid-event-box, button, input, textarea, select')) return;
+            e.preventDefault();   // no text selection / native drag while panning
+          });
+          scrollEl.addEventListener('dragstart', (e) => e.preventDefault());
           function onMove(e) {
             if (e.pointerId !== id) return;
             const dx = e.clientX - sx, dy = e.clientY - sy;
@@ -14376,7 +14395,13 @@ window.__TEST_TAB_SRC = "/* test.js - the WHOLE Test tab in one file: its styles
   new MutationObserver(function () { render(); }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
   function commit(r) { EventStore.save(r); try { if (typeof NotificationScheduler !== 'undefined') { r.notify ? NotificationScheduler.schedule(r) : NotificationScheduler.unschedule(r); } } catch (e) {} }
 
+  /* PC: right-click an event in the Month side panel opens the same small editor next to the mouse */
+  document.addEventListener('evp-changed', function () { try { render(); } catch (e) {} });
   function wire(b, r) {
+    b.addEventListener('contextmenu', function (ev) {
+      if (!(window.matchMedia && matchMedia('(hover: hover) and (pointer: fine)').matches) || typeof EventEditor === 'undefined' || !EventEditor.openPopup) return;
+      ev.preventDefault(); ev.stopPropagation(); EventEditor.openPopup(r, ev.clientX, ev.clientY);
+    });
     var sy = 0, st = 0, du = 0, mode = '', moved = false, id = 0;
     b.addEventListener('pointerdown', function (ev) {
       if (ev.button !== 0) return; ev.stopPropagation(); sy = ev.clientY; st = r.startMinutes; du = r.durationMinutes; moved = false;
