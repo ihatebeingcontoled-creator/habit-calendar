@@ -3185,6 +3185,7 @@ async function callToolInner(name, a, env) {
       if (/youtube|netflix|twitch|^tv$|disney|prime video|hbo|vlc|plex|crunchyroll/.test(b)) return 'video';
       if (/instagram|tiktok|snapchat|facebook|reddit|twitter|^x$|bereal|pinterest|threads|linkedin/.test(b)) return 'social';
       if (/roblox|steam|epic|fisch|minecraft|game|chess|valorant|fortnite|league/.test(b)) return 'games';
+      if (/^claude/.test(b)) return 'claude';
       if (/spotify|music|podcast|soundcloud|audible|shazam/.test(b)) return 'music';
       if (/claude|chatgpt|code|cursor|notes|notepad|calendar|reminders|mail|gmail|journal|excel|word|powerpnt|onenote|figma|github|terminal|powershell|cmd|devenv|pycharm|books|files|ads|sheets|docs|translate|capcut|autohotkey/.test(b)) return 'work';
       if (/settings|shortcuts|clock|camera|photos|maps|wallet|calculator|finder|explorer|taskmgr|weather|health|find my|app store|preview|regedit|control/.test(b)) return 'system';
@@ -3197,7 +3198,7 @@ async function callToolInner(name, a, env) {
       rt = (await db.prepare('SELECT device, SUM(seconds) AS seconds FROM screentime_runtime WHERE day >= ? AND day <= ?' + dq + ' GROUP BY device').bind(from, to).all()).results;
       for (const r of (await db.prepare('SELECT app, kind FROM screentime_apps WHERE kind IS NOT NULL').all()).results) kinds[r.app] = r.kind;
     } catch (e) { return say('No screen time has been recorded yet (the Screen Time page has not received data).', true); }
-    const labelOf = { msg: 'messaging', web: 'browser', video: 'video', social: 'social', game: 'games', work: 'work', music: 'music', sys: 'system', other: 'other' };
+    const labelOf = { msg: 'messaging', web: 'browser', video: 'video', social: 'social', game: 'games', work: 'work', claude: 'claude', music: 'music', sys: 'system', other: 'other' };
     const byApp = {}, byDay = {}, byDevice = {}, byGroup = {};
     let idle = 0, total = 0;
     const add = (day, device, app, sec) => {
@@ -3367,7 +3368,7 @@ async function onRequest({ request, env }) {
 })();
 
 // version counter of THIS file (added into the number shown in the page corner; bump it only when this file changes)
-const FILE_VERSION = 9;
+const FILE_VERSION = 10;
 const M_version = { onRequest: () => new Response(JSON.stringify({ v: FILE_VERSION }), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } }) };
 
 // ================================ ROUTER ================================
