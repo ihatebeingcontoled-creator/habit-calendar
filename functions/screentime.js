@@ -437,7 +437,7 @@ UpdateOverlay() {
         total := 0
     s := Floor(total)
     m := Mod(s // 60, 60)
-    txt := (s // 3600) . "h " . SubStr("00" . m, -2) . "m"
+    txt := (s // 3600) . "h " . SubStr("00" . m, -1) . "m"
     if (txt != ovLast) {
         GuiControl, ST:, ovTxt, %txt%
         ovLast := txt
