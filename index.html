@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>/* GLOBAL VERSION COUNTER: each file has its own number (this file = index). The corner label shows index + sw.js + server added together. Bump ONLY the number of the file you changed. */ window.__V = { index: 41 };</script>
+<script>/* GLOBAL VERSION COUNTER: each file has its own number (this file = index). The corner label shows index + sw.js + server added together. Bump ONLY the number of the file you changed. */ window.__V = { index: 42 };</script>
 <script>/* no browser right-click menu anywhere on the site (our own right-click editor / paste popups still work) */ window.addEventListener('contextmenu', function (e) { e.preventDefault(); }, true);</script>
   <meta charset="UTF-8" />
   <meta name="viewport" id="viewportMetaTag" content="width=device-width, initial-scale=1.0" />
@@ -15021,12 +15021,12 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
       var b = String(n).toLowerCase().replace(/ \(iphone\)$/, '');
       if (/whatsapp|messages|imessage|telegram|discord|messenger|signal|facetime|^phone$|viber|slack|teams|skype|zoom|wechat/.test(b)) return 'msg';
       if (/chrome|safari|firefox|msedge|edge|brave|opera|vivaldi|^google/.test(b)) return 'web';
-      if (/youtube|netflix|twitch|^tv$|disney|prime video|hbo|vlc|plex|crunchyroll/.test(b)) return 'video';
+      if (/youtube|netflix|twitch|kick|^tv$|disney|prime video|hbo|vlc|plex|crunchyroll/.test(b)) return 'video';
       if (/instagram|tiktok|snapchat|facebook|reddit|twitter|^x$|bereal|pinterest|threads|linkedin/.test(b)) return 'social';
       if (/roblox|steam|epic|fisch|minecraft|game|chess|valorant|fortnite|league/.test(b)) return 'game';
       if (/^claude/.test(b)) return 'claude';
       if (/spotify|music|podcast|soundcloud|audible|shazam/.test(b)) return 'music';
-      if (/claude|chatgpt|code|cursor|notes|notepad|calendar|reminders|mail|gmail|journal|excel|word|powerpnt|onenote|figma|github|terminal|powershell|cmd|devenv|pycharm|books|files|ads|sheets|docs|translate|capcut|autohotkey/.test(b)) return 'work';
+      if (/powerpoint|onedrive|airtable|notebooklm|manus|stripe|tradingview|forexfactory|maventrading|markthetrade|rekvizitai|dienynas|doversus|tascentvo|furlota|cloudflare|make\.com|claude|chatgpt|code|cursor|notes|notepad|calendar|reminders|mail|gmail|journal|excel|word|powerpnt|onenote|figma|github|terminal|powershell|cmd|devenv|pycharm|books|files|ads|sheets|docs|translate|capcut|autohotkey/.test(b)) return 'work';
       if (/settings|shortcuts|clock|camera|photos|maps|wallet|calculator|finder|explorer|taskmgr|weather|health|find my|app store|preview|regedit|control/.test(b)) return 'sys';
       return 'other';
     }
