@@ -1630,6 +1630,10 @@
       font-size: 9px; line-height: 1; pointer-events: none; z-index: 2;
     }
 
+    .font-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .font-chip { border: 1.5px solid #d9d9de; background: #fafafa; color: #111; border-radius: 10px; padding: 6px 11px; font-size: 15px; line-height: 1.1; cursor: pointer; }
+    .font-chip.on { border-color: #3b82f6; background: #e8f0ff; box-shadow: 0 0 0 1px #3b82f6 inset; }
+    body.night-mode .font-chip { background: #1c1c1e; color: #f5f5f5; border-color: #3a3a3c; } body.night-mode .font-chip.on { background: #14284d; border-color: #60a5fa; }
     .day-title {
       font-family: var(--title-font, inherit);
       font-size: 10.5px; font-weight: 600; color: #333; text-align: center; line-height: 1.25;
@@ -3473,21 +3477,11 @@ body.tb-bottom .au { top: 0 !important; bottom: calc(52px + env(safe-area-inset-
           </label>
         </div>
 
-        <div class="settings-cell settings-cell-charlimit">
-          <span class="settings-cell-label">Month font:</span>
-          <select id="titleFontSelect" class="settings-number-input-sm" style="width:auto;max-width:150px">
-            <option value="">Default</option>
-            <option value="Arial, Helvetica, sans-serif">Arial</option>
-            <option value="'Trebuchet MS', sans-serif">Trebuchet</option>
-            <option value="Verdana, Geneva, sans-serif">Verdana</option>
-            <option value="Georgia, serif">Georgia</option>
-            <option value="'Times New Roman', Times, serif">Times</option>
-            <option value="'Courier New', monospace">Courier</option>
-            <option value="Impact, 'Arial Narrow Bold', sans-serif">Impact</option>
-            <option value="'Comic Sans MS', 'Comic Sans', cursive">Comic Sans</option>
-            <option value="'Brush Script MT', cursive">Script</option>
-            <option value="Palatino, 'Palatino Linotype', serif">Palatino</option>
-          </select>
+        <div class="font-pick" style="grid-column:1 / -1;width:100%">
+          <div class="settings-cell-label" style="margin:6px 0 4px">Month title font - PC:</div>
+          <div class="font-chips" id="fontChipsPc"></div>
+          <div class="settings-cell-label" style="margin:10px 0 4px">Month title font - iPhone:</div>
+          <div class="font-chips" id="fontChipsMobile"></div>
         </div>
       </div>
 
@@ -3794,7 +3788,8 @@ const PIP_MAX = 3;
       mobileTitleLimit:        35,
       desktopTitleLimitEnabled: false,
       desktopTitleLimit:       60,
-      titleFont:               '',
+      titleFontPc:             '',
+      titleFontMobile:         '',
       nightMode:               false,
       warnUnsavedChanges:      true,
       language:                'en',
@@ -3863,8 +3858,35 @@ const PIP_MAX = 3;
       }
     });
 
+    // Fonts for the day titles in the month view: one for the PC, one for the phone. Each choice is shown in its own font.
+    const TITLE_FONTS = [
+      ['Default', ''], ['Arial', 'Arial, Helvetica, sans-serif'], ['Trebuchet', "'Trebuchet MS', sans-serif"], ['Verdana', 'Verdana, Geneva, sans-serif'],
+      ['Georgia', 'Georgia, serif'], ['Times', "'Times New Roman', Times, serif"], ['Palatino', "Palatino, 'Palatino Linotype', serif"], ['Courier', "'Courier New', monospace"],
+      ['Impact', "Impact, 'Arial Narrow Bold', sans-serif"], ['Comic Sans', "'Comic Sans MS', 'Comic Sans', cursive"], ['Script', "'Brush Script MT', cursive"],
+    ];
+    function renderFontChips() {
+      [['fontChipsPc', 'titleFontPc'], ['fontChipsMobile', 'titleFontMobile']].forEach(([id, key]) => {
+        const box = document.getElementById(id); if (!box) return;
+        box.innerHTML = '';
+        TITLE_FONTS.forEach(([name, css]) => {
+          const b = document.createElement('button');
+          b.type = 'button'; b.textContent = name; b.className = 'font-chip' + ((pendingSettings[key] || '') === css ? ' on' : '');
+          if (css) b.style.fontFamily = css;
+          b.addEventListener('click', () => { pendingSettings[key] = css; renderFontChips(); });
+          box.appendChild(b);
+        });
+      });
+    }
+    function applyTitleFont() {
+      const mobile = window.matchMedia('(max-width: 640px)').matches;
+      const f = (mobile ? (settings.titleFontMobile || settings.titleFont) : (settings.titleFontPc || settings.titleFont)) || '';
+      const cur = document.documentElement.style.getPropertyValue('--title-font');
+      const next = f || 'inherit';
+      if (cur !== next) { document.documentElement.style.setProperty('--title-font', next); window.dispatchEvent(new Event('resize')); }   // the title-fitting code listens for resize
+    }
+    window.matchMedia('(max-width: 640px)').addEventListener('change', () => applyTitleFont());
     function applySettingsEffects() {
-      document.documentElement.style.setProperty('--title-font', settings.titleFont || 'inherit');   // font of the day titles in the month view
+      applyTitleFont();
       applyStatsBarVisibility();
       applyNightMode();
       applyZoomSetting();
@@ -3951,7 +3973,7 @@ const PIP_MAX = 3;
       document.getElementById('toggleDesktopTitleLimit').checked  = pendingSettings.desktopTitleLimitEnabled;
       document.getElementById('desktopTitleLimitInput').value     = pendingSettings.desktopTitleLimit;
       document.getElementById('desktopTitleLimitInput').disabled  = !pendingSettings.desktopTitleLimitEnabled;
-      document.getElementById('titleFontSelect').value            = pendingSettings.titleFont || '';
+      renderFontChips();
       document.getElementById('toggleNightMode').checked          = pendingSettings.nightMode;
       document.getElementById('toggleWarnUnsaved').checked        = pendingSettings.warnUnsavedChanges;
       document.getElementById('toggleDisableZoom').checked        = pendingSettings.disableZoom;
@@ -5745,9 +5767,6 @@ const PIP_MAX = 3;
       pendingSettings.desktopTitleLimit = Number.isFinite(n) && n > 0 ? n : DEFAULT_SETTINGS.desktopTitleLimit;
     });
 
-    document.getElementById('titleFontSelect').addEventListener('change', (e) => {
-      pendingSettings.titleFont = e.target.value;
-    });
 
     document.getElementById('toggleNightMode').addEventListener('change', (e) => {
       pendingSettings.nightMode = e.target.checked;
@@ -5806,7 +5825,7 @@ const PIP_MAX = 3;
         if (c.get('settings')) settings = { ...DEFAULT_SETTINGS, ...c.get('settings') };
       } catch (e) {}
       const paintAll = () => {
-        document.documentElement.style.setProperty('--title-font', settings.titleFont || 'inherit');
+        applyTitleFont();
         applyStatsBarVisibility();
         applyNightMode();
         applyZoomSetting();
@@ -14545,6 +14564,11 @@ window.__TEST_TAB_SRC = "/* test.js - the WHOLE Test tab in one file: its styles
 <style>
 .st-ov { position: fixed; left: 0; right: 0; bottom: 0; top: 52px; z-index: 1500; overflow: hidden; display: flex; flex-direction: column; background: #f5f5f7; color: #111; padding: 12px 14px calc(12px + env(safe-area-inset-bottom, 0px)); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; }
 .st-ov[hidden] { display: none; }
+.st-ov, .st-ov * { overscroll-behavior: contain; }
+@media (hover: none) {   /* phones and tablets: no page drifting sideways, no copy / callout menu while you hold a bar */
+  .st-ov { touch-action: pan-y; overflow-x: hidden; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+  .st-ov input, .st-ov select, .st-ov textarea { -webkit-user-select: text; user-select: text; }
+}
 body.night-mode .st-ov { background: #000; color: #f5f5f5; }
 .st-wrap { width: 100%; max-width: 1240px; margin: 0 auto; flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
 .st-bar { display: flex; align-items: center; gap: 8px; flex: none; }
@@ -14994,10 +15018,36 @@ body.night-mode .st-fab { background: rgba(40,40,42,.92); color: #f5f5f5; }
   function open() {
     var tb = $('globalTopBar'); ov.style.top = (tb ? Math.round(tb.getBoundingClientRect().bottom) : 52) + 'px';
     ov.hidden = false; load();
+    document.documentElement.style.overflow = 'hidden'; document.body.style.overflow = 'hidden';   // the calendar behind must not scroll
     clearInterval(timer); timer = setInterval(function () { if (!document.hidden) load(); }, 30000);
   }
-  function close() { ov.hidden = true; clearInterval(timer); }
+  function close() { ov.hidden = true; clearInterval(timer); document.documentElement.style.overflow = ''; document.body.style.overflow = ''; }
   $('stClose').onclick = close;
+  (function () {   // touch: hold a finger on a bar (or a row) to read what it is; drag along to read the next one
+    var tip = document.createElement('div');
+    tip.style.cssText = 'position:fixed;z-index:3000;pointer-events:none;background:rgba(20,20,22,.94);color:#fff;font:600 13px -apple-system,BlinkMacSystemFont,sans-serif;padding:7px 11px;border-radius:10px;display:none;max-width:80vw;box-shadow:0 4px 14px rgba(0,0,0,.35)';
+    document.body.appendChild(tip);
+    var tmr = null, held = false, sx = 0, sy = 0;
+    function textAt(x, y) { var e = document.elementFromPoint(x, y); while (e && e !== ov) { if (e.title) return e.title; e = e.parentElement; } return ''; }
+    function show(x, y) {
+      var t = textAt(x, y); if (!t) { tip.style.display = 'none'; return; }
+      tip.textContent = t; tip.style.display = 'block';
+      var w = tip.offsetWidth; tip.style.left = Math.max(6, Math.min(window.innerWidth - w - 6, x - w / 2)) + 'px'; tip.style.top = (y > 90 ? y - 64 : y + 34) + 'px';
+    }
+    function stop() { clearTimeout(tmr); held = false; tip.style.display = 'none'; }
+    ov.addEventListener('touchstart', function (e) {
+      if (e.touches.length !== 1) { stop(); return; }
+      var t = e.touches[0]; sx = t.clientX; sy = t.clientY; clearTimeout(tmr);
+      tmr = setTimeout(function () { held = true; show(sx, sy); }, 260);
+    }, { passive: true });
+    ov.addEventListener('touchmove', function (e) {
+      var t = e.touches[0];
+      if (held) { e.preventDefault(); show(t.clientX, t.clientY); }
+      else if (Math.abs(t.clientX - sx) > 10 || Math.abs(t.clientY - sy) > 10) clearTimeout(tmr);   // it is a scroll, not a hold
+    }, { passive: false });
+    ov.addEventListener('touchend', stop); ov.addEventListener('touchcancel', stop);
+    ov.addEventListener('contextmenu', function (e) { if (window.matchMedia('(hover: none)').matches && !/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) e.preventDefault(); });
+  })();
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !ov.hidden) { close(); } });
   // pressing any other top-bar button (Money, Week, Month, Settings ...) leaves Screen Time first
   var tbEl = $('globalTopBar');
