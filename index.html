@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>/* GLOBAL VERSION COUNTER: each file has its own number (this file = index). The corner label shows index + sw.js + server added together. Bump ONLY the number of the file you changed. */ window.__V = { index: 17 };</script>
+<script>/* GLOBAL VERSION COUNTER: each file has its own number (this file = index). The corner label shows index + sw.js + server added together. Bump ONLY the number of the file you changed. */ window.__V = { index: 21 };</script>
   <meta charset="UTF-8" />
   <meta name="viewport" id="viewportMetaTag" content="width=device-width, initial-scale=1.0" />
   <title>Habit Calendar</title>
@@ -14539,6 +14539,11 @@ body.night-mode .st-mut { color: #9a9aa1; }
 .st-tabs button, .st-x { border: 0; border-radius: 10px; padding: 7px 10px; font: inherit; font-size: 13px; font-weight: 700; background: #e6e6ea; color: #111; cursor: pointer; }
 body.night-mode .st-tabs button, body.night-mode .st-x { background: #2c2c2e; color: #f5f5f5; }
 .st-tabs button.on { background: #0a84ff; color: #fff; }
+  .st-tabs { flex-wrap: wrap; align-items: center; justify-content: flex-end; }
+  #stPickBox { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; }
+  #stPickBox[hidden] { display: none; }
+  #stPickBox input { border: 0; border-radius: 10px; padding: 6px 8px; font: inherit; font-size: 13px; font-weight: 700; background: #e6e6ea; color: #111; color-scheme: light; max-width: 132px; }
+  body.night-mode #stPickBox input { background: #2c2c2e; color: #f5f5f5; color-scheme: dark; }
 .st-x { width: 36px; padding: 7px 0; }
 .st-top2 { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; flex: none; }
 .st-big { font-size: 34px; font-weight: 800; letter-spacing: -1px; line-height: 1.05; }
@@ -14609,7 +14614,7 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
   <div class="st-wrap">
     <div class="st-bar">
       <h2>Screen Time</h2>
-      <div class="st-tabs" id="stTabs"><button type="button" data-r="1">Today</button><button type="button" data-r="7" class="on">7 days</button><button type="button" data-r="30">30 days</button></div>
+      <div class="st-tabs" id="stTabs"><button type="button" data-r="1">Today</button><button type="button" data-r="7" class="on">Week</button><button type="button" data-r="30">30 days</button><button type="button" data-r="pick" id="stPickBtn">Pick dates</button><span id="stPickBox" hidden><input type="date" id="stFrom" aria-label="From day"> <b>to</b> <input type="date" id="stTo" aria-label="To day"></span></div>
       <button type="button" class="st-x" id="stClose" aria-label="Close">&#10005;</button>
     </div>
     <div class="st-seg" id="stSeg"><button type="button" data-sec="time" class="on">Time</button><button type="button" data-sec="apps">Programs</button><button type="button" data-sec="set">Settings</button></div>
@@ -14635,7 +14640,7 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
       </div>
       <div class="st-c2">
         <div class="st-card grow" data-s="apps">
-          <div class="st-h">Programs</div>
+          <div class="st-h">Where the time goes</div>
           <div class="st-rowh"><div style="text-align:left">Program</div><div style="text-align:right">Time</div><div>Counts</div><div title="Counts even with no keyboard or mouse (videos, calls, games)">Idle OK</div></div>
           <div class="st-applist" id="stApps"></div>
           <div class="st-mut" id="stAppsEmpty" style="display:none;margin-top:8px">Nothing yet. Programs appear here as soon as the PC program sends its first minute.</div>
@@ -14644,6 +14649,7 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
           <div class="st-shead"><div class="st-h">Settings</div><div class="st-dev" id="stDevices">No PC yet</div><button type="button" class="st-btn ghost sm" id="stSetupBtn">PC setup</button></div>
           <div class="st-sgrid">
             <div class="st-set"><span>Counter on PC screen</span><input type="checkbox" id="stOvChk"></div>
+            <div class="st-set"><span title="Show the counter only when no program window is open (everything closed or minimised)">Only on empty desktop</span><input type="checkbox" id="stDeskChk"></div>
             <div class="st-set"><span>Counter position</span><select id="stCorner"><option value="bl">Bottom left</option><option value="br">Bottom right</option><option value="tl">Top left</option><option value="tr">Top right</option></select></div>
             <div class="st-set"><span>Counter strength</span><select id="stOpacity"><option value="20">Very faint</option><option value="35">Faint</option><option value="55">Medium</option><option value="80">Strong</option></select></div>
             <div class="st-set"><span title="Programs stop counting after this many minutes without keyboard or mouse">Idle stop (min)</span><select id="stIdle"><option>1</option><option>2</option><option>3</option><option>5</option><option>10</option><option>15</option><option>30</option><option>60</option></select></div>
@@ -14679,7 +14685,9 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
       .then(function (r) { if (!r.ok) throw new Error(r.status); return r; });
   }
   function pad(n) { return n < 10 ? '0' + n : '' + n; }
-  function dayStr(off) { var d = new Date(); d.setDate(d.getDate() - off); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  var anchor = null;   // null = today; otherwise the past day picked on the calendar
+  function realToday() { var d = new Date(); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function dayStr(off) { var d = new Date(); if (anchor) { var q = anchor.split('-'); d = new Date(+q[0], +q[1] - 1, +q[2], 12); } d.setDate(d.getDate() - off); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
   function fmt(s) { s = Math.round(s); var h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60); return h + 'h ' + pad(m) + 'm'; }
   function fmtShort(s) { s = Math.round(s); var h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60); return h ? h + 'h ' + m + 'm' : m + 'm'; }
   function ago(ms) { var s = Math.max(0, Math.round(ms / 1000)); if (s < 90) return 'just now'; if (s < 5400) return Math.round(s / 60) + ' min ago'; if (s < 172800) return Math.round(s / 3600) + ' h ago'; return Math.round(s / 86400) + ' days ago'; }
@@ -14704,21 +14712,28 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
 
     var vals = [], sum = 0, max = 1;
     for (i = bars - 1; i >= 0; i--) { var k = dayStr(i), v = total(k); vals.push({ k: k, v: v, i: i }); if (i < range) sum += v; if (v > max) max = v; }
+    var hourly = range === 1, hourSum = 0;
+    if (hourly) {   // one day: show its 24 hours instead of other days
+      var hb = {}; (d.hours || []).forEach(function (x) { hb[x.hour] = x.seconds; hourSum += x.seconds; });
+      vals = []; max = 3600;
+      for (i = 0; i < 24; i++) vals.push({ k: pad(i), v: Math.min(hb[i] || 0, 3600), i: i, hour: true });
+    }
     $('stBig').textContent = fmt(sum);
-    $('stLabel').textContent = range === 1 ? 'PC on today' : 'PC on, last ' + range + ' days';
-    $('stAvg').textContent = range > 1 ? fmt(sum / range) + ' per day on average' : '';
+    $('stLabel').textContent = anchor ? (range > 1 ? 'PC on, ' + niceDay(dayStr(range - 1)) + ' to ' + niceDay(anchor) : 'PC on, ' + niceDay(anchor)) : range === 1 ? 'PC on today' : 'PC on, last ' + range + ' days';
+    $('stAvg').textContent = hourly ? (hourSum + 120 < sum ? 'by hour (earlier time was not recorded per hour)' : 'by hour') : range > 1 ? fmt(sum / range) + ' per day on average' : '';
 
     // horizontal bars, one row per day, scaled to the top marker (whole / half hours along the top).
     // Colour (can be switched off in Settings) = how the day compares with the average of the days that have data:
     //   red = above average, blue = around average, yellow = a bit below, green = far below
     var steps = [1800, 3600, 7200, 10800, 14400, 21600, 28800, 43200], step = steps[0];
     for (i = 0; i < steps.length; i++) { step = steps[i]; if (max / step <= 4) break; }
+    if (hourly) step = 900;
     var axisMax = Math.max(step, Math.ceil(max / step) * step), axis = $('stAxis'), hp = $('stRows');
     var withData = vals.filter(function (x) { return x.v > 0; });
-    var avg = withData.length ? withData.reduce(function (a, x) { return a + x.v; }, 0) / withData.length : 0;
-    function colourFor(v) { if (!v) return '#9a9aa1'; if (!colorsOn || !avg) return '#0a84ff'; var r = v / avg; return r > 1.15 ? '#ef4444' : r >= 0.85 ? '#0a84ff' : r >= 0.5 ? '#eab308' : '#22c55e'; }
+    var avg = hourly ? 0 : withData.length ? withData.reduce(function (a, x) { return a + x.v; }, 0) / withData.length : 0;
+    function colourFor(v) { if (!v) return '#9a9aa1'; if (hourly || !colorsOn || !avg) return '#0a84ff'; var r = v / avg; return r > 1.15 ? '#ef4444' : r >= 0.85 ? '#0a84ff' : r >= 0.5 ? '#eab308' : '#22c55e'; }
     function axisLabel(sec) { return sec >= 3600 ? (sec % 3600 ? Math.floor(sec / 3600) + 'h 30m' : sec / 3600 + 'h') : sec / 60 + 'm'; }
-    $('stLegend').style.display = colorsOn ? '' : 'none';
+    $('stLegend').style.display = colorsOn && !hourly ? '' : 'none';
     axis.innerHTML = ''; hp.innerHTML = '';
     for (var gv = step; gv <= axisMax; gv += step) {
       var gl = document.createElement('span'); gl.textContent = axisLabel(gv); gl.style.left = (gv / axisMax * 100) + '%'; axis.appendChild(gl);
@@ -14727,8 +14742,8 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
     if (avg) { var va = document.createElement('div'); va.className = 'st-vavg'; va.title = 'Average ' + fmtShort(avg); va.style.left = Math.min(100, avg / axisMax * 100) + '%'; hp.appendChild(va); }
     vals.forEach(function (x) {
       var pct = x.v / axisMax * 100;
-      var row = document.createElement('div'); row.className = 'st-hr' + (x.i === 0 ? ' today' : '') + (x.k === selDay ? ' sel' : ''); row.title = x.k + '  ' + fmtShort(x.v);
-      var lb = document.createElement('span'); lb.className = 'st-hl'; lb.textContent = x.k.slice(8); row.appendChild(lb);
+      var row = document.createElement('div'); row.className = 'st-hr' + (!x.hour && x.k === realToday() ? ' today' : '') + (!x.hour && x.k === selDay ? ' sel' : ''); row.title = (x.hour ? x.k + ':00' : x.k) + '  ' + fmtShort(x.v);
+      var lb = document.createElement('span'); lb.className = 'st-hl'; lb.textContent = x.hour ? x.k : x.k.slice(8); row.appendChild(lb);
       var tr = document.createElement('div'); tr.className = 'st-ht';
       var bar = document.createElement('i'); bar.style.width = pct + '%'; bar.style.background = colourFor(x.v); tr.appendChild(bar);
       if (x.v) {
@@ -14737,12 +14752,12 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
         tr.appendChild(em);
       }
       row.appendChild(tr);
-      row.onclick = function () { selDay = x.k; render(d, bars); };
+      if (!x.hour) row.onclick = function () { selDay = x.k; render(d, bars); };
       hp.appendChild(row);
     });
 
     // the selected day: its number, and the subtract / add controls
-    $('stSelTitle').textContent = selDay === today ? 'Today' : niceDay(selDay);
+    $('stSelTitle').textContent = selDay === realToday() ? 'Today' : niceDay(selDay);
     $('stSelTotal').textContent = fmt(total(selDay));
     var adjS = adjBy[selDay] || 0;
     $('stSelNote').textContent = adjS ? fmt(rtBy[selDay] || 0) + ' on, ' + (adjS < 0 ? '−' : '+') + fmtShort(Math.abs(adjS)) + ' adjusted' : 'PC on-time';
@@ -14755,22 +14770,38 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
       c.appendChild(rm); chips.appendChild(c);
     });
 
-    // programs: bars = share of all counted program time, so together they always add up to 100%
-    var all = 0; d.apps.forEach(function (a) { if (a.counts) all += a.seconds; }); if (!all) all = 1;
+    // where the time goes: programs + idle + not tracked (+ what you adjusted by hand) add up to the PC on-time
+    var rangeFrom = dayStr(range - 1), rtRange = 0, adjRange = 0, idleSec = 0, trackedSec = 0;
+    d.rt.forEach(function (x) { if (x.day >= rangeFrom) rtRange += x.seconds; });
+    d.adj.forEach(function (x) { if (x.day >= rangeFrom) adjRange += x.seconds; });
+    (d.pseudo || []).forEach(function (x) { if (x.app === '(idle)') idleSec += x.seconds; });
+    trackedSec = idleSec; d.apps.forEach(function (a) { trackedSec += a.seconds; });
+    var untrackedSec = Math.max(0, rtRange - trackedSec), base = Math.max(rtRange, trackedSec, 1);
+    var items = d.apps.map(function (a) { return { kind: 'app', a: a, seconds: a.seconds }; });
+    if (idleSec) items.push({ kind: 'idle', seconds: idleSec });
+    if (untrackedSec >= 30) items.push({ kind: 'untracked', seconds: untrackedSec });
+    items.sort(function (x, y) { return y.seconds - x.seconds; });
+    if (adjRange) items.push({ kind: 'adj', seconds: adjRange });
     var box = $('stApps'), keep = box.scrollTop; box.innerHTML = '';
-    d.apps.forEach(function (a) {
-      var row = document.createElement('div'); row.className = 'st-row' + (a.counts ? '' : ' off');
+    function pctText(sec) { var p = sec / base * 100; return !sec ? '' : p < 1 ? '<1%' : Math.round(p) + '%'; }
+    items.forEach(function (it) {
+      var row = document.createElement('div'), a = it.a, counts = it.kind !== 'app' || !!a.counts;
+      row.className = 'st-row' + (counts ? '' : ' off');
       var n = document.createElement('div'); n.className = 'st-name';
-      var share = a.counts ? a.seconds / all * 100 : 0;
-      var nm = document.createElement('b'); nm.textContent = a.app; n.appendChild(nm);
-      var pc = document.createElement('span'); pc.className = 'st-pct'; pc.textContent = !a.counts ? 'not counted' : !a.seconds ? '' : share < 1 ? '<1%' : Math.round(share) + '%'; nm.appendChild(pc);
-      var m = document.createElement('div'); m.className = 'st-meter'; var mi = document.createElement('i'); mi.style.width = (a.seconds && a.counts ? Math.max(share, 1) : 0) + '%'; m.appendChild(mi); n.appendChild(m);
-      var t = document.createElement('div'); t.className = 't'; t.textContent = a.seconds ? fmtShort(a.seconds) : '-';
-      row.appendChild(n); row.appendChild(t); row.appendChild(chk(a, 'counts')); row.appendChild(chk(a, 'alive'));
+      var nm = document.createElement('b'), pc = document.createElement('span'); pc.className = 'st-pct';
+      var label = it.kind === 'app' ? a.app : it.kind === 'idle' ? 'PC idle' : it.kind === 'untracked' ? 'Not tracked' : 'Adjusted by you';
+      nm.textContent = label; if (it.kind !== 'app') nm.style.fontStyle = 'italic';
+      pc.textContent = it.kind === 'adj' ? '' : (pctText(it.seconds) + (it.kind === 'app' && !a.counts && it.seconds ? ' \u00b7 not counted' : '')); nm.appendChild(pc); n.appendChild(nm);
+      var note = it.kind === 'idle' ? 'PC on, but no keyboard or mouse for a while' : it.kind === 'untracked' ? 'before the PC program started, or programs it skipped' : '';
+      if (note) { var nt = document.createElement('div'); nt.className = 'st-mut'; nt.style.fontSize = '11px'; nt.textContent = note; n.appendChild(nt); }
+      if (it.kind !== 'adj') { var m = document.createElement('div'); m.className = 'st-meter'; var mi = document.createElement('i'); mi.style.width = (it.seconds ? Math.max(it.seconds / base * 100, 1) : 0) + '%'; if (it.kind !== 'app') mi.style.background = '#9a9aa1'; m.appendChild(mi); n.appendChild(m); }
+      var t = document.createElement('div'); t.className = 't'; t.textContent = it.kind === 'adj' ? (it.seconds < 0 ? '\u2212' : '+') + fmtShort(Math.abs(it.seconds)) : (it.seconds ? fmtShort(it.seconds) : '-');
+      row.appendChild(n); row.appendChild(t);
+      if (it.kind === 'app') { row.appendChild(chk(a, 'counts')); row.appendChild(chk(a, 'alive')); } else { row.appendChild(document.createElement('div')); row.appendChild(document.createElement('div')); }
       box.appendChild(row);
     });
     box.scrollTop = keep;
-    $('stAppsEmpty').style.display = d.apps.length ? 'none' : 'block';
+    $('stAppsEmpty').style.display = items.length ? 'none' : 'block';
 
     // settings (don't overwrite something the person is touching right now)
     var act = document.activeElement;
@@ -14778,6 +14809,7 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
     put('stIdle', d.conf.idle); put('stBrkMin', d.conf.breakMin); put('stCorner', d.conf.corner); put('stOpacity', d.conf.opacity);
     if (act !== $('stOvChk')) $('stOvChk').checked = !!d.conf.overlay;
     if (act !== $('stBrkChk')) $('stBrkChk').checked = !!d.conf.breakOn;
+    if (act !== $('stDeskChk')) $('stDeskChk').checked = d.conf.desk !== 0;
     if (act !== $('stColChk')) $('stColChk').checked = colorsOn;
 
     var dv = $('stDevices'); dv.innerHTML = '';
@@ -14803,9 +14835,33 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
   }
   $('stSubBtn').onclick = function () { adjust(-1); };
   $('stAddBtn').onclick = function () { adjust(1); };
-  $('stTabs').onclick = function (e) { var r = e.target.getAttribute && e.target.getAttribute('data-r'); if (!r) return; range = +r; Array.prototype.forEach.call($('stTabs').children, function (x) { x.className = x === e.target ? 'on' : ''; }); load(); };
+  function tabsOn(btn) { Array.prototype.forEach.call($('stTabs').children, function (x) { if (x.tagName === 'BUTTON') x.className = x === btn ? 'on' : ''; }); }
+  $('stFrom').max = $('stTo').max = realToday();
+  function applyPick() {
+    var f = $('stFrom').value, to = $('stTo').value;
+    if (!f && !to) return;
+    if (!to) to = f; if (!f) f = to;
+    if (f > to) { var s = f; f = to; to = s; }
+    var td = realToday(); if (to > td) to = td; if (f > td) f = td;
+    var days = Math.round((new Date(to + 'T12:00:00') - new Date(f + 'T12:00:00')) / 86400000) + 1;
+    if (days > 90) { days = 90; var q = new Date(to + 'T12:00:00'); q.setDate(q.getDate() - 89); f = q.getFullYear() + '-' + pad(q.getMonth() + 1) + '-' + pad(q.getDate()); }
+    $('stFrom').value = f; $('stTo').value = to;
+    anchor = to === td ? null : to; range = days; selDay = to; load();
+  }
+  $('stFrom').onchange = applyPick; $('stTo').onchange = applyPick;
+  $('stTabs').onclick = function (e) {
+    var r = e.target.getAttribute && e.target.getAttribute('data-r'); if (!r) return;
+    if (r === 'pick') {
+      var open = $('stPickBox').hidden; $('stPickBox').hidden = !open; tabsOn(open ? e.target : null);
+      if (open) { if (!$('stTo').value) $('stTo').value = realToday(); if (!$('stFrom').value) { var q = new Date(); q.setDate(q.getDate() - 6); $('stFrom').value = q.getFullYear() + '-' + pad(q.getMonth() + 1) + '-' + pad(q.getDate()); } applyPick(); }
+      return;
+    }
+    range = +r; anchor = null; selDay = null; $('stPickBox').hidden = true; $('stFrom').value = ''; $('stTo').value = '';
+    tabsOn(e.target); load();
+  };
   $('stSeg').onclick = function (e) { var s = e.target.getAttribute && e.target.getAttribute('data-sec'); if (!s) return; ov.setAttribute('data-sec', s); Array.prototype.forEach.call($('stSeg').children, function (x) { x.className = x === e.target ? 'on' : ''; }); };
   $('stOvChk').onchange = function () { post('set', { overlay: $('stOvChk').checked ? 1 : 0 }).catch(function () {}); };
+  $('stDeskChk').onchange = function () { post('set', { desk: $('stDeskChk').checked ? 1 : 0 }).catch(function () {}); };
   $('stCorner').onchange = function () { post('set', { corner: $('stCorner').value }).catch(function () {}); };
   $('stOpacity').onchange = function () { post('set', { opacity: +$('stOpacity').value }).catch(function () {}); };
   $('stIdle').onchange = function () { post('set', { idle: +$('stIdle').value }).catch(function () {}); };
