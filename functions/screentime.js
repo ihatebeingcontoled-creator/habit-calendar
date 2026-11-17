@@ -1,28 +1,30 @@
-// functions/screentime.js  ->  https://<your site>/screentime
-// ONE file for the whole Screen Time feature:
-//   * the page            GET  /screentime                      (behind the normal site code gate)
-//   * the page's data     POST /screentime?api=data | set | script   (behind the gate, uses your cookie)
+// functions/screentime.js  ->  https://<your site>/screentime   (an API only: the Screen Time screen itself lives inside index.html)
+// ONE server file for the whole Screen Time feature:
+//   * the page's data     POST /screentime?api=data | set | script   (behind the code gate, uses your cookie)
 //   * the PC program      POST /screentime?api=push   (the PC sends its seconds)
 //                         GET  /screentime?api=conf   (the PC reads your settings)
 //                         both need "Authorization: Bearer <SCREENTIME_TOKEN>" and are let through the gate by one line in _middleware.js
-//   * the PC program itself (an AutoHotkey v1.1 script) is the SCRIPT text at the bottom; the page's "Download PC script" button
-//     hands it out with your site address and token already filled in.
+//   * the PC program itself (an AutoHotkey v1.1 script) is the SCRIPT text at the bottom; the "Download PC script" button in the
+//     Screen Time screen hands it out with your site address and token already filled in.
 //
 // Needs in Cloudflare Pages -> Settings -> Variables and Secrets:
 //   SCREENTIME_TOKEN  (secret) — any long random text; it is baked into the downloaded PC script
 // Uses the same D1 binding as the rest of the site: DB   (tables are created automatically, no sql to run)
 //
-// Settings (all changed on the page, picked up by the PC within ~5 minutes or at its next start):
-//   idle minutes      no keyboard/mouse for this long -> time stops counting
-//   Counts            off = that app is never counted (and its old time disappears from the totals)
-//   Idle OK           on  = counts even without keyboard/mouse (videos, games with a controller, calls)
+// What is stored
+//   runtime   how long the PC was on each day (the number the PC shows in the corner of its screen)
+//   adjust    time you subtract (or add) by hand on a day, e.g. the PC was on but you were AFK
+//   usage     seconds per program per day (chrome.exe ...), only while you were really using it
+//   settings  idle minutes, which apps count, overlay on/off, overlay corner, overlay strength, break reminder on/off + minutes
+//   break     when the PC reports N minutes of non-stop use, a phone notification is sent through the site's existing push system
+//             (this file only raises the alert; the gate in _middleware.js sends it, see the X-Screentime-Alert header)
 // POSTs are used for everything the page asks for on purpose: sw.js caches GETs, and these must never be cached.
 
 const json = (d, s = 200) => new Response(JSON.stringify(d), { status: s, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
 const text = (t, s = 200) => new Response(t, { status: s, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' } });
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
-const DEFAULT_IDLE = 300;   // seconds
+const CORNERS = ['bl', 'br', 'tl', 'tr'];
 
 let ready = null;
 function ensure(db) {
@@ -32,6 +34,8 @@ function ensure(db) {
     db.prepare('CREATE TABLE IF NOT EXISTS screentime_apps (app TEXT PRIMARY KEY, counts INTEGER NOT NULL DEFAULT 1, alive INTEGER NOT NULL DEFAULT 0)'),
     db.prepare('CREATE TABLE IF NOT EXISTS screentime_conf (k TEXT PRIMARY KEY, v TEXT)'),
     db.prepare('CREATE TABLE IF NOT EXISTS screentime_devices (device TEXT PRIMARY KEY, last_seen INTEGER)'),
+    db.prepare('CREATE TABLE IF NOT EXISTS screentime_runtime (day TEXT NOT NULL, device TEXT NOT NULL, seconds INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, device))'),
+    db.prepare('CREATE TABLE IF NOT EXISTS screentime_adjust (id INTEGER PRIMARY KEY AUTOINCREMENT, day TEXT NOT NULL, seconds INTEGER NOT NULL, created INTEGER)'),
   ]).catch((e) => { ready = null; throw e; });
   return ready;
 }
@@ -42,22 +46,32 @@ function shiftDay(day, n) {
   return d.toISOString().slice(0, 10);
 }
 const cleanApp = (a) => String(a || '').replace(/[\t\r\n|]/g, '').trim().toLowerCase().slice(0, 80);
+const cleanDevice = (d) => String(d || 'pc').replace(/[^\w.\- ]/g, '').slice(0, 40) || 'pc';
 const tokenOk = (request, env) => Boolean(env.SCREENTIME_TOKEN) && (request.headers.get('Authorization') || '') === 'Bearer ' + env.SCREENTIME_TOKEN;
 
-async function getIdle(db) {
-  const r = await db.prepare("SELECT v FROM screentime_conf WHERE k='idle'").first();
-  const n = r ? parseInt(r.v, 10) : NaN;
-  return n >= 30 ? n : DEFAULT_IDLE;
+async function getConf(db) {
+  const { results } = await db.prepare('SELECT k, v FROM screentime_conf').all();
+  const m = {};
+  for (const r of results) m[r.k] = r.v;
+  const idle = parseInt(m.idle, 10), op = parseInt(m.opacity, 10), bm = parseInt(m.breakmin, 10);
+  return {
+    idle: idle >= 30 ? idle : 300,                                   // seconds
+    overlay: m.overlay === '0' ? 0 : 1,
+    corner: CORNERS.includes(m.corner) ? m.corner : 'bl',
+    opacity: op >= 10 && op <= 100 ? op : 35,                        // percent
+    breakOn: m.breakon === '0' ? 0 : 1,
+    breakMin: bm >= 15 && bm <= 480 ? bm : 120,                      // minutes of non-stop use before the reminder
+    lastBreak: parseInt(m.lastbreak, 10) || 0,
+  };
 }
+const setConf = (db, k, v) => db.prepare('INSERT INTO screentime_conf (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v').bind(k, String(v)).run();
 
 export async function onRequest({ request, env }) {
   const url = new URL(request.url);
   const api = url.searchParams.get('api');
 
-  if (!api) {
-    if (request.method !== 'GET') return text('Method not allowed', 405);
-    return new Response(PAGE, { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' } });
-  }
+  // the screen lives inside the calendar now: anyone who opens this address directly is sent there
+  if (!api) return Response.redirect(url.origin + '/', 302);
 
   const db = env.DB;
   if (!db) return json({ error: 'no database (binding DB)' }, 500);
@@ -69,29 +83,61 @@ export async function onRequest({ request, env }) {
     if (api === 'push') {
       if (request.method !== 'POST') return text('Method not allowed', 405);
       if (!tokenOk(request, env)) return text('Unauthorized', 401);
-      const device = (url.searchParams.get('device') || 'pc').replace(/[^\w.\- ]/g, '').slice(0, 40) || 'pc';
+      const device = cleanDevice(url.searchParams.get('device'));
       const lines = (await request.text()).split('\n').slice(0, 600);
       const st = [];
+      let breakMins = 0;
       for (const line of lines) {
-        const [day, rawApp, rawSecs] = line.replace(/\r$/, '').split('\t');
-        const app = cleanApp(rawApp);
-        const secs = parseInt(rawSecs, 10);
-        if (!DAY.test(day || '') || !app || !(secs >= 1)) continue;
+        const f = line.replace(/\r$/, '').split('\t');
+        if (f[0] === 'B') {                                           // B <tab> minutes   = "I have been used non-stop for this long"
+          const mins = parseInt(f[1], 10);
+          if (mins >= 1 && mins <= 1440) breakMins = mins;
+          continue;
+        }
+        if (f[0] === 'R') {                                           // R <tab> day <tab> seconds   = PC-on time
+          const secs = parseInt(f[2], 10);
+          if (DAY.test(f[1] || '') && secs >= 1)
+            st.push(db.prepare('INSERT INTO screentime_runtime (day, device, seconds) VALUES (?, ?, ?) ON CONFLICT(day, device) DO UPDATE SET seconds = seconds + excluded.seconds').bind(f[1], device, Math.min(secs, 86400)));
+          continue;
+        }
+        const app = cleanApp(f[1]);                                   // day <tab> app <tab> seconds   = time in a program
+        const secs = parseInt(f[2], 10);
+        if (!DAY.test(f[0] || '') || !app || !(secs >= 1)) continue;
         st.push(db.prepare('INSERT OR IGNORE INTO screentime_apps (app) VALUES (?)').bind(app));
         st.push(db.prepare('INSERT INTO screentime_usage (day, device, app, seconds) VALUES (?, ?, ?, ?) ON CONFLICT(day, device, app) DO UPDATE SET seconds = seconds + excluded.seconds')
-          .bind(day, device, app, Math.min(secs, 86400)));
+          .bind(f[0], device, app, Math.min(secs, 86400)));
       }
       st.push(db.prepare('INSERT INTO screentime_devices (device, last_seen) VALUES (?, ?) ON CONFLICT(device) DO UPDATE SET last_seen = excluded.last_seen').bind(device, Date.now()));
       await db.batch(st);
-      return text('ok');
+      const res = text('ok');
+      if (breakMins) {
+        const c = await getConf(db);
+        if (c.breakOn && Date.now() - c.lastBreak > 10 * 60 * 1000) {     // never twice within 10 minutes, even if the PC resends
+          await setConf(db, 'lastbreak', Date.now());
+          const h = Math.floor(breakMins / 60), m = breakMins % 60;
+          const t = h ? h + 'h ' + (m < 10 ? '0' : '') + m + 'm' : m + ' min';
+          res.headers.set('X-Screentime-Alert', encodeURIComponent(JSON.stringify({
+            title: 'Time for a break',
+            body: 'You have been on the PC for ' + t + ' straight. Stand up, stretch, drink some water.',
+          })));
+        }
+      }
+      return res;
     }
 
     if (api === 'conf') {
       if (request.method !== 'GET') return text('Method not allowed', 405);
       if (!tokenOk(request, env)) return text('Unauthorized', 401);
-      const idle = await getIdle(db);
+      const c = await getConf(db);
+      let out = 'idle=' + c.idle + '\noverlay=' + c.overlay + '\ncorner=' + c.corner + '\nopacity=' + c.opacity + '\nbreakon=' + c.breakOn + '\nbreakmin=' + c.breakMin + '\n';
+      const day = url.searchParams.get('day') || '';
+      if (DAY.test(day)) {
+        const device = cleanDevice(url.searchParams.get('device'));
+        const rt = await db.prepare('SELECT seconds FROM screentime_runtime WHERE day = ? AND device = ?').bind(day, device).first();
+        const adj = await db.prepare('SELECT COALESCE(SUM(seconds), 0) AS s FROM screentime_adjust WHERE day = ?').bind(day).first();
+        out += 'runtime=' + (rt ? rt.seconds : 0) + '\nadjust=' + (adj ? adj.s : 0) + '\n';
+      }
       const { results } = await db.prepare('SELECT app, counts, alive FROM screentime_apps WHERE counts = 0 OR alive = 1').all();
-      let out = 'idle=' + idle + '\n';
       for (const r of results) {
         if (!r.counts) out += 'ignore=' + r.app + '\n';
         else if (r.alive) out += 'alive=' + r.app + '\n';
@@ -111,13 +157,12 @@ export async function onRequest({ request, env }) {
       const barsFrom = shiftDay(today, -(bars - 1));
       const rangeFrom = shiftDay(today, -(range - 1));
 
-      const days = await db.prepare(
-        'SELECT u.day AS day, SUM(u.seconds) AS seconds FROM screentime_usage u LEFT JOIN screentime_apps a ON a.app = u.app ' +
-        'WHERE u.day >= ? AND u.day <= ? AND COALESCE(a.counts, 1) = 1 GROUP BY u.day ORDER BY u.day'
-      ).bind(barsFrom, today).all();
+      const rt = await db.prepare('SELECT day, SUM(seconds) AS seconds FROM screentime_runtime WHERE day >= ? AND day <= ? GROUP BY day ORDER BY day').bind(barsFrom, today).all();
+      const adj = await db.prepare('SELECT id, day, seconds FROM screentime_adjust WHERE day >= ? AND day <= ? ORDER BY id').bind(barsFrom, today).all();
       const used = await db.prepare('SELECT app, SUM(seconds) AS seconds FROM screentime_usage WHERE day >= ? AND day <= ? GROUP BY app').bind(rangeFrom, today).all();
       const apps = await db.prepare('SELECT app, counts, alive FROM screentime_apps').all();
       const devices = await db.prepare('SELECT device, last_seen FROM screentime_devices ORDER BY last_seen DESC').all();
+      const c = await getConf(db);
 
       const secs = {};
       for (const r of used.results) secs[r.app] = r.seconds;
@@ -127,17 +172,55 @@ export async function onRequest({ request, env }) {
         .sort((x, y) => y.seconds - x.seconds || x.app.localeCompare(y.app))
         .slice(0, 150);
 
-      return json({ days: days.results, apps: list, devices: devices.results, now: Date.now(), idle: Math.round((await getIdle(db)) / 60) });
+      return json({
+        rt: rt.results, adj: adj.results, apps: list, devices: devices.results, now: Date.now(),
+        conf: { idle: Math.round(c.idle / 60), overlay: c.overlay, corner: c.corner, opacity: c.opacity, breakOn: c.breakOn, breakMin: c.breakMin },
+      });
     }
 
     if (api === 'set') {
       const b = await request.json().catch(() => ({}));
+
       if (b.idle !== undefined) {
         const m = Math.round(Number(b.idle));
         if (!(m >= 1 && m <= 240)) return json({ error: 'idle must be 1-240 minutes' }, 400);
-        await db.prepare("INSERT INTO screentime_conf (k, v) VALUES ('idle', ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v").bind(String(m * 60)).run();
+        await setConf(db, 'idle', m * 60);
         return json({ ok: 1 });
       }
+      if (b.overlay !== undefined) { await setConf(db, 'overlay', b.overlay ? 1 : 0); return json({ ok: 1 }); }
+      if (b.breakOn !== undefined) { await setConf(db, 'breakon', b.breakOn ? 1 : 0); return json({ ok: 1 }); }
+      if (b.breakMin !== undefined) {
+        const m = Math.round(Number(b.breakMin));
+        if (!(m >= 15 && m <= 480)) return json({ error: 'break must be 15-480 minutes' }, 400);
+        await setConf(db, 'breakmin', m);
+        return json({ ok: 1 });
+      }
+      if (b.corner !== undefined) {
+        if (!CORNERS.includes(b.corner)) return json({ error: 'bad corner' }, 400);
+        await setConf(db, 'corner', b.corner);
+        return json({ ok: 1 });
+      }
+      if (b.opacity !== undefined) {
+        const o = Math.round(Number(b.opacity));
+        if (!(o >= 10 && o <= 100)) return json({ error: 'opacity must be 10-100' }, 400);
+        await setConf(db, 'opacity', o);
+        return json({ ok: 1 });
+      }
+
+      // subtract (negative minutes) or add (positive) time on one day
+      if (b.adjDay !== undefined) {
+        const m = Math.round(Number(b.adjMin));
+        if (!DAY.test(String(b.adjDay)) || !m || Math.abs(m) > 1440) return json({ error: 'bad adjustment' }, 400);
+        await db.prepare('INSERT INTO screentime_adjust (day, seconds, created) VALUES (?, ?, ?)').bind(String(b.adjDay), m * 60, Date.now()).run();
+        return json({ ok: 1 });
+      }
+      if (b.delAdj !== undefined) {
+        const id = parseInt(b.delAdj, 10);
+        if (!(id >= 1)) return json({ error: 'bad id' }, 400);
+        await db.prepare('DELETE FROM screentime_adjust WHERE id = ?').bind(id).run();
+        return json({ ok: 1 });
+      }
+
       const app = cleanApp(b.app);
       if (!app) return json({ error: 'no app' }, 400);
       const st = [db.prepare('INSERT OR IGNORE INTO screentime_apps (app) VALUES (?)').bind(app)];
@@ -159,127 +242,17 @@ export async function onRequest({ request, env }) {
   }
 }
 
-// ======================================== THE PAGE ========================================
-const PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Screen Time</title>
-<style>
-:root{--bg:#f5f5f7;--card:#fff;--tx:#111;--mut:#6b6b73;--line:#e6e6ea;--acc:#0a84ff;--bar:#cfe4ff;--ok:#22a559}
-@media(prefers-color-scheme:dark){:root{--bg:#000;--card:#1c1c1e;--tx:#f5f5f5;--mut:#9a9aa1;--line:#2c2c2e;--acc:#4da3ff;--bar:#1f3a57;--ok:#3ccf7a}}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--tx);font:16px system-ui,-apple-system,sans-serif;padding:16px;display:flex;justify-content:center}
-main{width:100%;max-width:720px;display:grid;gap:14px}
-.card{background:var(--card);border-radius:18px;padding:16px 18px;box-shadow:0 4px 18px rgba(0,0,0,.05)}
-h1{font-size:22px;margin:0}h2{font-size:15px;margin:0 0 10px}
-.top{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
-.mut{color:var(--mut);font-size:13px}
-.tabs{display:flex;gap:6px}
-.tabs button{border:0;border-radius:10px;padding:7px 14px;font:inherit;font-size:14px;background:var(--line);color:var(--tx);cursor:pointer}
-.tabs button.on{background:var(--acc);color:#fff}
-.big{font-size:40px;font-weight:700;letter-spacing:-1px;line-height:1.1}
-.bars{display:flex;align-items:flex-end;gap:4px;height:120px;margin-top:14px}
-.col{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;min-width:0}
-.col i{display:block;width:100%;background:var(--bar);border-radius:5px 5px 2px 2px;min-height:2px}
-.col.today i{background:var(--acc)}
-.col span{font-size:10px;color:var(--mut);margin-top:4px;height:12px}
-.row{display:grid;grid-template-columns:1fr 64px 44px 44px;gap:8px;align-items:center;padding:9px 0;border-top:1px solid var(--line)}
-.row.head{border-top:0;padding-top:0;color:var(--mut);font-size:12px}
-.row.head div,.row .c{text-align:center}.row .t{text-align:right;font-variant-numeric:tabular-nums}
-.name{min-width:0}.name b{display:block;font-weight:600;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.meter{height:4px;border-radius:3px;background:var(--line);margin-top:5px}.meter i{display:block;height:100%;border-radius:3px;background:var(--acc)}
-.off{opacity:.45}
-input[type=checkbox]{width:20px;height:20px;accent-color:var(--acc)}
-select,button.act{font:inherit;font-size:15px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--tx);padding:8px 12px}
-button.act{background:var(--acc);color:#fff;border:0;font-weight:600;cursor:pointer}
-.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--mut);margin-right:6px}.dot.on{background:var(--ok)}
-details summary{cursor:pointer;font-weight:600}
-ol{margin:10px 0 0;padding-left:20px;display:grid;gap:6px;font-size:14px}
-code{background:var(--line);padding:1px 6px;border-radius:6px;font-size:13px}
-.err{color:#dc2626;font-size:14px;margin-top:8px}
-</style></head><body><main>
-<div class="top"><div><a href="/" style="color:var(--acc);text-decoration:none;font-size:14px">&larr; Calendar</a><h1>Screen Time</h1></div><div class="tabs" id="tabs"><button data-r="1">Today</button><button data-r="7" class="on">7 days</button><button data-r="30">30 days</button></div></div>
-<div class="card"><div class="mut" id="totLabel">Total</div><div class="big" id="total">…</div><div class="mut" id="avg"></div><div class="bars" id="bars"></div></div>
-<div class="card"><h2>Apps</h2>
-<div class="row head"><div>App</div><div style="text-align:right">Time</div><div>Counts</div><div title="Counts even with no keyboard or mouse">Idle OK</div></div>
-<div id="apps"></div><div class="mut" id="appsEmpty" style="display:none">Nothing yet. Apps appear here as soon as the PC program sends its first minute.</div></div>
-<div class="card"><h2>Settings</h2>
-<div class="top"><div>Stop counting after no keyboard or mouse for</div>
-<select id="idle"><option>1</option><option>2</option><option>3</option><option>5</option><option>10</option><option>15</option><option>30</option><option>60</option></select></div>
-<div class="mut" style="margin-top:8px">minutes. Changes reach the PC within about 5 minutes. <b>Counts</b> off = the app is never counted. <b>Idle OK</b> on = counted even with no input (videos, calls, games).</div></div>
-<div class="card"><h2>Computers</h2><div id="devices" class="mut">None yet</div>
-<details id="setup" style="margin-top:12px"><summary>Set up the PC program</summary>
-<ol><li>Install AutoHotkey <b>v1.1</b> (you already have it from your other scripts).</li>
-<li><button class="act" id="dl">Download PC script</button></li>
-<li>Press <code>Win + R</code>, type <code>shell:startup</code>, press Enter, and put <code>screentime.ahk</code> in that folder.</li>
-<li>Double-click it once to start it now. From then on it starts with Windows.</li></ol><div class="err" id="dlErr"></div></details></div>
-</main>
-<script>
-var range=7,last=null;
-function $(i){return document.getElementById(i)}
-function post(api,body){return fetch('/screentime?api='+api,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})}).then(function(r){if(!r.ok)throw new Error(r.status);return r})}
-function pad(n){return n<10?'0'+n:''+n}
-function dayStr(off){var d=new Date();d.setDate(d.getDate()-off);return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
-function fmt(s){s=Math.round(s);var h=Math.floor(s/3600),m=Math.floor(s%3600/60);return h?h+'h '+m+'m':m+'m'}
-function ago(ms){var s=Math.max(0,Math.round(ms/1000));if(s<90)return 'just now';if(s<5400)return Math.round(s/60)+' min ago';if(s<172800)return Math.round(s/3600)+' h ago';return Math.round(s/86400)+' days ago'}
-function load(){
-  var bars=Math.max(range,7);
-  post('data',{today:dayStr(0),bars:bars,range:range}).then(function(r){return r.json()}).then(function(d){last=d;render(d,bars)}).catch(function(){$('total').textContent='offline'})
-}
-function render(d,bars){
-  var by={};d.days.forEach(function(x){by[x.day]=x.seconds});
-  var vals=[],i,sum=0,max=1;
-  for(i=bars-1;i>=0;i--){var k=dayStr(i),v=by[k]||0;vals.push({k:k,v:v,i:i});if(i<range)sum+=v;if(v>max)max=v}
-  $('total').textContent=fmt(sum);
-  $('totLabel').textContent=range===1?'Today':'Last '+range+' days';
-  $('avg').textContent=range>1?fmt(sum/range)+' per day on average':'';
-  var b=$('bars');b.innerHTML='';
-  vals.forEach(function(x){
-    var c=document.createElement('div');c.className='col'+(x.i===0?' today':'');c.title=x.k+'  '+fmt(x.v);
-    var bar=document.createElement('i');bar.style.height=Math.max(2,Math.round(x.v/max*100))+'%';
-    var l=document.createElement('span');l.textContent=bars<=14?x.k.slice(8):'';
-    c.appendChild(bar);c.appendChild(l);b.appendChild(c)});
-  var top=1;d.apps.forEach(function(a){if(a.counts&&a.seconds>top)top=a.seconds});
-  var box=$('apps');box.innerHTML='';
-  d.apps.forEach(function(a){
-    var row=document.createElement('div');row.className='row'+(a.counts?'':' off');
-    var n=document.createElement('div');n.className='name';
-    var nm=document.createElement('b');nm.textContent=a.app;n.appendChild(nm);
-    var m=document.createElement('div');m.className='meter';var mi=document.createElement('i');mi.style.width=Math.round(a.seconds/top*100)+'%';m.appendChild(mi);n.appendChild(m);
-    var t=document.createElement('div');t.className='t';t.textContent=a.seconds?fmt(a.seconds):'-';
-    row.appendChild(n);row.appendChild(t);
-    row.appendChild(box2(a,'counts'));row.appendChild(box2(a,'alive'));
-    box.appendChild(row)});
-  $('appsEmpty').style.display=d.apps.length?'none':'block';
-  if(String($('idle').value)!==String(d.idle)){
-    var has=false;Array.prototype.forEach.call($('idle').options,function(o){if(o.value===String(d.idle))has=true});
-    if(!has){var o=document.createElement('option');o.textContent=d.idle;$('idle').appendChild(o)}
-    $('idle').value=String(d.idle)}
-  var dv=$('devices');
-  if(!d.devices.length){dv.textContent='None yet';$('setup').open=true}
-  else{dv.innerHTML='';d.devices.forEach(function(x){var p=document.createElement('div');var live=d.now-x.last_seen<180000;
-    var dot=document.createElement('span');dot.className='dot'+(live?' on':'');p.appendChild(dot);
-    p.appendChild(document.createTextNode(x.device+' - '+(live?'sending now':'last seen '+ago(d.now-x.last_seen))));dv.appendChild(p)})}
-}
-function box2(a,field){
-  var w=document.createElement('div');w.className='c';var c=document.createElement('input');c.type='checkbox';c.checked=!!a[field];
-  if(field==='alive'&&!a.counts)c.disabled=true;
-  c.onchange=function(){var b={app:a.app};b[field]=c.checked;post('set',b).then(load).catch(function(){c.checked=!c.checked})};
-  w.appendChild(c);return w}
-$('tabs').onclick=function(e){var r=e.target.getAttribute&&e.target.getAttribute('data-r');if(!r)return;range=+r;
-  Array.prototype.forEach.call($('tabs').children,function(x){x.className=x===e.target?'on':''});load()};
-$('idle').onchange=function(){post('set',{idle:+$('idle').value}).catch(function(){})};
-$('dl').onclick=function(){$('dlErr').textContent='';
-  post('script').then(function(r){return r.blob()}).then(function(b){var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='screentime.ahk';document.body.appendChild(a);a.click();a.remove()})
-  .catch(function(){$('dlErr').textContent='Could not get the script. Check that the secret SCREENTIME_TOKEN is set in Cloudflare Pages and the site is redeployed.'})};
-load();setInterval(function(){if(!document.hidden)load()},60000);
-</script></body></html>`;
-
 // ======================================== THE PC PROGRAM (AutoHotkey v1.1) ========================================
-// __SERVER__ and __TOKEN__ are filled in when the page's "Download PC script" button is used. Keep this text free of backticks.
+// __SERVER__ and __TOKEN__ are filled in when the Screen Time screen's "Download PC script" button is used.
+// Keep this text free of backticks and dollar-brace pairs (it sits inside a JS template string); the one backslash is written doubled on purpose.
 const SCRIPT = `; Screen Time tracker - AutoHotkey v1.1
 ; Put this file in the Windows Startup folder (Win+R, type shell:startup) so it starts with the PC.
-; It looks at the front window every 5 seconds, adds the seconds to that program, and sends the totals
-; to your site once a minute. Your settings (idle time, which apps count) are read from the site every 5 minutes.
-; Window titles and keystrokes are never read or sent - only the program name (like chrome.exe) and seconds.
+;  - Counts how long the PC has been on today (survives turning it off and on; shown faintly in a screen corner).
+;  - Every 5 seconds adds the seconds to the program in front (only program names like chrome.exe, never titles or keys).
+;  - Sends the totals to your site once a minute and reads your settings from the site every 30 seconds.
+;  - After a long non-stop stretch (you choose how long on the site) the site sends a break reminder to your phone.
+; Everything is changed on the site (Screen Time screen), nothing here needs editing.
+; It keeps a small file next to itself (screentime_data.ini) so the day's counter survives restarts and being offline.
 
 #NoEnv
 #SingleInstance Force
@@ -292,11 +265,37 @@ SetWorkingDir %A_ScriptDir%
 SERVER := "__SERVER__"
 TOKEN := "__TOKEN__"
 DEVICE := A_ComputerName
-idleLimit := 300
+INI := A_ScriptDir . "\\screentime_data.ini"
 ignore := "|lockapp.exe|logonui.exe|"
 alive := "|"
+adjust := 0
+ovShown := 0
+ovLast := ""
+confSig := ""
 usage := {}
+streak := 0
+idleRun := 0
+warned := 0
+breakPending := 0
 lastTick := A_TickCount
+today := A_YYYY . "-" . A_MM . "-" . A_DD
+IniRead, rt, %INI%, runtime, %today%, 0
+IniRead, rtSent, %INI%, sent, %today%, 0
+IniRead, showOverlay, %INI%, conf, overlay, 1
+IniRead, corner, %INI%, conf, corner, bl
+IniRead, opacity, %INI%, conf, opacity, 35
+IniRead, idleLimit, %INI%, conf, idle, 300
+IniRead, breakOn, %INI%, conf, breakon, 1
+IniRead, breakMin, %INI%, conf, breakmin, 120
+
+; the faint on-screen counter: no border, never takes clicks, never takes focus, hidden from Alt-Tab
+Gui, ST:New, +AlwaysOnTop -Caption +ToolWindow +E0x20 +E0x80 +HwndovHwnd
+Gui, ST:Margin, 0, 0
+Gui, ST:Color, 010203
+Gui, ST:Font, s10 w600, Segoe UI
+Gui, ST:Add, Text, vovTxt cA0A0A0 Center w76 h20, 0h 00m
+ApplyOverlay()
+UpdateOverlay()
 
 Menu, Tray, Tip, Screen Time
 Menu, Tray, NoStandard
@@ -306,7 +305,7 @@ OnExit, ExitSub
 
 SetTimer, Tick, 5000
 SetTimer, FlushTimer, 60000
-SetTimer, ConfTimer, 300000
+SetTimer, ConfTimer, 30000
 SetTimer, FirstConf, -1500
 return
 
@@ -315,18 +314,23 @@ Critical
 now := A_TickCount
 gap := (now - lastTick) / 1000
 lastTick := now
-if (gap > 30)
+d := A_YYYY . "-" . A_MM . "-" . A_DD
+if (d != today)
+    NewDay(d)
+if (gap > 30) {
+    if (gap >= 300) {
+        streak := 0
+        idleRun := 0
+        warned := 0
+    }
     return
+}
+rt += gap
 WinGet, exe, ProcessName, A
-if (exe = "")
-    return
 StringLower, exe, exe
-if InStr(ignore, "|" . exe . "|")
-    return
-if (A_TimeIdlePhysical > idleLimit * 1000 && !InStr(alive, "|" . exe . "|"))
-    return
-key := A_YYYY . "-" . A_MM . "-" . A_DD . "|" . exe
-usage[key] := (usage.HasKey(key) ? usage[key] : 0) + gap
+TrackApp(gap, exe)
+Streak(gap, exe)
+UpdateOverlay()
 return
 
 FlushTimer:
@@ -348,11 +352,103 @@ DoFlush()
 ExitApp
 return
 
+IsInt(v) {
+    return RegExMatch(v, "^-?[0-9]+$")
+}
+
+; non-stop use: counts while you are really using the PC; 5 minutes without that is a break and starts over.
+; When the streak reaches the limit set on the site, the site is told once (then again after each further limit).
+Streak(gap, exe) {
+    global streak, idleRun, warned, breakOn, breakMin, breakPending, idleLimit, alive
+    act := (A_TimeIdlePhysical <= idleLimit * 1000) || (exe != "" && InStr(alive, "|" . exe . "|"))
+    if (act) {
+        streak += gap
+        idleRun := 0
+        if (breakOn && streak >= (warned + 1) * breakMin * 60) {
+            warned += 1
+            breakPending := Round(streak / 60)
+            DoFlush()
+        }
+    } else {
+        idleRun += gap
+        if (idleRun >= 300) {
+            streak := 0
+            warned := 0
+        }
+    }
+}
+
+TrackApp(gap, exe) {
+    global ignore, alive, idleLimit, usage
+    if (exe = "")
+        return
+    if InStr(ignore, "|" . exe . "|")
+        return
+    if (A_TimeIdlePhysical > idleLimit * 1000 && !InStr(alive, "|" . exe . "|"))
+        return
+    key := A_YYYY . "-" . A_MM . "-" . A_DD . "|" . exe
+    usage[key] := (usage.HasKey(key) ? usage[key] : 0) + gap
+}
+
+NewDay(d) {
+    global today, rt, rtSent, INI, adjust
+    DoFlush()
+    today := d
+    IniRead, rt, %INI%, runtime, %d%, 0
+    IniRead, rtSent, %INI%, sent, %d%, 0
+    adjust := 0
+}
+
+SaveRuntime() {
+    global today, rt, rtSent, INI
+    IniWrite, %rt%, %INI%, runtime, %today%
+    IniWrite, %rtSent%, %INI%, sent, %today%
+}
+
+UpdateOverlay() {
+    global rt, adjust, ovLast
+    total := rt + adjust
+    if (total < 0)
+        total := 0
+    s := Floor(total)
+    m := Mod(s // 60, 60)
+    txt := (s // 3600) . "h " . SubStr("00" . m, -2) . "m"
+    if (txt != ovLast) {
+        GuiControl, ST:, ovTxt, %txt%
+        ovLast := txt
+    }
+}
+
+ApplyOverlay() {
+    global showOverlay, corner, opacity, ovHwnd, ovShown
+    if (!showOverlay) {
+        if (ovShown)
+            Gui, ST:Hide
+        ovShown := 0
+        return
+    }
+    SysGet, wa, MonitorWorkArea
+    w := 76
+    h := 20
+    x := (corner = "bl" || corner = "tl") ? waLeft + 8 : waRight - w - 8
+    y := (corner = "bl" || corner = "br") ? waBottom - h - 6 : waTop + 6
+    a := Round(opacity * 2.55)
+    WinSet, TransColor, 010203 %a%, ahk_id %ovHwnd%
+    Gui, ST:Show, x%x% y%y% w%w% h%h% NoActivate
+    ovShown := 1
+}
+
 DoFlush() {
-    global usage
+    global usage, rt, rtSent, today, DEVICE, breakPending
     Critical
+    SaveRuntime()
     body := ""
     sent := {}
+    rtWhole := Floor(rt - rtSent)
+    if (rtWhole >= 1)
+        body .= "R" . Chr(9) . today . Chr(9) . rtWhole . Chr(10)
+    if (breakPending > 0)
+        body .= "B" . Chr(9) . breakPending . Chr(10)
     for key, secs in usage {
         whole := Floor(secs)
         if (whole < 1)
@@ -366,18 +462,22 @@ DoFlush() {
     r := Http("POST", "/screentime?api=push&device=" . DEVICE, body)
     if (r != "ok")
         return
-    today := A_YYYY . "-" . A_MM . "-" . A_DD
+    if (rtWhole >= 1)
+        rtSent += rtWhole
+    breakPending := 0
+    nowDay := A_YYYY . "-" . A_MM . "-" . A_DD
     for key, whole in sent {
         usage[key] := usage[key] - whole
-        if (usage[key] < 1 && SubStr(key, 1, 10) != today)
+        if (usage[key] < 1 && SubStr(key, 1, 10) != nowDay)
             usage.Remove(key)
     }
+    SaveRuntime()
 }
 
 GetConf() {
-    global idleLimit, ignore, alive
+    global idleLimit, ignore, alive, showOverlay, corner, opacity, adjust, rt, rtSent, today, DEVICE, INI, confSig, breakOn, breakMin
     Critical
-    r := Http("GET", "/screentime?api=conf")
+    r := Http("GET", "/screentime?api=conf&day=" . today . "&device=" . DEVICE)
     if (r = "")
         return
     newIgnore := "|lockapp.exe|logonui.exe|"
@@ -388,17 +488,46 @@ GetConf() {
             continue
         k := SubStr(line, 1, p - 1)
         v := SubStr(line, p + 1)
-        if (k = "idle") {
-            if v is integer
-                if (v >= 30 && v <= 14400)
-                    idleLimit := v
-        } else if (k = "ignore")
+        if (k = "ignore") {
             newIgnore .= v . "|"
-        else if (k = "alive")
+        } else if (k = "alive") {
             newAlive .= v . "|"
+        } else if (IsInt(v)) {
+            n := v + 0
+            if (k = "idle" && n >= 30 && n <= 14400)
+                idleLimit := n
+            else if (k = "overlay")
+                showOverlay := (n ? 1 : 0)
+            else if (k = "opacity" && n >= 10 && n <= 100)
+                opacity := n
+            else if (k = "breakon")
+                breakOn := (n ? 1 : 0)
+            else if (k = "breakmin" && n >= 15 && n <= 480)
+                breakMin := n
+            else if (k = "adjust")
+                adjust := n
+            else if (k = "runtime" && n > rt) {
+                rt := n
+                rtSent := n
+            }
+        } else if (k = "corner" && (v = "bl" || v = "br" || v = "tl" || v = "tr")) {
+            corner := v
+        }
     }
     ignore := newIgnore
     alive := newAlive
+    ApplyOverlay()
+    UpdateOverlay()
+    sig := showOverlay . "|" . corner . "|" . opacity . "|" . idleLimit . "|" . breakOn . "|" . breakMin
+    if (sig != confSig) {
+        confSig := sig
+        IniWrite, %showOverlay%, %INI%, conf, overlay
+        IniWrite, %corner%, %INI%, conf, corner
+        IniWrite, %opacity%, %INI%, conf, opacity
+        IniWrite, %idleLimit%, %INI%, conf, idle
+        IniWrite, %breakOn%, %INI%, conf, breakon
+        IniWrite, %breakMin%, %INI%, conf, breakmin
+    }
 }
 
 Http(method, path, body := "") {
