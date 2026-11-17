@@ -4,6 +4,8 @@
 //   * the PC program      POST /screentime?api=push   (the PC sends its seconds)
 //                         GET  /screentime?api=conf   (the PC reads your settings)
 //                         both need "Authorization: Bearer <SCREENTIME_TOKEN>" and are let through the gate by one line in _middleware.js
+//   * the iPhone          POST /screentime?api=phone&app=<name>&e=open|close   (an iOS Shortcuts automation calls this when an app is opened / closed;
+//                         same Bearer token, same gate line. The time between open and close is stored under the device "iphone", app name "<name> (iphone)")
 //   * the PC program itself (an AutoHotkey v1.1 script) is the SCRIPT text at the bottom; the "Download PC script" button in the
 //     Screen Time screen hands it out with your site address and token already filled in.
 //
@@ -66,9 +68,21 @@ async function getConf(db) {
     breakOn: m.breakon === '0' ? 0 : 1,
     breakMin: bm >= 15 && bm <= 480 ? bm : 120,                      // minutes of non-stop use before the reminder
     lastBreak: parseInt(m.lastbreak, 10) || 0,
+    tz: m.tz || 'UTC',                                               // the page sends your time zone; the iPhone events are cut into days/hours with it
+    phoneOpen: m.phoneopen && m.phoneopen.includes('|') ? { app: m.phoneopen.slice(0, m.phoneopen.lastIndexOf('|')), t: parseInt(m.phoneopen.slice(m.phoneopen.lastIndexOf('|') + 1), 10) || 0 } : null,
   };
 }
 const setConf = (db, k, v) => db.prepare('INSERT INTO screentime_conf (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v').bind(k, String(v)).run();
+
+const tzOk = (z) => { try { new Intl.DateTimeFormat('en-CA', { timeZone: z }); return true; } catch (e) { return false; } };
+// local day, hour and seconds left in that hour, for a moment in time
+function dayHour(ms, tz) {
+  const f = new Intl.DateTimeFormat('en-CA', { timeZone: tzOk(tz) ? tz : 'UTC', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
+  const o = {};
+  for (const p of f.formatToParts(ms)) o[p.type] = p.value;
+  return { day: o.year + '-' + o.month + '-' + o.day, hour: parseInt(o.hour, 10) % 24, left: 3600 - (parseInt(o.minute, 10) * 60 + parseInt(o.second, 10)) };
+}
+const PHONE_MAX = 2 * 3600;   // an open that never got its close (iOS skipped it) is counted for at most this long
 
 export async function onRequest({ request, env }) {
   const url = new URL(request.url);
@@ -135,6 +149,36 @@ export async function onRequest({ request, env }) {
       return res;
     }
 
+    // ───────── from the iPhone (token): an app was opened / closed ─────────
+    if (api === 'phone') {
+      if (!tokenOk(request, env)) return text('Unauthorized', 401);
+      const base = cleanApp(url.searchParams.get('app')).replace(/[()]/g, '').trim();
+      const ev = url.searchParams.get('e');
+      if (!base || (ev !== 'open' && ev !== 'close')) return text('need app=<name> and e=open or e=close', 400);
+      const name = base + ' (iphone)', now = Date.now(), c = await getConf(db), cur = c.phoneOpen;
+      const st = [db.prepare('INSERT INTO screentime_devices (device, last_seen) VALUES (?, ?) ON CONFLICT(device) DO UPDATE SET last_seen = excluded.last_seen').bind('iphone', now)];
+      // only one app is in front at a time: opening any app ends whatever was still "open" (e.g. a close iOS never sent), closing ends the matching one
+      if (cur && cur.t && (ev === 'open' || cur.app === name)) {
+        let secs = Math.min(Math.round((now - cur.t) / 1000), PHONE_MAX);
+        const row = await db.prepare('SELECT counts FROM screentime_apps WHERE app = ?').bind(cur.app).first();
+        if (row && !row.counts) secs = 0;                              // you switched "Counts" off for it on the site
+        if (secs >= 2) {
+          st.push(db.prepare('INSERT OR IGNORE INTO screentime_apps (app) VALUES (?)').bind(cur.app));
+          let t = cur.t, left = secs;
+          while (left >= 1) {                                          // cut at the hour limits of your local time
+            const p = dayHour(t, c.tz), n = Math.min(left, p.left);
+            st.push(db.prepare('INSERT INTO screentime_usage (day, device, app, seconds) VALUES (?, ?, ?, ?) ON CONFLICT(day, device, app) DO UPDATE SET seconds = seconds + excluded.seconds').bind(p.day, 'iphone', cur.app, n));
+            st.push(db.prepare('INSERT INTO screentime_hourly (day, device, hour, seconds) VALUES (?, ?, ?, ?) ON CONFLICT(day, device, hour) DO UPDATE SET seconds = seconds + excluded.seconds').bind(p.day, 'iphone', p.hour, n));
+            st.push(db.prepare('INSERT INTO screentime_runtime (day, device, seconds) VALUES (?, ?, ?) ON CONFLICT(day, device) DO UPDATE SET seconds = seconds + excluded.seconds').bind(p.day, 'iphone', n));
+            t += n * 1000; left -= n;
+          }
+        }
+      }
+      await db.batch(st);
+      await setConf(db, 'phoneopen', ev === 'open' ? name + '|' + now : '');
+      return text('ok');
+    }
+
     if (api === 'conf') {
       if (request.method !== 'GET') return text('Method not allowed', 405);
       if (!tokenOk(request, env)) return text('Unauthorized', 401);
@@ -165,16 +209,22 @@ export async function onRequest({ request, env }) {
       if (!DAY.test(today)) return json({ error: 'bad day' }, 400);
       const bars = Math.min(Math.max(parseInt(b.bars, 10) || 7, 1), 90);
       const range = Math.min(Math.max(parseInt(b.range, 10) || 7, 1), bars);
+      const dev = ['pc', 'phone'].includes(b.dev) ? b.dev : 'all';       // which device(s) to show: both, only the PC, only the iPhone
+      const dq = dev === 'phone' ? " AND device = 'iphone'" : dev === 'pc' ? " AND device != 'iphone'" : '';
+      if (typeof b.tz === 'string' && b.tz.length < 60 && tzOk(b.tz)) {
+        const old = await db.prepare('SELECT v FROM screentime_conf WHERE k = ?').bind('tz').first();
+        if (!old || old.v !== b.tz) await setConf(db, 'tz', b.tz);
+      }
       const barsFrom = shiftDay(today, -(bars - 1));
       const rangeFrom = shiftDay(today, -(range - 1));
 
-      const rt = await db.prepare('SELECT day, SUM(seconds) AS seconds FROM screentime_runtime WHERE day >= ? AND day <= ? GROUP BY day ORDER BY day').bind(barsFrom, today).all();
-      const adj = await db.prepare('SELECT id, day, seconds FROM screentime_adjust WHERE day >= ? AND day <= ? ORDER BY id').bind(barsFrom, today).all();
-      const used = await db.prepare('SELECT app, SUM(seconds) AS seconds FROM screentime_usage WHERE day >= ? AND day <= ? GROUP BY app').bind(rangeFrom, today).all();
-      const days = await db.prepare('SELECT day, SUM(seconds) AS tracked, SUM(CASE WHEN app = ? THEN seconds ELSE 0 END) AS idle FROM screentime_usage WHERE day >= ? AND day <= ? GROUP BY day').bind('(idle)', barsFrom, today).all();
+      const rt = await db.prepare('SELECT day, SUM(seconds) AS seconds FROM screentime_runtime WHERE day >= ? AND day <= ?' + dq + ' GROUP BY day ORDER BY day').bind(barsFrom, today).all();
+      const adj = dev === 'phone' ? { results: [] } : await db.prepare('SELECT id, day, seconds FROM screentime_adjust WHERE day >= ? AND day <= ? ORDER BY id').bind(barsFrom, today).all();   // adjustments are about the PC (AFK)
+      const used = await db.prepare('SELECT app, SUM(seconds) AS seconds FROM screentime_usage WHERE day >= ? AND day <= ?' + dq + ' GROUP BY app').bind(rangeFrom, today).all();
+      const days = await db.prepare('SELECT day, SUM(seconds) AS tracked, SUM(CASE WHEN app = ? THEN seconds ELSE 0 END) AS idle FROM screentime_usage WHERE day >= ? AND day <= ?' + dq + ' GROUP BY day').bind('(idle)', barsFrom, today).all();
       const apps = await db.prepare('SELECT app, counts, alive FROM screentime_apps').all();
       const devices = await db.prepare('SELECT device, last_seen FROM screentime_devices ORDER BY last_seen DESC').all();
-      const hours = range === 1 ? (await db.prepare('SELECT hour, SUM(seconds) AS seconds FROM screentime_hourly WHERE day = ? GROUP BY hour ORDER BY hour').bind(today).all()).results : [];
+      const hours = range === 1 ? (await db.prepare('SELECT hour, SUM(seconds) AS seconds FROM screentime_hourly WHERE day = ?' + dq + ' GROUP BY hour ORDER BY hour').bind(today).all()).results : [];
       const c = await getConf(db);
 
       const secs = {};
@@ -246,6 +296,11 @@ export async function onRequest({ request, env }) {
       return json({ ok: 1 });
     }
 
+    if (api === 'key') {                                              // the phone setup sheet copies this into the Shortcuts "Authorization" header
+      if (!env.SCREENTIME_TOKEN) return text('Add the secret SCREENTIME_TOKEN in Cloudflare Pages (Settings -> Variables and Secrets), redeploy, then try again.', 503);
+      return text('Bearer ' + env.SCREENTIME_TOKEN);
+    }
+
     if (api === 'script') {
       if (!env.SCREENTIME_TOKEN) return text('Add the secret SCREENTIME_TOKEN in Cloudflare Pages (Settings -> Variables and Secrets), redeploy, then try again.', 503);
       const body = SCRIPT.split('__SERVER__').join(url.origin).split('__TOKEN__').join(env.SCREENTIME_TOKEN).replace(/\n/g, '\r\n');
@@ -267,7 +322,9 @@ const SCRIPT = `; Screen Time tracker - AutoHotkey v1.1
 ; then it only sends:
 ;  - how long the PC has been on today (shown faintly in a screen corner; if the script is opened later than Windows
 ;    started, it catches up on the time it missed)
-;  - every 5 seconds the program in front gets those seconds (program names like chrome.exe only, never titles or keys)
+;  - every 5 seconds the program in front gets those seconds (program names like chrome.exe only, never titles or keys).
+;    The one exception is a yes/no: when a browser window in front is showing YouTube, the seconds go to "youtube.com" instead of
+;    "chrome.exe", so watching videos is kept apart from other browsing. The page title is only checked on this PC, never sent.
 ;  - after a long non-stop stretch (you choose how long on the site) the site sends a break reminder to your phone
 ; Totals go to the site once a minute. Your settings (overlay, idle time, which programs count ...) are checked on the
 ; site every 30 seconds, so everything is controlled from the Screen Time screen and nothing here needs editing.
@@ -353,6 +410,7 @@ hk := d . "|" . (A_Hour + 0)
 hrs[hk] := (hrs.HasKey(hk) ? hrs[hk] : 0) + gap
 WinGet, exe, ProcessName, A
 StringLower, exe, exe
+exe := SiteName(exe)
 TrackApp(gap, exe)
 Streak(gap, exe)
 UpdateOverlay()
@@ -395,6 +453,16 @@ ExitSub:
 DoFlush()
 ExitApp
 return
+
+; a browser window that is showing YouTube counts as "youtube.com", every other browser window keeps its program name
+SiteName(exe) {
+    if (exe != "chrome.exe" && exe != "msedge.exe" && exe != "firefox.exe" && exe != "brave.exe" && exe != "opera.exe" && exe != "vivaldi.exe")
+        return exe
+    WinGetTitle, ttl, A
+    if RegExMatch(ttl, "(^|- )YouTube( and [0-9]+ more pages?)?( [^A-Za-z0-9]|$)")
+        return "youtube.com"
+    return exe
+}
 
 IsInt(v) {
     return RegExMatch(v, "^-?[0-9]+$")
