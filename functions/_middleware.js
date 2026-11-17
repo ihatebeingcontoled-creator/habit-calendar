@@ -3296,7 +3296,7 @@ async function onRequest({ request, env }) {
 })();
 
 // version counter of THIS file (added into the number shown in the page corner; bump it only when this file changes)
-const FILE_VERSION = 5;
+const FILE_VERSION = 6;
 const M_version = { onRequest: () => new Response(JSON.stringify({ v: FILE_VERSION }), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } }) };
 
 // ================================ ROUTER ================================
@@ -3409,7 +3409,19 @@ export async function onRequest(ctx) {
   // things that must stay reachable without a cookie
   if (path === '/api/push-check') return next();
   if (path === '/api/spend' && /^Bearer\s/i.test(request.headers.get('Authorization') || '')) return next();
-  if (path === '/screentime' && /^Bearer\s/i.test(request.headers.get('Authorization') || '') && ['push', 'conf'].includes(url.searchParams.get('api'))) return next();   // the PC tracker; screentime.js checks SCREENTIME_TOKEN itself
+  if (path === '/screentime' && /^Bearer\s/i.test(request.headers.get('Authorization') || '') && ['push', 'conf'].includes(url.searchParams.get('api'))) {
+    // the PC tracker; screentime.js checks SCREENTIME_TOKEN itself. When it asks for a break reminder (header X-Screentime-Alert)
+    // the message goes out through the same push sender as /api/test-push, to every subscribed phone.
+    const res = await next();
+    const alertRaw = res.headers.get('X-Screentime-Alert');
+    if (!alertRaw) return res;
+    try {
+      await routeApi({ request: new Request(url.origin + '/api/test-push', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: decodeURIComponent(alertRaw) }), env });
+    } catch (e) {}
+    const out = new Response(res.body, res);
+    out.headers.delete('X-Screentime-Alert');
+    return out;
+  }
   if (path === '/manifest.json' || path === '/favicon.png') return next();
 
   if (!env.code) {
