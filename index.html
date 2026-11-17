@@ -14983,5 +14983,32 @@ body.night-mode .st-fab { background: rgba(40,40,42,.92); color: #f5f5f5; }
   var fabTick = setInterval(function () { fab.style.display = ov.hidden ? '' : 'none'; }, 300);
 })();
 </script>
+<script>
+/* Month cells: every title is scaled to fill its day box - short words like "Fisch" grow, long descriptions shrink until everything fits. */
+(function () {
+  var grid = document.getElementById('daysGrid'); if (!grid) return;
+  var MIN = 5.5, MAX = 18, queued = false;
+  function fitOne(el) {
+    var cell = el.parentElement; if (!cell || !cell.clientWidth) return;
+    var cs = getComputedStyle(cell);
+    var w = cell.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    var h = cell.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+    if (w < 10 || h < 8) return;
+    el.style.width = w + 'px'; el.style.lineHeight = '1.15'; el.style.padding = '0'; el.style.overflow = 'hidden';
+    var lo = MIN, hi = MAX;
+    for (var i = 0; i < 9; i++) {
+      var mid = (lo + hi) / 2; el.style.fontSize = mid + 'px';
+      if (el.scrollHeight <= h + 0.5 && el.scrollWidth <= w + 0.5) lo = mid; else hi = mid;
+    }
+    el.style.fontSize = lo + 'px';
+  }
+  function fitAll() { queued = false; Array.prototype.forEach.call(grid.querySelectorAll('.day-title'), fitOne); }
+  function queue() { if (queued) return; queued = true; requestAnimationFrame(fitAll); }
+  new MutationObserver(queue).observe(grid, { childList: true, subtree: true });
+  window.addEventListener('resize', queue);
+  if (window.ResizeObserver) new ResizeObserver(queue).observe(grid);
+  queue(); setTimeout(queue, 400);
+})();
+</script>
 </body>
 </html>
