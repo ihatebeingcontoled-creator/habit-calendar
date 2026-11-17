@@ -4,7 +4,7 @@
 //   * the PC program      POST /screentime?api=push   (the PC sends its seconds)
 //                         GET  /screentime?api=conf   (the PC reads your settings)
 //                         both need "Authorization: Bearer <SCREENTIME_TOKEN>" and are let through the gate by one line in _middleware.js
-//   * the iPhone          POST /screentime?api=phone&app=<name>&e=open|close   (an iOS Shortcuts automation calls this when an app is opened / closed;
+//   * the iPhone          POST /screentime?api=phone&app=<name>&e=open|close   (e=close may leave app out: it then ends whatever is open)   (an iOS Shortcuts automation calls this when an app is opened / closed;
 //                         same Bearer token, same gate line. The time between open and close is stored under the device "iphone", app name "<name> (iphone)")
 //   * the PC program itself (an AutoHotkey v1.1 script) is the SCRIPT text at the bottom; the "Download PC script" button in the
 //     Screen Time screen hands it out with your site address and token already filled in.
@@ -164,11 +164,16 @@ export async function onRequest({ request, env }) {
       if (!tokenOk(request, env)) return text('Unauthorized', 401);
       const base = cleanApp(url.searchParams.get('app')).replace(/[()]/g, '').trim();
       const ev = url.searchParams.get('e');
-      if (!base || (ev !== 'open' && ev !== 'close')) return text('need app=<name> and e=open or e=close', 400);
-      const name = base + ' (iphone)', now = Date.now(), c = await getConf(db), cur = c.phoneOpen;
+      if ((ev !== 'open' && ev !== 'close') || (ev === 'open' && !base)) return text('need e=open with app=<name>, or e=close (app is optional for close)', 400);
+      const name = base ? base + ' (iphone)' : '', now = Date.now(), c = await getConf(db), cur = c.phoneOpen;
+      // a close with no app name (the "all apps" Shortcuts setup) ends whatever is open, unless an app was opened in the last 3 seconds:
+      // when you switch from app A to app B, iOS can send B's open before A's close, and that close must not end B
+      const anyClose = ev === 'close' && !base;
+      let keep = false;
       const st = [db.prepare('INSERT INTO screentime_devices (device, last_seen) VALUES (?, ?) ON CONFLICT(device) DO UPDATE SET last_seen = excluded.last_seen').bind('iphone', now)];
       // only one app is in front at a time: opening any app ends whatever was still "open" (e.g. a close iOS never sent), closing ends the matching one
-      if (cur && cur.t && (ev === 'open' || cur.app === name)) {
+      if (anyClose && cur && cur.t && now - cur.t < 3000) keep = true;
+      if (cur && cur.t && !keep && (ev === 'open' || anyClose || cur.app === name)) {
         let secs = Math.min(Math.round((now - cur.t) / 1000), PHONE_MAX);
         const row = await db.prepare('SELECT counts FROM screentime_apps WHERE app = ?').bind(cur.app).first();
         if (row && !row.counts) secs = 0;                              // you switched "Counts" off for it on the site
@@ -186,7 +191,8 @@ export async function onRequest({ request, env }) {
         }
       }
       await db.batch(st);
-      await setConf(db, 'phoneopen', ev === 'open' ? name + '|' + now : '');
+      if (ev === 'open') await setConf(db, 'phoneopen', name + '|' + now);
+      else if (!keep && cur && (anyClose || cur.app === name)) await setConf(db, 'phoneopen', '');
       return text('ok');
     }
 
