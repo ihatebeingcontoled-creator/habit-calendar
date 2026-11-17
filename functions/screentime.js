@@ -61,6 +61,7 @@ async function getConf(db) {
     corner: CORNERS.includes(m.corner) ? m.corner : 'bl',
     opacity: op >= 10 && op <= 100 ? op : 55,                        // percent
     desk: m.desk === '0' ? 0 : 1,                                    // 1 = show the counter only when no program window is open
+    idleCounts: m.idlecounts === '0' ? 0 : 1,                        // 1 = PC idle time counts toward the PC on-time
     colors: m.colors === '0' ? 0 : 1,                                // colour the days by how they compare with the average
     breakOn: m.breakon === '0' ? 0 : 1,
     breakMin: bm >= 15 && bm <= 480 ? bm : 120,                      // minutes of non-stop use before the reminder
@@ -170,6 +171,7 @@ export async function onRequest({ request, env }) {
       const rt = await db.prepare('SELECT day, SUM(seconds) AS seconds FROM screentime_runtime WHERE day >= ? AND day <= ? GROUP BY day ORDER BY day').bind(barsFrom, today).all();
       const adj = await db.prepare('SELECT id, day, seconds FROM screentime_adjust WHERE day >= ? AND day <= ? ORDER BY id').bind(barsFrom, today).all();
       const used = await db.prepare('SELECT app, SUM(seconds) AS seconds FROM screentime_usage WHERE day >= ? AND day <= ? GROUP BY app').bind(rangeFrom, today).all();
+      const days = await db.prepare('SELECT day, SUM(seconds) AS tracked, SUM(CASE WHEN app = ? THEN seconds ELSE 0 END) AS idle FROM screentime_usage WHERE day >= ? AND day <= ? GROUP BY day').bind('(idle)', barsFrom, today).all();
       const apps = await db.prepare('SELECT app, counts, alive FROM screentime_apps').all();
       const devices = await db.prepare('SELECT device, last_seen FROM screentime_devices ORDER BY last_seen DESC').all();
       const hours = range === 1 ? (await db.prepare('SELECT hour, SUM(seconds) AS seconds FROM screentime_hourly WHERE day = ? GROUP BY hour ORDER BY hour').bind(today).all()).results : [];
@@ -184,8 +186,8 @@ export async function onRequest({ request, env }) {
         .slice(0, 150);
 
       return json({
-        rt: rt.results, hours, adj: adj.results, apps: list, pseudo: used.results.filter((r) => r.app.startsWith('(')), devices: devices.results, now: Date.now(),
-        conf: { idle: Math.round(c.idle / 60), overlay: c.overlay, corner: c.corner, opacity: c.opacity, desk: c.desk, breakOn: c.breakOn, breakMin: c.breakMin, colors: c.colors },
+        rt: rt.results, days: days.results, hours, adj: adj.results, apps: list, pseudo: used.results.filter((r) => r.app.startsWith('(')), devices: devices.results, now: Date.now(),
+        conf: { idle: Math.round(c.idle / 60), overlay: c.overlay, corner: c.corner, opacity: c.opacity, desk: c.desk, idleCounts: c.idleCounts, breakOn: c.breakOn, breakMin: c.breakMin, colors: c.colors },
       });
     }
 
@@ -200,6 +202,7 @@ export async function onRequest({ request, env }) {
       }
       if (b.overlay !== undefined) { await setConf(db, 'overlay', b.overlay ? 1 : 0); return json({ ok: 1 }); }
       if (b.desk !== undefined) { await setConf(db, 'desk', b.desk ? 1 : 0); return json({ ok: 1 }); }
+      if (b.idleCounts !== undefined) { await setConf(db, 'idlecounts', b.idleCounts ? 1 : 0); return json({ ok: 1 }); }
       if (b.colors !== undefined) { await setConf(db, 'colors', b.colors ? 1 : 0); return json({ ok: 1 }); }
       if (b.breakOn !== undefined) { await setConf(db, 'breakon', b.breakOn ? 1 : 0); return json({ ok: 1 }); }
       if (b.breakMin !== undefined) {
