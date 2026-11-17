@@ -14667,14 +14667,18 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
     </div>
   </div>
   <div class="st-sheet" id="stSheet2" hidden>
-    <div class="st-card">
+    <div class="st-card" style="max-height:92%;overflow:auto">
       <div class="st-h">Set up the iPhone</div>
-      <div class="st-mut" style="margin-top:4px">iOS does not let a website read Apple's Screen Time. Instead the Shortcuts app tells this site when an app you pick is opened and closed. Do this once per app, with two automations (open and close).</div>
-      <ol><li>Type the app name here: <input type="text" id="stPhApp" placeholder="instagram" style="font:inherit;font-size:14px;border:1.5px solid #e2e2e6;border-radius:9px;padding:5px 8px;width:140px;background:transparent;color:inherit"></li>
-      <li>Shortcuts &rarr; <b>Automation</b> &rarr; <b>+</b> &rarr; <b>App</b> &rarr; pick the app &rarr; tick <b>Is Opened</b> only &rarr; <b>Run Immediately</b> &rarr; New Blank Automation &rarr; add <b>Get Contents of URL</b>.</li>
-      <li><button type="button" class="st-btn sm" id="stPhOpen">Copy open URL</button> and paste it as the URL. Tap <b>Show More</b>: Method <b>POST</b>, add a header named <code>Authorization</code> with the value from <button type="button" class="st-btn ghost sm" id="stPhKey">Copy header value</button></li>
-      <li>Repeat with <b>Is Closed</b> only, and <button type="button" class="st-btn sm" id="stPhClose">Copy close URL</button> as the URL.</li></ol>
-      <div class="st-mut" style="margin-top:8px;font-size:11.5px">This measures time inside the apps you set up, so it will not match Apple's own total.</div>
+      <div class="st-mut" style="margin-top:4px">iOS does not let a website read Apple's Screen Time, so the Shortcuts app tells this site when you open and close apps. Needs iOS 18.2 or newer (the "Get Current App" action). Two automations cover every app you tick.</div>
+      <div class="st-adjrow"><button type="button" class="st-btn ghost sm" id="stPhKey">1. Copy header value</button><button type="button" class="st-btn sm" id="stPhOpenAll">2. Copy open address</button><button type="button" class="st-btn sm" id="stPhCloseAll">3. Copy close address</button></div>
+      <ol><li><b>Opened:</b> Shortcuts &rarr; Automation &rarr; <b>+</b> &rarr; <b>App</b> &rarr; <b>Choose</b>, tick every app you want counted &rarr; <b>Is Opened</b> only &rarr; <b>Run Immediately</b> (Notify When Run off) &rarr; Next &rarr; New Blank Automation.</li>
+      <li>Add action <b>Get Current App</b>. Then add <b>Get Contents of URL</b>: paste the open address (button 2), then tap the end of the address and insert the variable <b>Current App</b> (choose its <b>Name</b>). Show More: Method <b>POST</b>, Add New Header <code>Authorization</code> = the header value (button 1). Done.</li>
+      <li><b>Closed:</b> a second automation with the same apps, <b>Is Closed</b> only, Run Immediately. Its only action is <b>Get Contents of URL</b> with the close address (button 3), Method <b>POST</b>, the same Authorization header. No Current App needed.</li></ol>
+      <details style="margin-top:8px"><summary class="st-mut" style="cursor:pointer">Older iPhone or one app only</summary>
+        <div class="st-mut" style="margin-top:6px">Type the app name, then make two automations for that app (Opened with the open address, Closed with the close address), each with one Get Contents of URL action, POST, and the Authorization header.</div>
+        <div class="st-adjrow"><input type="text" id="stPhApp" placeholder="instagram" style="font:inherit;font-size:14px;border:1.5px solid #e2e2e6;border-radius:9px;padding:5px 8px;width:140px;background:transparent;color:inherit"><button type="button" class="st-btn sm" id="stPhOpen">Copy open address</button><button type="button" class="st-btn sm" id="stPhClose">Copy close address</button></div>
+      </details>
+      <div class="st-mut" style="margin-top:8px;font-size:11.5px">This measures time inside the apps you tick, so it will not match Apple's own total.</div>
       <div class="st-err" id="stPhErr"></div>
       <div style="margin-top:12px;text-align:right"><button type="button" class="st-btn ghost" id="stSheet2Close">Close</button></div>
     </div>
@@ -14762,7 +14766,7 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
     if (progOn) {
       legEl.innerHTML = '<span><i style="background:#ef4444"></i>YouTube</span><span><i style="background:#22c55e"></i>Chrome</span><span><i style="background:#8b5e3c"></i>everything else</span>' + (hourly ? '<span><i style="background:#9a9aa1"></i>no program info (recorded earlier)</span>' : '<span><i style="background:rgba(128,128,128,.6);width:3px"></i>your average</span>'); legEl.style.display = '';
     } else { legEl.innerHTML = legEl._avg; legEl.style.display = colorsOn && !hourly ? '' : 'none'; }
-    function seg(par, secs, col) { if (secs <= 0) return; var sp = document.createElement('span'); sp.style.flex = secs + ' 1 0'; sp.style.background = col; par.appendChild(sp); }
+    function seg(par, secs, col, label) { if (secs <= 0) return; var sp = document.createElement('span'); sp.style.flex = secs + ' 1 0'; sp.style.background = col; if (label) sp.title = label + ' ' + fmtShort(secs); par.appendChild(sp); }
     axis.innerHTML = ''; hp.innerHTML = '';
     for (var gv = step; gv <= axisMax; gv += step) {
       var gl = document.createElement('span'); gl.textContent = axisLabel(gv); gl.style.left = (gv / axisMax * 100) + '%'; axis.appendChild(gl);
@@ -14778,7 +14782,7 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
       if (progOn && x.v) {   // split by program: red YouTube | green Chrome | brown everything else
         bar.style.display = 'flex'; bar.style.overflow = 'hidden';
         var sy = Math.min(Math.max(x.yt, 0), x.v), sc = Math.min(Math.max(x.ch, 0), x.v - sy);
-        if (!x.g) seg(bar, x.v, '#9a9aa1'); else { seg(bar, sy, '#ef4444'); seg(bar, sc, '#22c55e'); seg(bar, x.v - sy - sc, '#8b5e3c'); }
+        if (!x.g) seg(bar, x.v, '#9a9aa1'); else { seg(bar, sy, '#ef4444', 'YouTube'); seg(bar, sc, '#22c55e', 'Productive'); seg(bar, x.v - sy - sc, '#8b5e3c', 'Other'); }
       } else bar.style.background = colourFor(x.v);
       tr.appendChild(bar);
       if (x.v) {
@@ -14932,6 +14936,8 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
     if (!a) { $('stPhErr').textContent = 'Type the app name first.'; $('stPhApp').focus(); return null; }
     $('stPhErr').textContent = ''; return location.origin + '/screentime?api=phone&app=' + encodeURIComponent(a) + '&e=' + ev;
   }
+  $('stPhOpenAll').onclick = function () { copyText(location.origin + '/screentime?api=phone&e=open&app='); };
+  $('stPhCloseAll').onclick = function () { copyText(location.origin + '/screentime?api=phone&e=close'); };
   $('stPhOpen').onclick = function () { var u = phUrl('open'); if (u) copyText(u); };
   $('stPhClose').onclick = function () { var u = phUrl('close'); if (u) copyText(u); };
   $('stPhKey').onclick = function () { post('key').then(function (r) { return r.text(); }).then(copyText).catch(function () { $('stPhErr').textContent = 'Could not get the key. Check that the secret SCREENTIME_TOKEN is set in Cloudflare Pages and the site is redeployed.'; }); };
