@@ -39,7 +39,10 @@ function ensure(db) {
     db.prepare('CREATE TABLE IF NOT EXISTS screentime_runtime (day TEXT NOT NULL, device TEXT NOT NULL, seconds INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, device))'),
     db.prepare('CREATE TABLE IF NOT EXISTS screentime_hourly (day TEXT NOT NULL, device TEXT NOT NULL, hour INTEGER NOT NULL, seconds INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, device, hour))'),
     db.prepare('CREATE TABLE IF NOT EXISTS screentime_adjust (id INTEGER PRIMARY KEY AUTOINCREMENT, day TEXT NOT NULL, seconds INTEGER NOT NULL, created INTEGER)'),
-  ]).catch((e) => { ready = null; throw e; });
+    db.prepare('CREATE TABLE IF NOT EXISTS screentime_hourly_grp (day TEXT NOT NULL, device TEXT NOT NULL, hour INTEGER NOT NULL, grp TEXT NOT NULL, seconds INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, device, hour, grp))'),
+  ])
+    .then(() => db.prepare('ALTER TABLE screentime_adjust ADD COLUMN app TEXT').run().catch(() => {}))   // which program an adjustment belongs to (ignored if the column already exists)
+    .catch((e) => { ready = null; throw e; });
   return ready;
 }
 
@@ -65,6 +68,7 @@ async function getConf(db) {
     desk: m.desk === '0' ? 0 : 1,                                    // 1 = show the counter only when no program window is open
     idleCounts: m.idlecounts === '0' ? 0 : 1,                        // 1 = PC idle time counts toward the PC on-time
     colors: m.colors === '0' ? 0 : 1,                                // colour the days by how they compare with the average
+    progColors: m.progcolors === '0' ? 0 : 1,                        // colour the bars by program instead: red = YouTube, green = Chrome, brown = everything else
     breakOn: m.breakon === '0' ? 0 : 1,
     breakMin: bm >= 15 && bm <= 480 ? bm : 120,                      // minutes of non-stop use before the reminder
     lastBreak: parseInt(m.lastbreak, 10) || 0,
@@ -116,6 +120,12 @@ export async function onRequest({ request, env }) {
           const hr = parseInt(f[2], 10), secs = parseInt(f[3], 10);
           if (DAY.test(f[1] || '') && hr >= 0 && hr <= 23 && secs >= 1)
             st.push(db.prepare('INSERT INTO screentime_hourly (day, device, hour, seconds) VALUES (?, ?, ?, ?) ON CONFLICT(day, device, hour) DO UPDATE SET seconds = seconds + excluded.seconds').bind(f[1], device, hr, Math.min(secs, 3600)));
+          continue;
+        }
+        if (f[0] === 'G') {                                           // G <tab> day <tab> hour <tab> y|c|o <tab> seconds   = time in one colour group inside one hour
+          const hr = parseInt(f[2], 10), secs = parseInt(f[4], 10);
+          if (DAY.test(f[1] || '') && hr >= 0 && hr <= 23 && ['y', 'c', 'o'].includes(f[3]) && secs >= 1)
+            st.push(db.prepare('INSERT INTO screentime_hourly_grp (day, device, hour, grp, seconds) VALUES (?, ?, ?, ?, ?) ON CONFLICT(day, device, hour, grp) DO UPDATE SET seconds = seconds + excluded.seconds').bind(f[1], device, hr, f[3], Math.min(secs, 3600)));
           continue;
         }
         if (f[0] === 'R') {                                           // R <tab> day <tab> seconds   = PC-on time
@@ -170,6 +180,7 @@ export async function onRequest({ request, env }) {
             st.push(db.prepare('INSERT INTO screentime_usage (day, device, app, seconds) VALUES (?, ?, ?, ?) ON CONFLICT(day, device, app) DO UPDATE SET seconds = seconds + excluded.seconds').bind(p.day, 'iphone', cur.app, n));
             st.push(db.prepare('INSERT INTO screentime_hourly (day, device, hour, seconds) VALUES (?, ?, ?, ?) ON CONFLICT(day, device, hour) DO UPDATE SET seconds = seconds + excluded.seconds').bind(p.day, 'iphone', p.hour, n));
             st.push(db.prepare('INSERT INTO screentime_runtime (day, device, seconds) VALUES (?, ?, ?) ON CONFLICT(day, device) DO UPDATE SET seconds = seconds + excluded.seconds').bind(p.day, 'iphone', n));
+            st.push(db.prepare('INSERT INTO screentime_hourly_grp (day, device, hour, grp, seconds) VALUES (?, ?, ?, ?, ?) ON CONFLICT(day, device, hour, grp) DO UPDATE SET seconds = seconds + excluded.seconds').bind(p.day, 'iphone', p.hour, base === 'youtube' ? 'y' : base === 'chrome' ? 'c' : 'o', n));
             t += n * 1000; left -= n;
           }
         }
@@ -219,12 +230,13 @@ export async function onRequest({ request, env }) {
       const rangeFrom = shiftDay(today, -(range - 1));
 
       const rt = await db.prepare('SELECT day, SUM(seconds) AS seconds FROM screentime_runtime WHERE day >= ? AND day <= ?' + dq + ' GROUP BY day ORDER BY day').bind(barsFrom, today).all();
-      const adj = dev === 'phone' ? { results: [] } : await db.prepare('SELECT id, day, seconds FROM screentime_adjust WHERE day >= ? AND day <= ? ORDER BY id').bind(barsFrom, today).all();   // adjustments are about the PC (AFK)
+      const adj = dev === 'phone' ? { results: [] } : await db.prepare('SELECT id, day, seconds, app FROM screentime_adjust WHERE day >= ? AND day <= ? ORDER BY id').bind(barsFrom, today).all();   // adjustments are about the PC (AFK)
       const used = await db.prepare('SELECT app, SUM(seconds) AS seconds FROM screentime_usage WHERE day >= ? AND day <= ?' + dq + ' GROUP BY app').bind(rangeFrom, today).all();
-      const days = await db.prepare('SELECT day, SUM(seconds) AS tracked, SUM(CASE WHEN app = ? THEN seconds ELSE 0 END) AS idle FROM screentime_usage WHERE day >= ? AND day <= ?' + dq + ' GROUP BY day').bind('(idle)', barsFrom, today).all();
+      const days = await db.prepare('SELECT day, SUM(seconds) AS tracked, SUM(CASE WHEN app = ? THEN seconds ELSE 0 END) AS idle, SUM(CASE WHEN app IN (?, ?) THEN seconds ELSE 0 END) AS yt, SUM(CASE WHEN app IN (?, ?) THEN seconds ELSE 0 END) AS chrome FROM screentime_usage WHERE day >= ? AND day <= ?' + dq + ' GROUP BY day').bind('(idle)', 'youtube.com', 'youtube (iphone)', 'chrome.exe', 'chrome (iphone)', barsFrom, today).all();
       const apps = await db.prepare('SELECT app, counts, alive FROM screentime_apps').all();
       const devices = await db.prepare('SELECT device, last_seen FROM screentime_devices ORDER BY last_seen DESC').all();
       const hours = range === 1 ? (await db.prepare('SELECT hour, SUM(seconds) AS seconds FROM screentime_hourly WHERE day = ?' + dq + ' GROUP BY hour ORDER BY hour').bind(today).all()).results : [];
+      const hoursG = range === 1 ? (await db.prepare('SELECT hour, grp, SUM(seconds) AS seconds FROM screentime_hourly_grp WHERE day = ?' + dq + ' GROUP BY hour, grp').bind(today).all()).results : [];
       const c = await getConf(db);
 
       const secs = {};
@@ -236,8 +248,8 @@ export async function onRequest({ request, env }) {
         .slice(0, 150);
 
       return json({
-        rt: rt.results, days: days.results, hours, adj: adj.results, apps: list, pseudo: used.results.filter((r) => r.app.startsWith('(')), devices: devices.results, now: Date.now(),
-        conf: { idle: Math.round(c.idle / 60), overlay: c.overlay, corner: c.corner, opacity: c.opacity, desk: c.desk, idleCounts: c.idleCounts, breakOn: c.breakOn, breakMin: c.breakMin, colors: c.colors },
+        rt: rt.results, days: days.results, hours, hoursG, adj: adj.results, apps: list, pseudo: used.results.filter((r) => r.app.startsWith('(')), devices: devices.results, now: Date.now(),
+        conf: { idle: Math.round(c.idle / 60), overlay: c.overlay, corner: c.corner, opacity: c.opacity, desk: c.desk, idleCounts: c.idleCounts, breakOn: c.breakOn, breakMin: c.breakMin, colors: c.colors, progColors: c.progColors },
       });
     }
 
@@ -253,6 +265,7 @@ export async function onRequest({ request, env }) {
       if (b.overlay !== undefined) { await setConf(db, 'overlay', b.overlay ? 1 : 0); return json({ ok: 1 }); }
       if (b.desk !== undefined) { await setConf(db, 'desk', b.desk ? 1 : 0); return json({ ok: 1 }); }
       if (b.idleCounts !== undefined) { await setConf(db, 'idlecounts', b.idleCounts ? 1 : 0); return json({ ok: 1 }); }
+      if (b.progColors !== undefined) { await setConf(db, 'progcolors', b.progColors ? 1 : 0); return json({ ok: 1 }); }
       if (b.colors !== undefined) { await setConf(db, 'colors', b.colors ? 1 : 0); return json({ ok: 1 }); }
       if (b.breakOn !== undefined) { await setConf(db, 'breakon', b.breakOn ? 1 : 0); return json({ ok: 1 }); }
       if (b.breakMin !== undefined) {
@@ -277,7 +290,8 @@ export async function onRequest({ request, env }) {
       if (b.adjDay !== undefined) {
         const m = Math.round(Number(b.adjMin));
         if (!DAY.test(String(b.adjDay)) || !m || Math.abs(m) > 1440) return json({ error: 'bad adjustment' }, 400);
-        await db.prepare('INSERT INTO screentime_adjust (day, seconds, created) VALUES (?, ?, ?)').bind(String(b.adjDay), m * 60, Date.now()).run();
+        const adjApp = b.adjApp ? cleanApp(b.adjApp) : null;            // the program this time belongs to (empty = just the whole day)
+        await db.prepare('INSERT INTO screentime_adjust (day, seconds, created, app) VALUES (?, ?, ?, ?)').bind(String(b.adjDay), m * 60, Date.now(), adjApp || null).run();
         return json({ ok: 1 });
       }
       if (b.delAdj !== undefined) {
@@ -360,6 +374,7 @@ breakPending := 0
 rt := 0
 rtSent := 0
 hrs := {}
+grp := {}
 synced := 0
 confTries := 0
 lastTick := A_TickCount
@@ -538,9 +553,13 @@ TrackApp(gap, exe) {
 }
 
 Bump(name, gap) {
-    global usage
+    global usage, grp
     key := A_YYYY . "-" . A_MM . "-" . A_DD . "|" . name
     usage[key] := (usage.HasKey(key) ? usage[key] : 0) + gap
+    ; per hour and per colour group (y = YouTube, c = Chrome, o = everything else) for the coloured bars on the site
+    g := (name = "youtube.com") ? "y" : (name = "chrome.exe") ? "c" : "o"
+    gk := A_YYYY . "-" . A_MM . "-" . A_DD . "|" . (A_Hour + 0) . "|" . g
+    grp[gk] := (grp.HasKey(gk) ? grp[gk] : 0) + gap
 }
 
 ; the PC stayed on past midnight: a new day starts at zero
@@ -644,11 +663,20 @@ ApplyOverlay() {
 }
 
 DoFlush() {
-    global usage, rt, rtSent, today, DEVICE, breakPending, synced, hrs
+    global usage, rt, rtSent, today, DEVICE, breakPending, synced, hrs, grp
     Critical
     body := ""
     sent := {}
     hsent := {}
+    gsent := {}
+    for gkey, gsecs in grp {
+        gw := Floor(gsecs)
+        if (gw < 1)
+            continue
+        gp := StrSplit(gkey, "|")
+        body .= "G" . Chr(9) . gp[1] . Chr(9) . gp[2] . Chr(9) . gp[3] . Chr(9) . gw . Chr(10)
+        gsent[gkey] := gw
+    }
     if (synced) {
         for hkey, hsecs in hrs {
             hw := Floor(hsecs)
@@ -683,6 +711,11 @@ DoFlush() {
         rtSent += rtWhole
     for hkey, hw in hsent
         hrs[hkey] := hrs[hkey] - hw
+    for gkey, gw in gsent {
+        grp[gkey] := grp[gkey] - gw
+        if (grp[gkey] < 1)
+            grp.Remove(gkey)
+    }
     breakPending := 0
     nowDay := A_YYYY . "-" . A_MM . "-" . A_DD
     for key, whole in sent {
