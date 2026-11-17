@@ -3296,7 +3296,7 @@ async function onRequest({ request, env }) {
 })();
 
 // version counter of THIS file (added into the number shown in the page corner; bump it only when this file changes)
-const FILE_VERSION = 4;
+const FILE_VERSION = 5;
 const M_version = { onRequest: () => new Response(JSON.stringify({ v: FILE_VERSION }), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } }) };
 
 // ================================ ROUTER ================================
@@ -3345,6 +3345,8 @@ async function routeApi(ctx) {
 //   /api/push-check        called by the outside cron job that sends notifications (it was already open before)
 //   /api/spend             Apple Pay shortcut — only when it sends "Authorization: Bearer ...",
 //                          and spend.js checks that token itself
+//   /screentime?api=push|conf   the Screen Time program on the PC — only with "Authorization: Bearer ...";
+//                          functions/screentime.js checks that token (SCREENTIME_TOKEN) itself
 //   /manifest.json, /favicon.png   Chrome fetches these without cookies (needed for "Add to home screen")
 
 const COOKIE = 'site_access';
@@ -3407,6 +3409,7 @@ export async function onRequest(ctx) {
   // things that must stay reachable without a cookie
   if (path === '/api/push-check') return next();
   if (path === '/api/spend' && /^Bearer\s/i.test(request.headers.get('Authorization') || '')) return next();
+  if (path === '/screentime' && /^Bearer\s/i.test(request.headers.get('Authorization') || '') && ['push', 'conf'].includes(url.searchParams.get('api'))) return next();   // the PC tracker; screentime.js checks SCREENTIME_TOKEN itself
   if (path === '/manifest.json' || path === '/favicon.png') return next();
 
   if (!env.code) {
