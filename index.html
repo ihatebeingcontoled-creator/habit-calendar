@@ -14621,7 +14621,7 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
     <div class="st-cols">
       <div class="st-c1">
         <div class="st-card grow" data-s="time">
-          <div class="st-top2"><div><div class="st-mut" id="stLabel">PC on-time</div><div class="st-big" id="stBig">&hellip;</div></div><div class="st-mut" id="stAvg"></div></div>
+          <div class="st-top2"><div><div class="st-mut" id="stLabel">PC on-time</div><div class="st-big" id="stBig">&hellip;</div></div><div style="text-align:right"><div class="st-tabs" id="stDev"><button type="button" data-d="all" class="on">All</button><button type="button" data-d="pc">PC</button><button type="button" data-d="phone">iPhone</button></div><div class="st-mut" id="stAvg" style="margin-top:4px"></div></div></div>
           <div class="st-axis" id="stAxis"></div>
           <div class="st-hplot" id="stRows"></div>
           <div class="st-legend" id="stLegend"><span><i style="background:#22c55e"></i>far below average</span><span><i style="background:#eab308"></i>a bit below</span><span><i style="background:#0a84ff"></i>around average</span><span><i style="background:#ef4444"></i>above average</span><span><i style="background:rgba(128,128,128,.6);width:3px"></i>your average</span></div>
@@ -14646,7 +14646,7 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
           <div class="st-mut" id="stAppsEmpty" style="display:none;margin-top:8px">Nothing yet. Programs appear here as soon as the PC program sends its first minute.</div>
         </div>
         <div class="st-card" data-s="set">
-          <div class="st-shead"><div class="st-h">Settings</div><div class="st-dev" id="stDevices">No PC yet</div><button type="button" class="st-btn ghost sm" id="stSetupBtn">PC setup</button></div>
+          <div class="st-shead"><div class="st-h">Settings</div><div class="st-dev" id="stDevices">No PC yet</div><button type="button" class="st-btn ghost sm" id="stSetupBtn">PC setup</button><button type="button" class="st-btn ghost sm" id="stPhoneBtn">iPhone setup</button></div>
           <div class="st-sgrid">
             <div class="st-set"><span>Counter on PC screen</span><input type="checkbox" id="stOvChk"></div>
             <div class="st-set"><span title="Show the counter only when no program window is open (everything closed or minimised)">Only on empty desktop</span><input type="checkbox" id="stDeskChk"></div>
@@ -14661,6 +14661,19 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
           <div class="st-mut" style="margin-top:6px;font-size:11.5px">Changes reach the PC within 30 seconds. A break = 5 minutes without using the PC.</div>
         </div>
       </div>
+    </div>
+  </div>
+  <div class="st-sheet" id="stSheet2" hidden>
+    <div class="st-card">
+      <div class="st-h">Set up the iPhone</div>
+      <div class="st-mut" style="margin-top:4px">iOS does not let a website read Apple's Screen Time. Instead the Shortcuts app tells this site when an app you pick is opened and closed. Do this once per app, with two automations (open and close).</div>
+      <ol><li>Type the app name here: <input type="text" id="stPhApp" placeholder="instagram" style="font:inherit;font-size:14px;border:1.5px solid #e2e2e6;border-radius:9px;padding:5px 8px;width:140px;background:transparent;color:inherit"></li>
+      <li>Shortcuts &rarr; <b>Automation</b> &rarr; <b>+</b> &rarr; <b>App</b> &rarr; pick the app &rarr; tick <b>Is Opened</b> only &rarr; <b>Run Immediately</b> &rarr; New Blank Automation &rarr; add <b>Get Contents of URL</b>.</li>
+      <li><button type="button" class="st-btn sm" id="stPhOpen">Copy open URL</button> and paste it as the URL. Tap <b>Show More</b>: Method <b>POST</b>, add a header named <code>Authorization</code> with the value from <button type="button" class="st-btn ghost sm" id="stPhKey">Copy header value</button></li>
+      <li>Repeat with <b>Is Closed</b> only, and <button type="button" class="st-btn sm" id="stPhClose">Copy close URL</button> as the URL.</li></ol>
+      <div class="st-mut" style="margin-top:8px;font-size:11.5px">This measures time inside the apps you set up, so it will not match Apple's own total.</div>
+      <div class="st-err" id="stPhErr"></div>
+      <div style="margin-top:12px;text-align:right"><button type="button" class="st-btn ghost" id="stSheet2Close">Close</button></div>
     </div>
   </div>
   <div class="st-sheet" id="stSheet" hidden>
@@ -14678,7 +14691,7 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
 <script>
 (function () {
   var ov = document.getElementById('stOverlay'); if (!ov) return;
-  var range = 7, selDay = null, timer = null, busy = false;
+  var range = 7, selDay = null, timer = null, busy = false, dev = 'all';
   function $(i) { return document.getElementById(i); }
   function post(api, body) {
     return fetch('/screentime?api=' + api, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) })
@@ -14697,7 +14710,7 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
     if (ov.hidden || busy) return;
     busy = true;
     var bars = Math.max(range, 7);
-    post('data', { today: dayStr(0), bars: bars, range: range }).then(function (r) { return r.json(); })
+    post('data', { today: dayStr(0), bars: bars, range: range, dev: dev, tz: (function () { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) { return ''; } })() }).then(function (r) { return r.json(); })
       .then(function (d) { busy = false; render(d, bars); })
       .catch(function () { busy = false; $('stBig').textContent = 'offline'; });
   }
@@ -14722,7 +14735,9 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
       for (i = 0; i < 24; i++) vals.push({ k: pad(i), v: Math.min(hb[i] || 0, 3600), i: i, hour: true });
     }
     $('stBig').textContent = fmt(sum);
-    $('stLabel').textContent = anchor ? (range > 1 ? 'PC on, ' + niceDay(dayStr(range - 1)) + ' to ' + niceDay(anchor) : 'PC on, ' + niceDay(anchor)) : range === 1 ? 'PC on today' : 'PC on, last ' + range + ' days';
+    var lab = dev === 'phone' ? 'iPhone' : dev === 'pc' ? 'PC on' : 'PC on + iPhone';
+    $('stLabel').textContent = anchor ? (range > 1 ? lab + ', ' + niceDay(dayStr(range - 1)) + ' to ' + niceDay(anchor) : lab + ', ' + niceDay(anchor)) : range === 1 ? lab + ' today' : lab + ', last ' + range + ' days';
+    Array.prototype.forEach.call($('stDev').children, function (x) { x.className = x.getAttribute('data-d') === dev ? 'on' : ''; });
     $('stAvg').textContent = hourly ? (hourSum + 120 < sum ? 'by hour (earlier time was not recorded per hour)' : 'by hour') : range > 1 ? fmt(sum / range) + ' per day on average' : '';
 
     // horizontal bars, one row per day, scaled to the top marker (whole / half hours along the top).
@@ -14763,7 +14778,7 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
     $('stSelTitle').textContent = selDay === realToday() ? 'Today' : niceDay(selDay);
     $('stSelTotal').textContent = fmt(total(selDay));
     var adjS = adjBy[selDay] || 0;
-    $('stSelNote').textContent = adjS ? fmt(rtBy[selDay] || 0) + ' on, ' + (adjS < 0 ? '−' : '+') + fmtShort(Math.abs(adjS)) + ' adjusted' : 'PC on-time';
+    $('stSelNote').textContent = adjS ? fmt(rtBy[selDay] || 0) + ' on, ' + (adjS < 0 ? '−' : '+') + fmtShort(Math.abs(adjS)) + ' adjusted' : (dev === 'phone' ? 'iPhone' : dev === 'pc' ? 'PC on-time' : 'PC + iPhone');
     var chips = $('stAdjList'); chips.innerHTML = '';
     d.adj.filter(function (x) { return x.day === selDay; }).forEach(function (x) {
       var c = document.createElement('span'); c.className = 'st-chip';
@@ -14817,12 +14832,11 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
     if (act !== $('stColChk')) $('stColChk').checked = colorsOn;
 
     var dv = $('stDevices'); dv.innerHTML = '';
-    if (!d.devices.length) dv.textContent = 'No PC connected yet';
-    else {
-      var x = d.devices[0], live = d.now - x.last_seen < 180000;
-      var dot = document.createElement('span'); dot.className = 'st-dot' + (live ? ' on' : ''); dv.appendChild(dot);
-      dv.appendChild(document.createTextNode(x.device + ' · ' + (live ? 'sending now' : 'seen ' + ago(d.now - x.last_seen))));
-    }
+    if (!d.devices.length) dv.textContent = 'No device connected yet';
+    else d.devices.slice(0, 3).forEach(function (x, n) {
+      var live = d.now - x.last_seen < 180000, dot = document.createElement('span'); dot.className = 'st-dot' + (live ? ' on' : ''); dv.appendChild(dot);
+      dv.appendChild(document.createTextNode((n ? '  ' : '') + x.device + (live ? ' · now' : ' · ' + ago(d.now - x.last_seen))));
+    });
   }
 
   function chk(a, field, custom) {
@@ -14874,6 +14888,19 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
   $('stBrkChk').onchange = function () { post('set', { breakOn: $('stBrkChk').checked ? 1 : 0 }).catch(function () {}); };
   $('stBrkMin').onchange = function () { post('set', { breakMin: +$('stBrkMin').value }).catch(function () {}); };
   $('stBrkTest').onclick = function () { var bt = $('stBrkTest'); bt.textContent = 'Sending...'; fetch('/api/test-push', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: 'Time for a break', body: 'This is how the break reminder will look.' }) }).then(function () { bt.textContent = 'Sent'; }).catch(function () { bt.textContent = 'Failed'; }); setTimeout(function () { bt.textContent = 'Send test'; }, 2500); };
+  $('stDev').onclick = function (e) { var v = e.target.getAttribute && e.target.getAttribute('data-d'); if (!v || v === dev) return; dev = v; load(); };
+  $('stPhoneBtn').onclick = function () { $('stPhErr').textContent = ''; $('stSheet2').hidden = false; };
+  $('stSheet2Close').onclick = function () { $('stSheet2').hidden = true; };
+  $('stSheet2').onclick = function (e) { if (e.target === $('stSheet2')) $('stSheet2').hidden = true; };
+  function copyText(t) { return (navigator.clipboard && navigator.clipboard.writeText ? navigator.clipboard.writeText(t) : Promise.reject()).catch(function () { window.prompt('Copy this:', t); }); }
+  function phUrl(ev) {
+    var a = $('stPhApp').value.trim().toLowerCase().replace(/[^a-z0-9 ._-]/g, '');
+    if (!a) { $('stPhErr').textContent = 'Type the app name first.'; $('stPhApp').focus(); return null; }
+    $('stPhErr').textContent = ''; return location.origin + '/screentime?api=phone&app=' + encodeURIComponent(a) + '&e=' + ev;
+  }
+  $('stPhOpen').onclick = function () { var u = phUrl('open'); if (u) copyText(u); };
+  $('stPhClose').onclick = function () { var u = phUrl('close'); if (u) copyText(u); };
+  $('stPhKey').onclick = function () { post('key').then(function (r) { return r.text(); }).then(copyText).catch(function () { $('stPhErr').textContent = 'Could not get the key. Check that the secret SCREENTIME_TOKEN is set in Cloudflare Pages and the site is redeployed.'; }); };
   $('stSetupBtn').onclick = function () { $('stDlErr').textContent = ''; $('stSheet').hidden = false; };
   $('stSheetClose').onclick = function () { $('stSheet').hidden = true; };
   $('stSheet').onclick = function (e) { if (e.target === $('stSheet')) $('stSheet').hidden = true; };
@@ -14888,9 +14915,9 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
     ov.hidden = false; load();
     clearInterval(timer); timer = setInterval(function () { if (!document.hidden) load(); }, 30000);
   }
-  function close() { ov.hidden = true; $('stSheet').hidden = true; clearInterval(timer); }
+  function close() { ov.hidden = true; $('stSheet').hidden = true; $('stSheet2').hidden = true; clearInterval(timer); }
   $('stClose').onclick = close;
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !ov.hidden) { if (!$('stSheet').hidden) $('stSheet').hidden = true; else close(); } });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !ov.hidden) { if (!$('stSheet').hidden) $('stSheet').hidden = true; else if (!$('stSheet2').hidden) $('stSheet2').hidden = true; else close(); } });
   // pressing any other top-bar button (Money, Week, Month, Settings ...) leaves Screen Time first
   var tbEl = $('globalTopBar');
   if (tbEl) tbEl.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('button'); if (!ov.hidden && b && b.id !== 'globalTabScreenTime') close(); }, true);
