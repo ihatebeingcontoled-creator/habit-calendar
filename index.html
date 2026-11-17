@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>/* GLOBAL VERSION COUNTER: each file has its own number (this file = index). The corner label shows index + sw.js + server added together. Bump ONLY the number of the file you changed. */ window.__V = { index: 43 };</script>
+<script>/* GLOBAL VERSION COUNTER: each file has its own number (this file = index). The corner label shows index + sw.js + server added together. Bump ONLY the number of the file you changed. */ window.__V = { index: 44 };</script>
 <script>/* no browser right-click menu anywhere on the site (our own right-click editor / paste popups still work) */ window.addEventListener('contextmenu', function (e) { e.preventDefault(); }, true);</script>
   <meta charset="UTF-8" />
   <meta name="viewport" id="viewportMetaTag" content="width=device-width, initial-scale=1.0" />
@@ -14890,6 +14890,14 @@ body.night-mode .st-row { border-top-color: #2c2c2e; }
 .st-pct { font-weight: 500; color: #6b6b73; font-size: 12px; margin-left: 6px; }
 .st-meter { height: 4px; border-radius: 3px; background: #ececef; margin-top: 4px; } body.night-mode .st-meter { background: #2c2c2e; } .st-meter i { display: block; height: 100%; border-radius: 3px; background: #0a84ff; }
 .st-row.off { opacity: .45; }
+.st-hs { margin-left: auto; font: inherit; font-size: 12px; font-weight: 700; border: 0; border-radius: 999px; padding: 5px 11px; background: #ececef; color: #333; cursor: pointer; } .st-hs.on { background: #0a84ff; color: #fff; }
+body.night-mode .st-hs:not(.on) { background: #2c2c2e; color: #f5f5f5; }
+.st-grp { border: 1px solid rgba(128,128,128,.28); border-radius: 12px; background: rgba(128,128,128,.07); margin: 6px 0; padding: 0 8px; }
+.st-grp > .st-row { border-top: 0; }
+.st-kids { border-top: 1px dashed rgba(128,128,128,.35); }
+.st-kids .st-row.kid { margin-left: 26px; }
+.st-kids .st-row.kid:first-child { border-top: 0; }
+.st-tg { border: 0; background: none; padding: 0 6px 0 0; margin: 0; font: inherit; font-size: 13px; color: #6b6b73; cursor: pointer; }
 .st-ov input[type=checkbox] { width: 19px; height: 19px; accent-color: #0a84ff; }
 .st-shead { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
 .st-shead .st-h { flex: none; } .st-dev { flex: 1; min-width: 0; font-size: 12px; color: #6b6b73; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -14953,7 +14961,7 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
       </div>
       <div class="st-c2">
         <div class="st-card grow" data-s="apps">
-          <div class="st-h">Where the time goes</div>
+          <div style="display:flex;align-items:center;gap:8px"><div class="st-h">Where the time goes</div><button type="button" class="st-hs" id="stHideSmall">Hide under 1 min</button></div>
           <div class="st-rowh"><div style="text-align:left">Program</div><div style="text-align:right">Time</div><div>Counts</div><div title="Counts even with no keyboard or mouse (videos, calls, games)">Idle OK</div></div>
           <div class="st-applist" id="stApps"></div>
           <div class="st-mut" id="stAppsEmpty" style="display:none;margin-top:8px">Nothing yet. Programs appear here as soon as the PC program sends its first minute.</div>
@@ -15165,7 +15173,7 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
     if (adjRange) items.push({ kind: 'adj', seconds: adjRange });
     var box = $('stApps'), keep = box.scrollTop; box.innerHTML = '';
     function pctText(sec) { var p = sec / base * 100; return !sec ? '' : p < 1 ? '<1%' : Math.round(p) + '%'; }
-    items.forEach(function (it) {
+    function makeRow(it, kid) {
       var row = document.createElement('div'), a = it.a, counts = it.kind === 'idle' ? idleOn : (it.kind !== 'app' || !!a.counts);
       row.className = 'st-row' + (counts ? '' : ' off');
       var n = document.createElement('div'); n.className = 'st-name';
@@ -15178,15 +15186,48 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
         cdot.onclick = function () { var ks = PAL.map(function (g) { return g.k; }), nx = ks[(ks.indexOf(acat) + 1) % ks.length], body = { app: a.app }; body[mode === 'kind' ? 'kind' : 'cat'] = nx; post('set', body).then(load).catch(function () {}); };
         nm.insertBefore(cdot, nm.firstChild);
       }
-      pc.textContent = it.kind === 'adj' ? '' : (pctText(it.seconds) + (it.kind === 'app' && !a.counts && it.seconds ? ' \u00b7 not counted' : '')); nm.appendChild(pc); n.appendChild(nm);
+      if (it.grp) {   // the browser is the parent of the sites inside it: a button folds them away
+        var tg = document.createElement('button'); tg.type = 'button'; tg.className = 'st-tg'; tg.title = 'Show / hide the sites';
+        var isMin = function () { return it.grp.kidsEl && it.grp.kidsEl.style.display === 'none'; };
+        tg.textContent = isMin() ? '\u25b8' : '\u25be';
+        tg.onclick = function (ev) { ev.stopPropagation(); var m = !isMin(); it.grp.kidsEl.style.display = m ? 'none' : ''; tg.textContent = m ? '\u25b8' : '\u25be'; try { localStorage.setItem('stChromeMin', m ? '1' : '0'); } catch (e) {} };
+        nm.insertBefore(tg, nm.firstChild);
+      }
+      pc.textContent = it.kind === 'adj' ? '' : (pctText(it.seconds) + (it.kind === 'app' && !a.counts && it.seconds ? ' \u00b7 not counted' : '')); if (it.grp) pc.textContent += ' \u00b7 ' + it.grp.n + (it.grp.n === 1 ? ' site' : ' sites');
+      nm.appendChild(pc); n.appendChild(nm);
       var note = '';
       if (note) { var nt = document.createElement('div'); nt.className = 'st-mut'; nt.style.fontSize = '11px'; nt.textContent = note; n.appendChild(nt); }
       if (it.kind !== 'adj') { var m = document.createElement('div'); m.className = 'st-meter'; var mi = document.createElement('i'); mi.style.width = (it.seconds ? Math.max(it.seconds / base * 100, 1) : 0) + '%'; mi.style.background = it.kind === 'app' ? (progOn ? COL[acat] : '') : '#9a9aa1'; m.appendChild(mi); n.appendChild(m); }
       var t = document.createElement('div'); t.className = 't'; t.textContent = it.kind === 'adj' ? (it.seconds < 0 ? '\u2212' : '+') + fmtShort(Math.abs(it.seconds)) : (it.seconds ? fmtSec(it.seconds) : '-');
       row.appendChild(n); row.appendChild(t);
       if (it.kind === 'app') { row.appendChild(chk(a, 'counts')); row.appendChild(chk(a, 'alive')); } else if (it.kind === 'idle') { row.appendChild(chk({ counts: idleOn }, 'counts', function (v) { return { idleCounts: v ? 1 : 0 }; })); row.appendChild(chk({ alive: 1, counts: 0 }, 'alive')); } else { row.appendChild(document.createElement('div')); row.appendChild(document.createElement('div')); }
-      box.appendChild(row);
+      if (kid) row.classList.add('kid');
+      return row;
+    }
+    var hideSmall = false, minChrome = false; try { hideSmall = localStorage.getItem('stHideSmall') === '1'; minChrome = localStorage.getItem('stChromeMin') === '1'; } catch (e) {}
+    $('stHideSmall').classList.toggle('on', hideSmall);
+    var BROW = ['chrome.exe', 'msedge.exe', 'firefox.exe', 'brave.exe', 'opera.exe', 'vivaldi.exe'];
+    var siteIts = items.filter(function (it) { return it.kind === 'app' && !/\.exe$/i.test(it.a.app) && !/ \(iphone\)$/.test(it.a.app) && it.a.app.charAt(0) !== '('; });
+    var mainIt = null; items.forEach(function (it) { if (it.kind === 'app' && BROW.indexOf(it.a.app) >= 0 && (!mainIt || it.seconds > mainIt.seconds)) mainIt = it; });
+    var ents = [], adjIt = null;
+    items.forEach(function (it) { if (it.kind === 'adj') { adjIt = it; return; } if (siteIts.indexOf(it) >= 0 || it === mainIt) return; ents.push({ it: it, seconds: it.seconds }); });
+    if (siteIts.length) {
+      var sumS = 0; siteIts.forEach(function (k) { sumS += k.seconds; });
+      var pit = mainIt ? Object.assign({}, mainIt) : { kind: 'app', a: { app: 'chrome.exe', counts: 1, alive: 0, cat: 'p' }, seconds: 0 };
+      pit.seconds = (mainIt ? mainIt.seconds : 0) + sumS; pit.grp = { n: siteIts.length, kidsEl: null };
+      ents.push({ it: pit, kids: siteIts.slice().sort(function (x, y) { return y.seconds - x.seconds; }), seconds: pit.seconds });
+    } else if (mainIt) ents.push({ it: mainIt, seconds: mainIt.seconds });
+    ents.sort(function (x, y) { return y.seconds - x.seconds; });
+    ents.forEach(function (e) {
+      if (hideSmall && e.seconds < 60) return;
+      if (!e.kids) { box.appendChild(makeRow(e.it)); return; }
+      var g = document.createElement('div'); g.className = 'st-grp'; g.appendChild(makeRow(e.it));
+      var kd = document.createElement('div'); kd.className = 'st-kids'; e.it.grp.kidsEl = kd;
+      e.kids.forEach(function (k) { if (!hideSmall || k.seconds >= 60) kd.appendChild(makeRow(k, true)); });
+      kd.style.display = minChrome ? 'none' : ''; g.appendChild(kd); box.appendChild(g);
+      var tgb = g.querySelector('.st-tg'); if (tgb) tgb.textContent = minChrome ? '\u25b8' : '\u25be';
     });
+    if (adjIt) box.appendChild(makeRow(adjIt));
     box.scrollTop = keep;
     $('stAppsEmpty').style.display = items.length ? 'none' : 'block';
 
@@ -15234,6 +15275,7 @@ body.night-mode .st-set { border-top-color: #2c2c2e; }
     if (!mins) { $('stH').focus(); return; }
     post('set', { adjDay: selDay || dayStr(0), adjMin: sign * mins, adjApp: $('stAdjApp').value }).then(function () { $('stH').value = ''; $('stM').value = ''; load(); }).catch(function () {});
   }
+  $('stHideSmall').onclick = function () { var on = false; try { on = localStorage.getItem('stHideSmall') === '1'; localStorage.setItem('stHideSmall', on ? '0' : '1'); } catch (e) {} load(); };
   $('stSubBtn').onclick = function () { adjust(-1); };
   $('stAddBtn').onclick = function () { adjust(1); };
   function tabsOn(btn) { Array.prototype.forEach.call($('stTabs').children, function (x) { if (x.tagName === 'BUTTON') x.className = x === btn ? 'on' : ''; }); }
