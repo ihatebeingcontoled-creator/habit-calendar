@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>/* GLOBAL VERSION COUNTER: each file has its own number (this file = index). The corner label shows index + sw.js + server added together. Bump ONLY the number of the file you changed. */ window.__V = { index: 13 };</script>
+<script>/* GLOBAL VERSION COUNTER: each file has its own number (this file = index). The corner label shows index + sw.js + server added together. Bump ONLY the number of the file you changed. */ window.__V = { index: 15 };</script>
   <meta charset="UTF-8" />
   <meta name="viewport" id="viewportMetaTag" content="width=device-width, initial-scale=1.0" />
   <title>Habit Calendar</title>
@@ -2914,7 +2914,7 @@
 .app { padding-top: 8px; }
 @media (min-width: 1000px) and (hover: hover) and (pointer: fine) {
   #globalTabSettings { display: flex; }
-  #openSettingsBtn { display: none !important; }
+  #openSettingsBtn, #openScreenTimeBtn { display: none !important; }
   .app { padding-top: 8px; padding-bottom: 4px; }
   .stat-card { padding: 6px 12px; border-radius: 10px; } .stat-label { font-size: 9px; margin-bottom: 1px; } .stat-value { font-size: 15px; } .stats-bar { gap: 8px; }
   .legend-panel { top: 60px; min-height: 0; height: calc(100vh - 72px); max-height: none; }
@@ -3057,8 +3057,6 @@ body.night-mode .bd-row { background: #1a1a1a; border-color: #333; } body.night-
 .sd-nav { width: 36px; height: 36px; }
 .sd-pill, .sd-total { min-height: 36px; font-size: 13px; padding-top: 0; padding-bottom: 0; align-items: center; justify-content: center; box-sizing: border-box; }
 .sd-pill { display: inline-flex; }
-/* Screen Time button: PC only (the phone top bar is too narrow for it) */
-@media (max-width: 760px) { #globalTabScreenTime { display: none !important; } }
 body .au .au-b:not(.au-pg), body .au-modal .au-b:not(.au-pg) { min-height: 36px; min-width: 36px; padding: 0 1em; font-size: 14px; border-radius: 10px; box-sizing: border-box; }
 body .au .au-b.sm, body .au-modal .au-b.sm { font-size: 14px; padding: 0 1em; border-radius: 10px; }
 body .au .au-btns .au-b { min-height: 0; }
@@ -3129,7 +3127,7 @@ body.tb-bottom .au { top: 0 !important; bottom: calc(52px + env(safe-area-inset-
            display label (see TimezoneModal below) — it doesn't shift
            any event times or grid positions, same as the old
            auto-detected corner label it replaces. -->
-      <button type="button" class="global-topbar-selectday" id="globalTabScreenTime" title="Open Screen Time" onclick="location.href='/screentime'">&#9201; Screen Time</button>
+      <button type="button" class="global-topbar-selectday" id="globalTabScreenTime" title="Open Screen Time" onclick="window.__openScreenTime && window.__openScreenTime()">&#9201; Screen Time</button>
       <button type="button" class="global-topbar-tz-btn" id="globalTzBtn" title="Select timezone">
         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><polyline points="12 7 12 12 16 14"></polyline></svg>
         <span id="globalTzLabel">GMT+00:00</span>
@@ -3223,6 +3221,7 @@ body.tb-bottom .au { top: 0 !important; bottom: calc(52px + env(safe-area-inset-
   </div>
 
     <button type="button" class="targets-btn" id="openSettingsBtn">⚙ Settings</button>
+    <button type="button" class="targets-btn" id="openScreenTimeBtn" style="margin-top:10px">&#9201; Screen Time</button>
   </div>
 
 
@@ -14514,6 +14513,271 @@ window.__TEST_TAB_SRC = "/* test.js - the WHOLE Test tab in one file: its styles
   show();
   fetch('/sw.js?ver').then(function (r) { return r.text(); }).then(function (t) { var m = /FILE_VERSION\s*=\s*(\d+)/.exec(t); if (m) { parts.sw = +m[1]; show(); } }).catch(function () {});
   fetch('/api/version', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) { parts.server = +j.v || 0; show(); }).catch(function () {});
+})();
+</script>
+<!-- ===== SCREEN TIME (inside the calendar): full-screen panel under the top bar, opened by the top-bar button (PC) or the button under Settings (phone). Data comes from /screentime?api=... (functions/screentime.js). ===== -->
+<style>
+.st-ov { position: fixed; left: 0; right: 0; bottom: 0; top: 52px; z-index: 1500; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; background: #f5f5f7; color: #111; padding: 14px 14px 48px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; }
+.st-ov[hidden] { display: none; }
+body.night-mode .st-ov { background: #000; color: #f5f5f5; }
+.st-wrap { max-width: 720px; margin: 0 auto; display: grid; gap: 12px; }
+.st-bar { display: flex; align-items: center; gap: 8px; }
+.st-bar h2 { font-size: 18px; margin: 0; flex: 1; min-width: 0; white-space: nowrap; }
+.st-card { background: #fff; border-radius: 16px; padding: 14px 16px; box-shadow: 0 2px 12px rgba(0,0,0,.05); }
+body.night-mode .st-card { background: #1c1c1e; box-shadow: none; }
+.st-h { font-size: 14px; font-weight: 800; margin-bottom: 8px; }
+.st-mut { color: #6b6b73; font-size: 13px; }
+body.night-mode .st-mut { color: #9a9aa1; }
+.st-tabs { display: flex; gap: 5px; }
+.st-tabs button, .st-x { border: 0; border-radius: 10px; padding: 7px 10px; font: inherit; font-size: 13px; font-weight: 700; background: #e6e6ea; color: #111; cursor: pointer; }
+body.night-mode .st-tabs button, body.night-mode .st-x { background: #2c2c2e; color: #f5f5f5; }
+.st-tabs button.on { background: #0a84ff; color: #fff; }
+.st-x { width: 36px; padding: 7px 0; }
+.st-big { font-size: 38px; font-weight: 800; letter-spacing: -1px; line-height: 1.1; }
+.st-plot { position: relative; height: 120px; margin: 16px 0 0 42px; border-bottom: 1px solid rgba(128,128,128,.35); }
+.st-bars { position: absolute; inset: 0; display: flex; align-items: flex-end; gap: 4px; }
+.st-grid { position: absolute; left: 0; right: 0; height: 0; border-top: 1px dashed rgba(128,128,128,.3); }
+.st-grid b { position: absolute; left: -42px; top: -7px; width: 36px; text-align: right; font-size: 10px; font-weight: 600; color: #6b6b73; }
+body.night-mode .st-grid b { color: #9a9aa1; }
+.st-days { display: flex; gap: 4px; margin: 4px 0 0 42px; }
+.st-days span { flex: 1; min-width: 0; text-align: center; font-size: 10px; color: #6b6b73; height: 12px; }
+.st-col { flex: 1; display: flex; align-items: flex-end; height: 100%; min-width: 0; cursor: pointer; }
+.st-col i { display: block; width: 100%; background: #cfe4ff; border-radius: 5px 5px 2px 2px; min-height: 2px; }
+body.night-mode .st-col i { background: #1f3a57; }
+.st-col.today i { background: #0a84ff; }
+.st-col.sel i { outline: 2px solid #111; outline-offset: 1px; }
+body.night-mode .st-col.sel i { outline-color: #f5f5f5; }
+.st-selnum { font-size: 26px; font-weight: 800; margin-right: 10px; }
+.st-adjrow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.st-adjrow input { width: 64px; height: 38px; border: 1.5px solid #e2e2e6; border-radius: 10px; padding: 0 8px; font: inherit; font-size: 15px; background: #f7f7f9; color: inherit; text-align: center; }
+body.night-mode .st-adjrow input { background: #2c2c2e; border-color: #3a3a3c; }
+.st-btn { height: 38px; border: 0; border-radius: 10px; padding: 0 16px; font: inherit; font-size: 14px; font-weight: 700; background: #0a84ff; color: #fff; cursor: pointer; }
+.st-btn.ghost { background: #e6e6ea; color: #111; } body.night-mode .st-btn.ghost { background: #2c2c2e; color: #f5f5f5; }
+.st-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.st-chip { display: inline-flex; align-items: center; gap: 6px; background: #e6e6ea; border-radius: 999px; padding: 4px 6px 4px 12px; font-size: 13px; font-weight: 700; } body.night-mode .st-chip { background: #2c2c2e; }
+.st-chip button { border: 0; background: transparent; color: inherit; cursor: pointer; font-size: 14px; padding: 0 4px; opacity: .6; }
+.st-row { display: grid; grid-template-columns: 1fr 64px 44px 44px; gap: 8px; align-items: center; padding: 9px 0; border-top: 1px solid #ececef; }
+body.night-mode .st-row { border-top-color: #2c2c2e; }
+.st-row.head { border-top: 0; padding-top: 0; color: #6b6b73; font-size: 12px; }
+.st-row.head div, .st-row .c { text-align: center; } .st-row .t { text-align: right; font-variant-numeric: tabular-nums; font-size: 14px; }
+.st-name { min-width: 0; } .st-name b { display: block; font-weight: 600; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-pct { font-weight: 500; color: #6b6b73; font-size: 12px; margin-left: 6px; }
+.st-meter { height: 4px; border-radius: 3px; background: #ececef; margin-top: 5px; } body.night-mode .st-meter { background: #2c2c2e; } .st-meter i { display: block; height: 100%; border-radius: 3px; background: #0a84ff; }
+.st-row.off { opacity: .45; }
+.st-ov input[type=checkbox] { width: 20px; height: 20px; accent-color: #0a84ff; }
+.st-set { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 0; border-top: 1px solid #ececef; font-size: 14px; } body.night-mode .st-set { border-top-color: #2c2c2e; }
+.st-set:first-of-type { border-top: 0; }
+.st-set select { font: inherit; font-size: 14px; border-radius: 10px; border: 1.5px solid #e2e2e6; background: #f7f7f9; color: inherit; padding: 7px 10px; } body.night-mode .st-set select { background: #2c2c2e; border-color: #3a3a3c; }
+.st-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #9a9aa1; margin-right: 6px; } .st-dot.on { background: #22a559; }
+.st-ov details summary { cursor: pointer; font-weight: 700; font-size: 14px; }
+.st-ov ol { margin: 10px 0 0; padding-left: 20px; display: grid; gap: 6px; font-size: 14px; }
+.st-ov code { background: #e6e6ea; padding: 1px 6px; border-radius: 6px; font-size: 13px; } body.night-mode .st-ov code { background: #2c2c2e; }
+.st-err { color: #dc2626; font-size: 13px; margin-top: 8px; }
+</style>
+<div class="st-ov" id="stOverlay" hidden>
+  <div class="st-wrap">
+    <div class="st-bar">
+      <h2>Screen Time</h2>
+      <div class="st-tabs" id="stTabs"><button type="button" data-r="1">Today</button><button type="button" data-r="7" class="on">7 days</button><button type="button" data-r="30">30 days</button></div>
+      <button type="button" class="st-x" id="stClose" aria-label="Close">&#10005;</button>
+    </div>
+    <div class="st-card">
+      <div class="st-mut" id="stLabel">PC on-time</div>
+      <div class="st-big" id="stBig">&hellip;</div>
+      <div class="st-mut" id="stAvg"></div>
+      <div class="st-plot" id="stPlot"><div class="st-bars" id="stBars"></div></div>
+      <div class="st-days" id="stDays"></div>
+    </div>
+    <div class="st-card">
+      <div class="st-h" id="stSelTitle">Today</div>
+      <div><span class="st-selnum" id="stSelTotal"></span><span class="st-mut" id="stSelNote"></span></div>
+      <div class="st-adjrow">
+        <input type="number" id="stH" min="0" max="23" placeholder="0" inputmode="numeric"><span>h</span>
+        <input type="number" id="stM" min="0" max="59" placeholder="0" inputmode="numeric"><span>min</span>
+        <button type="button" class="st-btn" id="stSubBtn">Subtract</button>
+        <button type="button" class="st-btn ghost" id="stAddBtn">Add</button>
+      </div>
+      <div class="st-mut" style="margin-top:8px">PC was on but you were away? Subtract that time from this day (tap a bar above to pick another day). The counter on the PC follows within 30 seconds.</div>
+      <div class="st-chips" id="stAdjList"></div>
+    </div>
+    <div class="st-card">
+      <div class="st-h">Programs</div>
+      <div class="st-row head"><div style="text-align:left">Program</div><div style="text-align:right">Time</div><div>Counts</div><div title="Counts even with no keyboard or mouse">Idle OK</div></div>
+      <div id="stApps"></div>
+      <div class="st-mut" id="stAppsEmpty" style="display:none">Nothing yet. Programs appear here as soon as the PC program sends its first minute.</div>
+    </div>
+    <div class="st-card">
+      <div class="st-h">Settings (they reach the PC within 30 seconds)</div>
+      <div class="st-set"><span>Show the on-time counter on the PC screen</span><input type="checkbox" id="stOvChk"></div>
+      <div class="st-set"><span>Counter position</span><select id="stCorner"><option value="bl">Bottom left</option><option value="br">Bottom right</option><option value="tl">Top left</option><option value="tr">Top right</option></select></div>
+      <div class="st-set"><span>Counter strength</span><select id="stOpacity"><option value="20">Very faint</option><option value="35">Faint</option><option value="55">Medium</option><option value="80">Strong</option></select></div>
+      <div class="st-set"><span>Break reminder on my phone</span><input type="checkbox" id="stBrkChk"></div>
+      <div class="st-set"><span>Remind after this much non-stop use</span><select id="stBrkMin"><option value="30">30 min</option><option value="45">45 min</option><option value="60">1 hour</option><option value="90">1 h 30 min</option><option value="120">2 hours</option><option value="150">2 h 30 min</option><option value="180">3 hours</option><option value="240">4 hours</option></select></div>
+      <div class="st-set"><span class="st-mut">A break = 5 minutes without using the PC. If you keep going you get another reminder after each further stretch.</span><button type="button" class="st-btn ghost" id="stBrkTest">Send test</button></div>
+      <div class="st-set"><span>Programs stop counting after no keyboard or mouse for</span><select id="stIdle"><option>1</option><option>2</option><option>3</option><option>5</option><option>10</option><option>15</option><option>30</option><option>60</option></select></div>
+      <div class="st-mut" style="margin-top:6px">Idle time is in minutes. <b>Counts</b> off = that program is never counted. <b>Idle OK</b> on = counted even with no input (videos, calls, games).</div>
+    </div>
+    <div class="st-card">
+      <div class="st-h">Computers</div>
+      <div id="stDevices" class="st-mut">None yet</div>
+      <details id="stSetup" style="margin-top:12px"><summary>Set up the PC program</summary>
+        <ol><li>Install AutoHotkey <b>v1.1</b> (you already have it from your other scripts).</li>
+        <li><button type="button" class="st-btn" id="stDl">Download PC script</button></li>
+        <li>Press <code>Win + R</code>, type <code>shell:startup</code>, press Enter, and put <code>screentime.ahk</code> in that folder.</li>
+        <li>Double-click it once to start it now. From then on it starts with Windows.</li></ol>
+        <div class="st-err" id="stDlErr"></div>
+      </details>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  var ov = document.getElementById('stOverlay'); if (!ov) return;
+  var range = 7, selDay = null, timer = null, busy = false;
+  function $(i) { return document.getElementById(i); }
+  function post(api, body) {
+    return fetch('/screentime?api=' + api, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) })
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r; });
+  }
+  function pad(n) { return n < 10 ? '0' + n : '' + n; }
+  function dayStr(off) { var d = new Date(); d.setDate(d.getDate() - off); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function fmt(s) { s = Math.round(s); var h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60); return h + 'h ' + pad(m) + 'm'; }
+  function fmtShort(s) { s = Math.round(s); var h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60); return h ? h + 'h ' + m + 'm' : m + 'm'; }
+  function ago(ms) { var s = Math.max(0, Math.round(ms / 1000)); if (s < 90) return 'just now'; if (s < 5400) return Math.round(s / 60) + ' min ago'; if (s < 172800) return Math.round(s / 3600) + ' h ago'; return Math.round(s / 86400) + ' days ago'; }
+  function niceDay(k) { var p = k.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }); }
+
+  function load() {
+    if (ov.hidden || busy) return;
+    busy = true;
+    var bars = Math.max(range, 7);
+    post('data', { today: dayStr(0), bars: bars, range: range }).then(function (r) { return r.json(); })
+      .then(function (d) { busy = false; render(d, bars); })
+      .catch(function () { busy = false; $('stBig').textContent = 'offline'; });
+  }
+
+  function render(d, bars) {
+    var rtBy = {}, adjBy = {}, i;
+    d.rt.forEach(function (x) { rtBy[x.day] = x.seconds; });
+    d.adj.forEach(function (x) { adjBy[x.day] = (adjBy[x.day] || 0) + x.seconds; });
+    function total(k) { var v = (rtBy[k] || 0) + (adjBy[k] || 0); return v < 0 ? 0 : v; }
+    var today = dayStr(0);
+    if (!selDay || selDay < dayStr(bars - 1) || selDay > today) selDay = today;
+
+    var vals = [], sum = 0, max = 1;
+    for (i = bars - 1; i >= 0; i--) { var k = dayStr(i), v = total(k); vals.push({ k: k, v: v, i: i }); if (i < range) sum += v; if (v > max) max = v; }
+    $('stBig').textContent = fmt(sum);
+    $('stLabel').textContent = range === 1 ? 'PC on today' : 'PC on, last ' + range + ' days';
+    $('stAvg').textContent = range > 1 ? fmt(sum / range) + ' per day on average' : '';
+    // side markers: lines at whole / half hours, bars scaled to the top line
+    var steps = [1800, 3600, 7200, 10800, 14400, 21600, 28800, 43200], step = steps[0];
+    for (i = 0; i < steps.length; i++) { step = steps[i]; if (max / step <= 4) break; }
+    var axisMax = Math.max(step, Math.ceil(max / step) * step), plot = $('stPlot'), b = $('stBars'), dl = $('stDays');
+    Array.prototype.slice.call(plot.querySelectorAll('.st-grid')).forEach(function (g) { g.remove(); });
+    function axisLabel(sec) { return sec >= 3600 ? (sec % 3600 ? Math.floor(sec / 3600) + 'h 30m' : sec / 3600 + 'h') : sec / 60 + 'm'; }
+    for (var gv = step; gv <= axisMax; gv += step) {
+      var g = document.createElement('div'); g.className = 'st-grid'; g.style.bottom = (gv / axisMax * 100) + '%';
+      var gl = document.createElement('b'); gl.textContent = axisLabel(gv); g.appendChild(gl); plot.insertBefore(g, b);
+    }
+    b.innerHTML = ''; dl.innerHTML = '';
+    vals.forEach(function (x) {
+      var c = document.createElement('div'); c.className = 'st-col' + (x.i === 0 ? ' today' : '') + (x.k === selDay ? ' sel' : ''); c.title = x.k + '  ' + fmtShort(x.v);
+      var bar = document.createElement('i'); bar.style.height = (x.v / axisMax * 100) + '%';
+      c.appendChild(bar);
+      c.onclick = function () { selDay = x.k; render(d, bars); };
+      b.appendChild(c);
+      var l = document.createElement('span'); l.textContent = bars <= 14 ? x.k.slice(8) : (x.i % 5 === 0 ? x.k.slice(8) : ''); dl.appendChild(l);
+    });
+
+    // the selected day: its number, and the subtract / add controls
+    $('stSelTitle').textContent = selDay === today ? 'Today' : niceDay(selDay);
+    $('stSelTotal').textContent = fmt(total(selDay));
+    var adjS = adjBy[selDay] || 0;
+    $('stSelNote').textContent = adjS ? fmt(rtBy[selDay] || 0) + ' on, ' + (adjS < 0 ? '−' : '+') + fmtShort(Math.abs(adjS)) + ' adjusted' : 'PC on-time';
+    var chips = $('stAdjList'); chips.innerHTML = '';
+    d.adj.filter(function (x) { return x.day === selDay; }).forEach(function (x) {
+      var c = document.createElement('span'); c.className = 'st-chip';
+      c.appendChild(document.createTextNode((x.seconds < 0 ? '−' : '+') + fmtShort(Math.abs(x.seconds))));
+      var rm = document.createElement('button'); rm.type = 'button'; rm.title = 'Undo'; rm.textContent = '✕';
+      rm.onclick = function () { post('set', { delAdj: x.id }).then(function () { load(); }); };
+      c.appendChild(rm); chips.appendChild(c);
+    });
+
+    // programs
+    var all = 0; d.apps.forEach(function (a) { if (a.counts) all += a.seconds; }); if (!all) all = 1;   // bars = share of all counted program time, so they always add up to 100% together
+    var box = $('stApps'); box.innerHTML = '';
+    d.apps.forEach(function (a) {
+      var row = document.createElement('div'); row.className = 'st-row' + (a.counts ? '' : ' off');
+      var n = document.createElement('div'); n.className = 'st-name';
+      var share = a.counts ? a.seconds / all * 100 : 0;
+      var nm = document.createElement('b'); nm.textContent = a.app; n.appendChild(nm);
+      var pc = document.createElement('span'); pc.className = 'st-pct'; pc.textContent = !a.counts ? 'not counted' : !a.seconds ? '' : share < 1 ? '<1%' : Math.round(share) + '%'; nm.appendChild(pc);
+      var m = document.createElement('div'); m.className = 'st-meter'; var mi = document.createElement('i'); mi.style.width = (a.seconds && a.counts ? Math.max(share, 1) : 0) + '%'; m.appendChild(mi); n.appendChild(m);
+      var t = document.createElement('div'); t.className = 't st-t'; t.textContent = a.seconds ? fmtShort(a.seconds) : '-'; t.style.textAlign = 'right'; t.style.fontSize = '14px';
+      row.appendChild(n); row.appendChild(t); row.appendChild(chk(a, 'counts')); row.appendChild(chk(a, 'alive'));
+      box.appendChild(row);
+    });
+    $('stAppsEmpty').style.display = d.apps.length ? 'none' : 'block';
+
+    // settings (don't overwrite something the person is touching right now)
+    var act = document.activeElement;
+    function put(id, val) { var e = $(id); if (e === act) return; if (e.tagName === 'SELECT') { var has = false; Array.prototype.forEach.call(e.options, function (o) { if (o.value === String(val)) has = true; }); if (!has) { var o = document.createElement('option'); o.value = o.textContent = val; e.appendChild(o); } } e.value = String(val); }
+    put('stIdle', d.conf.idle); put('stBrkMin', d.conf.breakMin); put('stCorner', d.conf.corner); put('stOpacity', d.conf.opacity);
+    if (act !== $('stOvChk')) $('stOvChk').checked = !!d.conf.overlay;
+    if (act !== $('stBrkChk')) $('stBrkChk').checked = !!d.conf.breakOn;
+
+    var dv = $('stDevices');
+    if (!d.devices.length) { dv.textContent = 'None yet'; $('stSetup').open = true; }
+    else {
+      dv.innerHTML = '';
+      d.devices.forEach(function (x) {
+        var p = document.createElement('div'), live = d.now - x.last_seen < 180000;
+        var dot = document.createElement('span'); dot.className = 'st-dot' + (live ? ' on' : ''); p.appendChild(dot);
+        p.appendChild(document.createTextNode(x.device + ' - ' + (live ? 'sending now' : 'last seen ' + ago(d.now - x.last_seen)))); dv.appendChild(p);
+      });
+    }
+  }
+
+  function chk(a, field) {
+    var w = document.createElement('div'); w.className = 'c'; var c = document.createElement('input'); c.type = 'checkbox'; c.checked = !!a[field];
+    if (field === 'alive' && !a.counts) c.disabled = true;
+    c.onchange = function () { var b = { app: a.app }; b[field] = c.checked; post('set', b).then(load).catch(function () { c.checked = !c.checked; }); };
+    w.appendChild(c); return w;
+  }
+
+  function adjust(sign) {
+    var h = parseInt($('stH').value, 10) || 0, m = parseInt($('stM').value, 10) || 0, mins = h * 60 + m;
+    if (!mins) { $('stH').focus(); return; }
+    post('set', { adjDay: selDay || dayStr(0), adjMin: sign * mins }).then(function () { $('stH').value = ''; $('stM').value = ''; load(); }).catch(function () {});
+  }
+  $('stSubBtn').onclick = function () { adjust(-1); };
+  $('stAddBtn').onclick = function () { adjust(1); };
+  $('stTabs').onclick = function (e) { var r = e.target.getAttribute && e.target.getAttribute('data-r'); if (!r) return; range = +r; Array.prototype.forEach.call($('stTabs').children, function (x) { x.className = x === e.target ? 'on' : ''; }); load(); };
+  $('stOvChk').onchange = function () { post('set', { overlay: $('stOvChk').checked ? 1 : 0 }).catch(function () {}); };
+  $('stCorner').onchange = function () { post('set', { corner: $('stCorner').value }).catch(function () {}); };
+  $('stOpacity').onchange = function () { post('set', { opacity: +$('stOpacity').value }).catch(function () {}); };
+  $('stBrkChk').onchange = function () { post('set', { breakOn: $('stBrkChk').checked ? 1 : 0 }).catch(function () {}); };
+  $('stBrkMin').onchange = function () { post('set', { breakMin: +$('stBrkMin').value }).catch(function () {}); };
+  $('stBrkTest').onclick = function () { var bt = $('stBrkTest'); bt.textContent = 'Sending...'; fetch('/api/test-push', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: 'Time for a break', body: 'This is how the break reminder will look.' }) }).then(function () { bt.textContent = 'Sent'; }).catch(function () { bt.textContent = 'Failed'; }); setTimeout(function () { bt.textContent = 'Send test'; }, 2500); };
+  $('stIdle').onchange = function () { post('set', { idle: +$('stIdle').value }).catch(function () {}); };
+  $('stDl').onclick = function () {
+    $('stDlErr').textContent = '';
+    post('script').then(function (r) { return r.blob(); }).then(function (b) { var a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'screentime.ahk'; document.body.appendChild(a); a.click(); a.remove(); })
+      .catch(function () { $('stDlErr').textContent = 'Could not get the script. Check that the secret SCREENTIME_TOKEN is set in Cloudflare Pages and the site is redeployed.'; });
+  };
+
+  function open() {
+    var tb = $('globalTopBar'); ov.style.top = (tb ? Math.round(tb.getBoundingClientRect().bottom) : 52) + 'px';
+    ov.hidden = false; ov.scrollTop = 0; load();
+    clearInterval(timer); timer = setInterval(function () { if (!document.hidden) load(); }, 30000);
+  }
+  function close() { ov.hidden = true; clearInterval(timer); }
+  $('stClose').onclick = close;
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !ov.hidden) close(); });
+  // pressing any other top-bar button (Money, Week, Month, Settings ...) leaves Screen Time first
+  var tbEl = $('globalTopBar');
+  if (tbEl) tbEl.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('button'); if (!ov.hidden && b && b.id !== 'globalTabScreenTime') close(); }, true);
+  var pb = $('openScreenTimeBtn'); if (pb) pb.addEventListener('click', open);
+  window.__openScreenTime = function () { if (ov.hidden) open(); else close(); };
 })();
 </script>
 </body>
