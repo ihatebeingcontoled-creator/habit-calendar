@@ -29,7 +29,7 @@ const M_ads = (() => {
 //
 //   posts = ads posted from the Furlota dashboard: which day, a small picture and WHICH PLATFORMS it went to.
 //           (the dashboard writes them through the MCP tool add_ad_post; this address only reads / removes them)
-//     GET    /api/ads?resource=posts                 -> { posts: [{ key, date, kind, title, platforms: [{p, url, draft}] }] }   (no pictures: small)
+//     GET    /api/ads?resource=posts                 -> { posts: [{ key, date, kind, title, platforms: [{p, url, draft, failed?, note?}] }] }   (failed = that platform did NOT go out; url = the page to open about it)   (no pictures: small)
 //     GET    /api/ads?resource=posts&date=2026-11-24 -> the same for one day, WITH caption + thumb (small picture)
 //     DELETE /api/ads?resource=posts&key=<key>
 //
@@ -2989,7 +2989,7 @@ const ensureAds = (db) => adsReady || (adsReady = (async () => {
   await db.prepare("CREATE TABLE IF NOT EXISTS ads_posts (pkey TEXT PRIMARY KEY, date TEXT NOT NULL, kind TEXT NOT NULL DEFAULT 'poster', title TEXT DEFAULT '', caption TEXT DEFAULT '', thumb TEXT DEFAULT '', platforms TEXT DEFAULT '[]', created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP)").run();
   await db.prepare('CREATE INDEX IF NOT EXISTS idx_ads_posts_date ON ads_posts(date)').run();
 })().catch((e) => { adsReady = null; throw e; }));
-const AD_PLATFORMS = ['facebook', 'instagram', 'tiktok', 'linkedin', 'x', 'youtube'];
+const AD_PLATFORMS = ['facebook', 'instagram', 'tiktok', 'x', 'youtube'];
 const adPostShape = (r) => { let p = []; try { p = JSON.parse(r.platforms || '[]'); } catch (e) {} return { key: r.pkey, date: r.date, kind: r.kind, title: r.title, ...(r.caption !== undefined ? { caption: r.caption } : {}), platforms: Array.isArray(p) ? p : [] }; };
 const moneyShape = (r) => ({ id: r.id, date: r.date, amount: r.amount, kind: r.amount < 0 ? 'spent' : 'income', store: r.store || '', item: r.item || '', street: r.street || '', note: r.note || '', source: r.source });
 const moneyTotals = (rows) => { const spent = rows.filter((e) => e.amount < 0).reduce((s, e) => s - e.amount, 0), got = rows.filter((e) => e.amount > 0).reduce((s, e) => s + e.amount, 0); const r2 = (x) => Math.round(x * 100) / 100; return { spent: r2(spent), income: r2(got), net: r2(got - spent), entries: rows.length }; };
@@ -3020,8 +3020,8 @@ const TOOLS = [
   { name: 'delete_birthday', description: 'Deletes a birthday by id (get ids from list_birthdays).', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
   { name: 'get_ads', description: 'Reads the Ads calendar (what kind of ad was done on each date: poster or video, and how many).', inputSchema: { type: 'object', properties: { from_date: { type: 'string' }, to_date: { type: 'string' } }, required: ['from_date'] } },
   { name: 'set_ads_day', description: 'Sets what ad was done on a date. kind is poster, video, or none (none clears the day).', inputSchema: { type: 'object', properties: { date: { type: 'string', description: 'YYYY-MM-DD (default today)' }, kind: { type: 'string', enum: ['poster', 'video', 'none'] }, count: { type: 'integer', description: 'Default 1' } }, required: ['kind'] } },
-  { name: 'get_ad_posts', description: 'Lists the ads that were posted from the Furlota dashboard between two dates: the day, title, caption, kind (poster or video) and the platforms each one went to (Facebook, Instagram, TikTok, LinkedIn, X, YouTube).', inputSchema: { type: 'object', properties: { from_date: { type: 'string' }, to_date: { type: 'string' } }, required: ['from_date'] } },
-  { name: 'add_ad_post', description: 'Saves an ad that was posted from the Furlota dashboard so the Ads calendar shows the day as poster/video together with the platforms it went to. Calling it again with the same key updates that post (the picture is kept if thumb is left out). An empty platforms list deletes the post. It also makes sure the Ads day is marked.', inputSchema: { type: 'object', properties: { key: { type: 'string', description: 'Any unique text for this post (the dashboard uses its run id)' }, date: { type: 'string', description: 'YYYY-MM-DD (default today)' }, kind: { type: 'string', enum: ['poster', 'video'] }, title: { type: 'string' }, caption: { type: 'string' }, thumb: { type: 'string', description: 'Small picture as a data:image/jpeg;base64,... URL (optional, up to about 160 KB)' }, platforms: { type: 'array', description: 'Where it was posted. draft=true means it is only a draft that still needs a manual step.', items: { type: 'object', properties: { platform: { type: 'string', enum: ['facebook', 'instagram', 'tiktok', 'linkedin', 'x', 'youtube'] }, url: { type: 'string' }, draft: { type: 'boolean' } }, required: ['platform'] } } }, required: ['key', 'platforms'] } },
+  { name: 'get_ad_posts', description: 'Lists the ads that were posted from the Furlota dashboard between two dates: the day, title, caption, kind (poster or video) and the platforms each one went to (Facebook, Instagram, TikTok, X, YouTube). A platform with failed=true did NOT go out: its url is the page where the problem can be fixed and note says what went wrong.', inputSchema: { type: 'object', properties: { from_date: { type: 'string' }, to_date: { type: 'string' } }, required: ['from_date'] } },
+  { name: 'add_ad_post', description: 'Saves an ad that was posted from the Furlota dashboard so the Ads calendar shows the day as poster/video together with the platforms it went to. Calling it again with the same key updates that post (the picture is kept if thumb is left out). An empty platforms list deletes the post. It also makes sure the Ads day is marked (a post where every platform failed does not count as an ad done).', inputSchema: { type: 'object', properties: { key: { type: 'string', description: 'Any unique text for this post (the dashboard uses its run id)' }, date: { type: 'string', description: 'YYYY-MM-DD (default today)' }, kind: { type: 'string', enum: ['poster', 'video'] }, title: { type: 'string' }, caption: { type: 'string' }, thumb: { type: 'string', description: 'Small picture as a data:image/jpeg;base64,... URL (optional, up to about 160 KB)' }, platforms: { type: 'array', description: 'Where it was posted. draft=true means it is only a draft that still needs a manual step. failed=true means the post did NOT go out: then url is the exact page to open to see or fix the problem (the calendar makes it a red tap-to-open chip) and note is a short error text.', items: { type: 'object', properties: { platform: { type: 'string', enum: ['facebook', 'instagram', 'tiktok', 'x', 'youtube'] }, url: { type: 'string' }, draft: { type: 'boolean' }, failed: { type: 'boolean' }, note: { type: 'string' } }, required: ['platform'] } } }, required: ['key', 'platforms'] } },
   { name: 'list_files', description: 'Lists files attached to calendar days (names, types, sizes; not the contents). Optionally for one date.', inputSchema: { type: 'object', properties: { date: { type: 'string', description: 'YYYY-MM-DD (optional)' } } } },
   { name: 'save_day_summary', description: 'Saves a short summary text for a school day (the same box the Test tab\'s "Run the agent" fills). An empty summary deletes it.', inputSchema: { type: 'object', properties: { date: { type: 'string' }, summary: { type: 'string' } }, required: ['date', 'summary'] } },
   { name: 'add_events', description: 'Adds MANY calendar boxes in one call (up to 30). Each item can have its own date, time, duration_minutes, color, description, notify and kind (event, reminder, test, project). Use this whenever the owner wants more than one box, e.g. a whole week of lessons or a list of tests. Colors: red, orange, amber, yellow, lime, green, teal, cyan, blue, indigo, purple, pink, brown, gray, black, white, or a hex like #ff8800.', inputSchema: { type: 'object', properties: { events: { type: 'array', maxItems: 30, items: { type: 'object', properties: { title: { type: 'string' }, date: { type: 'string', description: 'YYYY-MM-DD' }, time: { type: 'string', description: '24h HH:MM' }, duration_minutes: { type: 'integer' }, color: { type: 'string' }, category: { type: 'string', enum: ['reminder', 'waste', 'chore', 'learning', 'productive', 'deep_work', 'best'], description: 'Picks the color by what the box is (see add_event).' }, description: { type: 'string' }, notify: { type: 'boolean' }, kind: { type: 'string', enum: ['event', 'reminder', 'test', 'project'] } }, required: ['title', 'date', 'time'] } } }, required: ['events'] } },
@@ -3379,7 +3379,9 @@ async function callToolInner(name, a, env) {
     for (const x of a.platforms.slice(0, 12)) {
       const p = String((x && (x.platform || x.p)) || '').toLowerCase();
       if (!AD_PLATFORMS.includes(p) || seen.has(p)) continue;
-      seen.add(p); plats.push({ p, url: String((x && x.url) || '').slice(0, 500), draft: !!(x && x.draft) });
+      seen.add(p);
+      const failed = !!(x && x.failed);
+      plats.push({ p, url: String((x && x.url) || '').slice(0, 500), draft: failed ? false : !!(x && x.draft), ...(failed ? { failed: true, note: String((x && x.note) || '').slice(0, 200) } : {}) });
     }
     if (!plats.length) {
       const old = await db.prepare('SELECT date, title FROM ads_posts WHERE pkey = ?').bind(k).first();
@@ -3393,11 +3395,15 @@ async function callToolInner(name, a, env) {
     const now = new Date().toISOString();
     await db.prepare("INSERT INTO ads_posts (pkey, date, kind, title, caption, thumb, platforms, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(pkey) DO UPDATE SET date = excluded.date, kind = excluded.kind, title = excluded.title, caption = excluded.caption, thumb = CASE WHEN excluded.thumb != '' THEN excluded.thumb ELSE ads_posts.thumb END, platforms = excluded.platforms, updated_at = excluded.updated_at").bind(k, d, kind, title, caption, thumb, JSON.stringify(plats), now, now).run();
     // make sure the Ads calendar day shows it: an empty day gets marked; a day of the same kind never shows fewer than the posts saved for it
-    const n = Math.min(99, ((await db.prepare('SELECT COUNT(*) AS n FROM ads_posts WHERE date = ? AND kind = ?').bind(d, kind).first()) || {}).n || 1);
-    const cur = await db.prepare('SELECT kind, count FROM ads_days WHERE date = ?').bind(d).first();
-    if (!cur) await db.prepare('INSERT INTO ads_days (date, kind, count) VALUES (?,?,?)').bind(d, kind, n).run();
-    else if (cur.kind === kind && cur.count < n) await db.prepare('UPDATE ads_days SET count = ? WHERE date = ?').bind(n, d).run();
-    return say({ done: true, date: d, kind, title, platforms: plats.map((x) => ({ p: x.p, draft: x.draft })), ads_of_this_kind_that_day: n });
+    // (a post where EVERY platform failed is not an ad that was done: it only shows its red problem chips, it does not colour the day)
+    const same = ((await db.prepare('SELECT platforms FROM ads_posts WHERE date = ? AND kind = ?').bind(d, kind).all()).results) || [];
+    const n = Math.min(99, same.filter((r) => { try { return JSON.parse(r.platforms || '[]').some((x) => !x.failed); } catch (e) { return true; } }).length);
+    if (n > 0) {
+      const cur = await db.prepare('SELECT kind, count FROM ads_days WHERE date = ?').bind(d).first();
+      if (!cur) await db.prepare('INSERT INTO ads_days (date, kind, count) VALUES (?,?,?)').bind(d, kind, n).run();
+      else if (cur.kind === kind && cur.count < n) await db.prepare('UPDATE ads_days SET count = ? WHERE date = ?').bind(n, d).run();
+    }
+    return say({ done: true, date: d, kind, title, platforms: plats.map((x) => ({ p: x.p, draft: x.draft, ...(x.failed ? { failed: true } : {}) })), ads_of_this_kind_that_day: n });
   }
   if (name === 'list_files') {
     const d = a.date ? needDate(a.date) : null; if (a.date && !d) return say('date must look like 2026-11-20.', true);
@@ -3452,7 +3458,7 @@ async function onRequest({ request, env }) {
 })();
 
 // version counter of THIS file (added into the number shown in the page corner; bump it only when this file changes)
-const FILE_VERSION = 12;
+const FILE_VERSION = 13;
 const M_version = { onRequest: () => new Response(JSON.stringify({ v: FILE_VERSION }), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } }) };
 
 // ================================ ROUTER ================================
