@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>/* GLOBAL VERSION COUNTER: each file has its own number (this file = index). The corner label shows index + sw.js + server added together. Bump ONLY the number of the file you changed. */ window.__V = { index: 45 };</script>
+<script>/* GLOBAL VERSION COUNTER: each file has its own number (this file = index). The corner label shows index + sw.js + server added together. Bump ONLY the number of the file you changed. */ window.__V = { index: 46 };</script>
 <script>/* no browser right-click menu anywhere on the site (our own right-click editor / paste popups still work) */ window.addEventListener('contextmenu', function (e) { e.preventDefault(); }, true);</script>
   <meta charset="UTF-8" />
   <meta name="viewport" id="viewportMetaTag" content="width=device-width, initial-scale=1.0" />
@@ -2818,6 +2818,9 @@
     .ads-dots { position: absolute; left: 2px; right: 2px; bottom: 3px; display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 3px; pointer-events: none; }
     .ads-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 1.5px #fff; animation: ads-dot-in .5s var(--m-ease) backwards; }
     .ads-dots i:nth-child(2) { animation-delay: 60ms; } .ads-dots i:nth-child(3) { animation-delay: 120ms; } .ads-dots i:nth-child(4) { animation-delay: 180ms; } .ads-dots i:nth-child(5) { animation-delay: 240ms; } .ads-dots i:nth-child(6) { animation-delay: 300ms; }
+    .ads-dots i.fail { box-shadow: 0 0 0 1.6px #ef4444; }
+    .ads-legend i.bad { width: 12px; height: 12px; background: #ef4444; color: #fff; font: 800 9px/12px system-ui, sans-serif; text-align: center; font-style: normal; }
+    .ads-fail { position: absolute; top: 3px; right: 3px; width: 15px; height: 15px; border-radius: 50%; background: #ef4444; color: #fff; font: 800 10px/15px system-ui, sans-serif; text-align: center; pointer-events: none; box-shadow: 0 1px 3px rgba(239,68,68,.45); animation: ads-dot-in .5s var(--m-ease) backwards; }
     .ads-dots i.draft { background: #fff; box-shadow: inset 0 0 0 1.8px var(--c), 0 0 0 1.5px #fff; }
     @keyframes ads-dot-in { from { transform: scale(0); opacity: 0; } to { transform: none; opacity: 1; } }
     .ads-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 10px; font-size: 11.5px; font-weight: 700; color: #6b6b70; }
@@ -2836,6 +2839,9 @@
     .ads-pchip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px 3px 7px; border-radius: 999px; font-size: 11.5px; font-weight: 800; color: #111; text-decoration: none; background: color-mix(in srgb, var(--c) 16%, transparent); border: 1.5px solid color-mix(in srgb, var(--c) 55%, transparent); -webkit-tap-highlight-color: transparent; }
     .ads-pchip i { width: 7px; height: 7px; border-radius: 50%; background: var(--c); }
     .ads-pchip.draft { border-style: dashed; }
+    .ads-pchip.fail { color: #b91c1c; background: rgba(239,68,68,.13); border: 1.5px solid #ef4444; }
+    .ads-pchip.fail i { background: #ef4444; }
+    .ads-post-err { margin-top: 6px; font-size: 11.5px; font-weight: 700; line-height: 1.3; color: #dc2626; white-space: pre-line; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
     a.ads-pchip { transition: transform .25s var(--m-ease); } a.ads-pchip:active { transform: scale(.94); }
     .ads-post-x { flex: none; min-width: 30px; height: 30px; border: none; border-radius: 10px; background: transparent; color: #8a8a8e; font-size: 20px; line-height: 1; cursor: pointer; font-family: inherit; transition: background .2s ease, color .2s ease; }
     .ads-post-x.armed { background: #ef4444; color: #fff; font-size: 11px; font-weight: 800; padding: 0 9px; }
@@ -2843,9 +2849,12 @@
     body.night-mode .ads-post-img { background-color: #3a3a3c; }
     body.night-mode .ads-post-cap, body.night-mode .ads-legend { color: #a1a1a6; }
     body.night-mode .ads-pchip { color: #f5f5f5; }
+    body.night-mode .ads-pchip.fail { color: #fca5a5; }
+    body.night-mode .ads-post-err { color: #f87171; }
+    body.night-mode .ads-dots i.fail { box-shadow: 0 0 0 1.6px #ef4444; }
     body.night-mode .ads-dots i { box-shadow: 0 0 0 1.5px #1c1c1e; }
     body.night-mode .ads-dots i.draft { background: #1c1c1e; box-shadow: inset 0 0 0 1.8px var(--c), 0 0 0 1.5px #1c1c1e; }
-    @media (prefers-reduced-motion: reduce) { .ads-enter, .ads-tile, .ads-dots i, .ads-post { animation: none !important; } .ads-sheet { transition: none; } }
+    @media (prefers-reduced-motion: reduce) { .ads-enter, .ads-tile, .ads-dots i, .ads-post, .ads-fail { animation: none !important; } .ads-sheet { transition: none; } }
 
     /* ── DAY TIMER (double-tap "Day") ── */
     .tmr-overlay {
@@ -13574,7 +13583,7 @@ const PIP_MAX = 3;
       const API = '/api/ads';
       const DAYS_KEY = 'adsDays.v1', BANK_KEY = 'adsBank.v1';
       const KINDS = { none: { name: 'Nothing' }, poster: { name: 'Poster', label: 'poster' }, video: { name: 'Video', label: 'video' } };
-      const PLAT = { facebook: ['Facebook', '#1877f2'], instagram: ['Instagram', '#d6249f'], tiktok: ['TikTok', '#06b6d4'], linkedin: ['LinkedIn', '#6366f1'], x: ['X', '#64748b'], youtube: ['YouTube', '#e11d48'] };
+      const PLAT = { facebook: ['Facebook', '#1877f2'], instagram: ['Instagram', '#d6249f'], tiktok: ['TikTok', '#06b6d4'], x: ['X', '#64748b'], youtube: ['YouTube', '#e11d48'] };
       const POSTS_KEY = 'adsPosts.v1';
       let on = false, modal = null;
 
@@ -13605,7 +13614,7 @@ const PIP_MAX = 3;
       /* ---------- calendar painting ---------- */
       function decorate(cell, d) {
         cell.classList.remove('ads-none', 'ads-poster', 'ads-video', 'ads-future');
-        cell.querySelectorAll('.ads-label, .ads-dots').forEach((n) => n.remove());
+        cell.querySelectorAll('.ads-label, .ads-dots, .ads-fail').forEach((n) => n.remove());
         if (!cell._as) { cell._as = true; cell.style.setProperty('--i', d); if (!REDUCED) cell.classList.add('ads-enter'); }
         const k = dateKey(d), e = days[k];
         if (e && KINDS[e.kind]) {
@@ -13618,14 +13627,19 @@ const PIP_MAX = 3;
         const pl = platformsOn(k);                                   // one dot per platform the dashboard posted to that day (hollow = still a draft)
         if (pl.length) {
           const w = h('div', 'ads-dots');
-          pl.forEach((x) => { const i = h('i', x[1] ? 'draft' : ''); i.style.setProperty('--c', PLAT[x[0]][1]); w.appendChild(i); });
+          pl.forEach((x) => { const i = h('i', x[2] ? 'fail' : (x[1] ? 'draft' : '')); i.style.setProperty('--c', PLAT[x[0]][1]); w.appendChild(i); });
           cell.appendChild(w);
+          if (pl.some((x) => x[2])) cell.appendChild(h('div', 'ads-fail', '!'));                 // red "!" in the corner = something failed that day (tap the day)
         }
       }
-      function platformsOn(k) {
+      function platformsOn(k) {                   // -> [platform, isDraft, isFailed]; a platform that failed on that day always shows as failed, a posted one beats a draft
         const m = {};
-        (posts[k] || []).forEach((po) => (po.platforms || []).forEach((x) => { if (PLAT[x.p]) m[x.p] = m[x.p] === undefined ? !!x.draft : (m[x.p] && !!x.draft); }));
-        return Object.keys(PLAT).filter((p) => m[p] !== undefined).map((p) => [p, m[p]]);
+        (posts[k] || []).forEach((po) => (po.platforms || []).forEach((x) => {
+          if (!PLAT[x.p]) return;
+          const s = x.failed ? 2 : (x.draft ? 1 : 0), o = m[x.p];
+          m[x.p] = o === undefined ? s : (s === 2 || o === 2 ? 2 : Math.min(o, s));
+        }));
+        return Object.keys(PLAT).filter((p) => m[p] !== undefined).map((p) => [p, m[p] === 1, m[p] === 2]);
       }
       function paintAll() {
         document.querySelectorAll('#daysGrid .day-cell:not(.empty)').forEach((c) => decorate(c, parseInt(c.dataset.day, 10)));
@@ -13667,12 +13681,16 @@ const PIP_MAX = 3;
         q('days').textContent = n; q('poster').textContent = p; q('video').textContent = v;
         const lg = $('adsLegend');
         if (lg) {
-          const used = {};
-          Object.keys(posts).forEach((k) => { if (k.indexOf(prefix) === 0) platformsOn(k).forEach((x) => { used[x[0]] = 1; }); });
-          const sig = Object.keys(PLAT).filter((p) => used[p]).join(',');
+          const used = {}; let anyFail = false;
+          Object.keys(posts).forEach((k) => { if (k.indexOf(prefix) === 0) platformsOn(k).forEach((x) => { used[x[0]] = 1; if (x[2]) anyFail = true; }); });
+          const sig = Object.keys(PLAT).filter((p) => used[p]).join(',') + (anyFail ? ',!' : '');
           if (lg.dataset.sig !== sig) {
             lg.dataset.sig = sig; lg.textContent = '';
-            sig.split(',').filter(Boolean).forEach((p) => { const s = h('span'), i = h('i'); i.style.setProperty('--c', PLAT[p][1]); s.append(i, PLAT[p][0]); lg.appendChild(s); });
+            sig.split(',').filter(Boolean).forEach((p) => {
+              const s = h('span'), i = h('i');
+              if (p === '!') { i.className = 'bad'; i.textContent = '!'; s.append(i, 'Failed \u2014 tap the day'); } else { i.style.setProperty('--c', PLAT[p][1]); s.append(i, PLAT[p][0]); }
+              lg.appendChild(s);
+            });
           }
         }
       }
@@ -13738,12 +13756,15 @@ const PIP_MAX = 3;
           const chips = h('div', 'ads-post-chips');
           (po.platforms || []).forEach((x) => {
             const pi = PLAT[x.p]; if (!pi) return;
-            const c = h(x.url ? 'a' : 'span', 'ads-pchip' + (x.draft ? ' draft' : ''));
-            if (x.url) { c.href = x.url; c.target = '_blank'; c.rel = 'noopener'; }
-            c.style.setProperty('--c', pi[1]); c.appendChild(h('i')); c.appendChild(document.createTextNode(pi[0] + (x.draft ? ' \u00B7 draft' : '')));
+            const c = h(x.url ? 'a' : 'span', 'ads-pchip' + (x.failed ? ' fail' : (x.draft ? ' draft' : '')));
+            if (x.url) { c.href = x.url; c.target = '_blank'; c.rel = 'noopener'; }          // posted: the post itself · failed: the exact page about the problem
+            if (x.failed && x.note) c.title = x.note;
+            c.style.setProperty('--c', pi[1]); c.appendChild(h('i')); c.appendChild(document.createTextNode(pi[0] + (x.failed ? ' \u00B7 failed' + (x.url ? ' \u2197' : '') : (x.draft ? ' \u00B7 draft' : ''))));
             chips.appendChild(c);
           });
           body.appendChild(chips);
+          const bad = (po.platforms || []).filter((x) => x.failed && PLAT[x.p]);
+          if (bad.length) { const er = h('div', 'ads-post-err'); er.textContent = bad.map((x) => { const nm = PLAT[x.p][0], nt = x.note || 'did not post'; return new RegExp('^' + nm + '(\\W|$)', 'i').test(nt) ? nt : nm + ': ' + nt; }).join('\n'); body.appendChild(er); }
           const del = h('button', 'ads-post-x', '\u00D7'); del.type = 'button'; del.title = 'Remove from the calendar';
           let armed = 0;
           del.onclick = () => {
@@ -14808,10 +14829,10 @@ window.__TEST_TAB_SRC = "/* test.js - the WHOLE Test tab in one file: its styles
       var nb = el('div', 'lv-tile', KN[to] + (to === 'video' && d.toCount > 1 ? ' ×' + d.toCount : '') + (to === 'poster' && d.toCount > 1 ? ' ×' + d.toCount : '')); nb.style.setProperty('--from', COL[from]); nb.style.setProperty('--to', COL[to]);
       wrap.replaceChildren(a, arr, nb); body.appendChild(wrap); setTimeout(function () { nb.classList.add('go'); }, 60);
     } else if (c.kind === 'adpost') {
-      var PN = { facebook: 'Facebook', instagram: 'Instagram', tiktok: 'TikTok', linkedin: 'LinkedIn', x: 'X', youtube: 'YouTube' };
+      var PN = { facebook: 'Facebook', instagram: 'Instagram', tiktok: 'TikTok', x: 'X', youtube: 'YouTube' };
       card.style.setProperty('--c', d.kind === 'video' ? '#22c55e' : '#f59e0b'); ic.firstChild.nodeValue = d.deleted ? '🗑️' : (d.kind === 'video' ? '🎬' : '🖼️');
-      t.textContent = d.deleted ? 'Ad removed' : 'Ad posted'; s.textContent = prettyDate(c.date) + (c.label ? ' \u00B7 ' + c.label : '');
-      var pns = (d.platforms || []).map(function (p) { return (PN[p.p] || p.p) + (p.draft ? ' (draft)' : ''); });
+      var pl0 = d.platforms || [], nf = pl0.filter(function (p) { return p.failed; }).length; t.textContent = d.deleted ? 'Ad removed' : (nf && nf === pl0.length ? 'Ad failed' : (nf ? 'Ad posted, ' + nf + ' failed' : 'Ad posted')); s.textContent = prettyDate(c.date) + (c.label ? ' \u00B7 ' + c.label : '');
+      var pns = (d.platforms || []).map(function (p) { return (PN[p.p] || p.p) + (p.failed ? ' (failed)' : (p.draft ? ' (draft)' : '')); });
       if (pns.length) { var chip4 = el('div', 'lv-chip'); chip4.append(el('b', '', pns.join(' \u00B7 '))); body.appendChild(chip4); }
     } else if (c.kind === 'summary') {
       card.style.setProperty('--c', '#0ea5e9'); ic.firstChild.nodeValue = '🧾'; t.textContent = 'Day summary saved'; s.textContent = prettyDate(c.date);
