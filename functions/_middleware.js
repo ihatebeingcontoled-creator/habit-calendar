@@ -27,6 +27,12 @@ const M_ads = (() => {
 //     GET    /api/ads?resource=orig&id=5     -> the original file itself
 //     GET    /api/ads?resource=orig&id=5&idx=0  -> (legacy) a base64 piece saved by the earlier D1-only version
 //
+//   posts = ads posted from the Furlota dashboard: which day, a small picture and WHICH PLATFORMS it went to.
+//           (the dashboard writes them through the MCP tool add_ad_post; this address only reads / removes them)
+//     GET    /api/ads?resource=posts                 -> { posts: [{ key, date, kind, title, platforms: [{p, url, draft}] }] }   (no pictures: small)
+//     GET    /api/ads?resource=posts&date=2026-11-24 -> the same for one day, WITH caption + thumb (small picture)
+//     DELETE /api/ads?resource=posts&key=<key>
+//
 // The tables are created automatically the first time this runs, so there is NO sql file to run.
 
 const json = (d, s = 200) =>
@@ -59,6 +65,17 @@ function ensureSchema(db) {
       name    TEXT DEFAULT '',
       data    TEXT NOT NULL,
       PRIMARY KEY (bank_id, idx))`).run();
+    await db.prepare(`CREATE TABLE IF NOT EXISTS ads_posts (
+      pkey       TEXT PRIMARY KEY,
+      date       TEXT NOT NULL,
+      kind       TEXT NOT NULL DEFAULT 'poster',
+      title      TEXT DEFAULT '',
+      caption    TEXT DEFAULT '',
+      thumb      TEXT DEFAULT '',
+      platforms  TEXT DEFAULT '[]',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP)`).run();
+    await db.prepare('CREATE INDEX IF NOT EXISTS idx_ads_posts_date ON ads_posts(date)').run();
   })().catch((e) => { schemaReady = null; throw e; });
   return schemaReady;
 }
@@ -152,6 +169,28 @@ async function onRequest({ request, env }) {
       await db.prepare('DELETE FROM ads_bank WHERE id = ?').bind(id).run();
       await db.prepare('DELETE FROM ads_bank_orig WHERE bank_id = ?').bind(id).run();
       if (env.ADS_IMAGES) { try { await env.ADS_IMAGES.delete(R2_KEY(id)); } catch (e) {} }
+      return json({ ok: true });
+    }
+    return json({ error: 'method not allowed' }, 405);
+  }
+
+  /* ---------------- ads posted from the dashboard (platforms per day) ---------------- */
+  if (resource === 'posts') {
+    const shape = (r) => { let p = []; try { p = JSON.parse(r.platforms || '[]'); } catch (e) {} return { ...r, key: r.pkey, pkey: undefined, platforms: Array.isArray(p) ? p : [] }; };
+    if (request.method === 'GET') {
+      const date = url.searchParams.get('date') || '';
+      if (date) {
+        if (!DATE_RE.test(date)) return json({ error: 'bad date' }, 400);
+        const { results } = await db.prepare('SELECT pkey, date, kind, title, caption, thumb, platforms FROM ads_posts WHERE date = ? ORDER BY created_at, pkey').bind(date).all();
+        return json({ posts: results.map(shape) });
+      }
+      const { results } = await db.prepare('SELECT pkey, date, kind, title, platforms FROM ads_posts ORDER BY date, created_at').all();
+      return json({ posts: results.map(shape) });
+    }
+    if (request.method === 'DELETE') {
+      const k = url.searchParams.get('key') || '';
+      if (!k) return json({ error: 'key required' }, 400);
+      await db.prepare('DELETE FROM ads_posts WHERE pkey = ?').bind(k).run();
       return json({ ok: true });
     }
     return json({ error: 'method not allowed' }, 405);
@@ -2945,7 +2984,13 @@ const ensureMoney = (db) => moneyReady || (moneyReady = (async () => {
   for (const c of ['store', 'street', 'item']) if (!have.has(c)) await db.prepare("ALTER TABLE money_entries ADD COLUMN " + c + " TEXT DEFAULT ''").run();
   await db.prepare('CREATE INDEX IF NOT EXISTS idx_money_date ON money_entries(date)').run();
 })().catch((e) => { moneyReady = null; throw e; }));
-const ensureAds = (db) => adsReady || (adsReady = db.prepare('CREATE TABLE IF NOT EXISTS ads_days (date TEXT PRIMARY KEY, kind TEXT NOT NULL, count INTEGER NOT NULL DEFAULT 1)').run().catch((e) => { adsReady = null; throw e; }));
+const ensureAds = (db) => adsReady || (adsReady = (async () => {
+  await db.prepare('CREATE TABLE IF NOT EXISTS ads_days (date TEXT PRIMARY KEY, kind TEXT NOT NULL, count INTEGER NOT NULL DEFAULT 1)').run();
+  await db.prepare("CREATE TABLE IF NOT EXISTS ads_posts (pkey TEXT PRIMARY KEY, date TEXT NOT NULL, kind TEXT NOT NULL DEFAULT 'poster', title TEXT DEFAULT '', caption TEXT DEFAULT '', thumb TEXT DEFAULT '', platforms TEXT DEFAULT '[]', created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP)").run();
+  await db.prepare('CREATE INDEX IF NOT EXISTS idx_ads_posts_date ON ads_posts(date)').run();
+})().catch((e) => { adsReady = null; throw e; }));
+const AD_PLATFORMS = ['facebook', 'instagram', 'tiktok', 'linkedin', 'x', 'youtube'];
+const adPostShape = (r) => { let p = []; try { p = JSON.parse(r.platforms || '[]'); } catch (e) {} return { key: r.pkey, date: r.date, kind: r.kind, title: r.title, ...(r.caption !== undefined ? { caption: r.caption } : {}), platforms: Array.isArray(p) ? p : [] }; };
 const moneyShape = (r) => ({ id: r.id, date: r.date, amount: r.amount, kind: r.amount < 0 ? 'spent' : 'income', store: r.store || '', item: r.item || '', street: r.street || '', note: r.note || '', source: r.source });
 const moneyTotals = (rows) => { const spent = rows.filter((e) => e.amount < 0).reduce((s, e) => s - e.amount, 0), got = rows.filter((e) => e.amount > 0).reduce((s, e) => s + e.amount, 0); const r2 = (x) => Math.round(x * 100) / 100; return { spent: r2(spent), income: r2(got), net: r2(got - spent), entries: rows.length }; };
 async function getHabitRow(db, date) { return await db.prepare('SELECT * FROM habits WHERE date = ?').bind(date).first(); }
@@ -2975,6 +3020,8 @@ const TOOLS = [
   { name: 'delete_birthday', description: 'Deletes a birthday by id (get ids from list_birthdays).', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
   { name: 'get_ads', description: 'Reads the Ads calendar (what kind of ad was done on each date: poster or video, and how many).', inputSchema: { type: 'object', properties: { from_date: { type: 'string' }, to_date: { type: 'string' } }, required: ['from_date'] } },
   { name: 'set_ads_day', description: 'Sets what ad was done on a date. kind is poster, video, or none (none clears the day).', inputSchema: { type: 'object', properties: { date: { type: 'string', description: 'YYYY-MM-DD (default today)' }, kind: { type: 'string', enum: ['poster', 'video', 'none'] }, count: { type: 'integer', description: 'Default 1' } }, required: ['kind'] } },
+  { name: 'get_ad_posts', description: 'Lists the ads that were posted from the Furlota dashboard between two dates: the day, title, caption, kind (poster or video) and the platforms each one went to (Facebook, Instagram, TikTok, LinkedIn, X, YouTube).', inputSchema: { type: 'object', properties: { from_date: { type: 'string' }, to_date: { type: 'string' } }, required: ['from_date'] } },
+  { name: 'add_ad_post', description: 'Saves an ad that was posted from the Furlota dashboard so the Ads calendar shows the day as poster/video together with the platforms it went to. Calling it again with the same key updates that post (the picture is kept if thumb is left out). An empty platforms list deletes the post. It also makes sure the Ads day is marked.', inputSchema: { type: 'object', properties: { key: { type: 'string', description: 'Any unique text for this post (the dashboard uses its run id)' }, date: { type: 'string', description: 'YYYY-MM-DD (default today)' }, kind: { type: 'string', enum: ['poster', 'video'] }, title: { type: 'string' }, caption: { type: 'string' }, thumb: { type: 'string', description: 'Small picture as a data:image/jpeg;base64,... URL (optional, up to about 160 KB)' }, platforms: { type: 'array', description: 'Where it was posted. draft=true means it is only a draft that still needs a manual step.', items: { type: 'object', properties: { platform: { type: 'string', enum: ['facebook', 'instagram', 'tiktok', 'linkedin', 'x', 'youtube'] }, url: { type: 'string' }, draft: { type: 'boolean' } }, required: ['platform'] } } }, required: ['key', 'platforms'] } },
   { name: 'list_files', description: 'Lists files attached to calendar days (names, types, sizes; not the contents). Optionally for one date.', inputSchema: { type: 'object', properties: { date: { type: 'string', description: 'YYYY-MM-DD (optional)' } } } },
   { name: 'save_day_summary', description: 'Saves a short summary text for a school day (the same box the Test tab\'s "Run the agent" fills). An empty summary deletes it.', inputSchema: { type: 'object', properties: { date: { type: 'string' }, summary: { type: 'string' } }, required: ['date', 'summary'] } },
   { name: 'add_events', description: 'Adds MANY calendar boxes in one call (up to 30). Each item can have its own date, time, duration_minutes, color, description, notify and kind (event, reminder, test, project). Use this whenever the owner wants more than one box, e.g. a whole week of lessons or a list of tests. Colors: red, orange, amber, yellow, lime, green, teal, cyan, blue, indigo, purple, pink, brown, gray, black, white, or a hex like #ff8800.', inputSchema: { type: 'object', properties: { events: { type: 'array', maxItems: 30, items: { type: 'object', properties: { title: { type: 'string' }, date: { type: 'string', description: 'YYYY-MM-DD' }, time: { type: 'string', description: '24h HH:MM' }, duration_minutes: { type: 'integer' }, color: { type: 'string' }, category: { type: 'string', enum: ['reminder', 'waste', 'chore', 'learning', 'productive', 'deep_work', 'best'], description: 'Picks the color by what the box is (see add_event).' }, description: { type: 'string' }, notify: { type: 'boolean' }, kind: { type: 'string', enum: ['event', 'reminder', 'test', 'project'] } }, required: ['title', 'date', 'time'] } } }, required: ['events'] } },
@@ -3006,7 +3053,7 @@ async function logChange(db, kind, date, label, data) {
   await db.prepare('DELETE FROM live_changes WHERE id < (SELECT MAX(id) FROM live_changes) - 200').run();
 }
 const HAB_LABELS = { pushupsCount: 'Push-ups', readPagesCount: 'Pages read', pullupsCount: 'Pull-ups', oneHandPushupsCount: 'One-hand push-ups', breathHoldSeconds: 'Breath hold (sec)', stretchPips: 'Stretch', lSitPips: 'L-sit', productivePips: 'Productive', cardTrickPips: 'Card trick', wokeAt5: 'Woke at 5', nDay: 'Productive note', nRead: 'Reading note', nExtra: 'Extra note' };
-const WRITES = new Set(['update_event', 'update_money_entry', 'add_event', 'add_reminder', 'add_test', 'set_timer', 'delete_event', 'set_notification', 'update_habits', 'add_expense', 'add_income', 'delete_money_entry', 'set_ads_day', 'save_day_summary', 'add_birthday', 'delete_birthday']);
+const WRITES = new Set(['update_event', 'update_money_entry', 'add_event', 'add_reminder', 'add_test', 'set_timer', 'delete_event', 'set_notification', 'update_habits', 'add_expense', 'add_income', 'delete_money_entry', 'set_ads_day', 'add_ad_post', 'save_day_summary', 'add_birthday', 'delete_birthday']);
 async function callTool(name, a, env) {
   const db = env.DB; a = a || {};
   if (db && (name === 'add_events' || name === 'add_expenses' || name === 'delete_events')) {
@@ -3063,6 +3110,7 @@ async function recordLive(name, a, db, res, pre) {
   if (name === 'add_expense' || name === 'add_income') return logChange(db, 'money', out.date, out.store || out.item || (name === 'add_income' ? 'Income' : 'Spent'), { action: 'add', amount: out.amount, store: out.store || '', item: out.item || '', street: out.street || '', paid_with: out.paid_with || '', time: out.time || '' });
   if (name === 'delete_money_entry') return logChange(db, 'money', pre.money ? pre.money.date : '', pre.money ? (pre.money.store || pre.money.note) : '', { action: 'delete', amount: pre.money ? pre.money.amount : 0 });
   if (name === 'set_ads_day') { const d = dayOrToday(a.date); return logChange(db, 'ads', d, 'Ads', { from: pre.ads ? pre.ads.kind : 'none', fromCount: pre.ads ? pre.ads.count : 0, to: a.kind, toCount: a.kind === 'none' ? 0 : (out.count || 1) }); }
+  if (name === 'add_ad_post') return logChange(db, 'adpost', out.date || '', String(out.title || a.title || 'Ad').slice(0, 80), { deleted: !!out.deleted, kind: out.kind || a.kind || 'poster', platforms: out.platforms || [] });
   if (name === 'save_day_summary') return logChange(db, 'summary', a.date, 'Day summary', { text: String(a.summary || '').slice(0, 140) });
   if (name === 'add_birthday' || name === 'delete_birthday') return logChange(db, 'birthday', '', (out.name || (out.was && out.was.name) || 'Birthday'), { action: name === 'add_birthday' ? 'add' : 'delete', month: out.month || (out.was && out.was.month), day: out.day || (out.was && out.was.day) });
 }
@@ -3168,6 +3216,7 @@ async function callToolInner(name, a, env) {
     out.money = await q(async () => { await ensureMoney(db); const rows = (await db.prepare('SELECT * FROM money_entries WHERE date = ? ORDER BY id').bind(d).all()).results; return { totals: moneyTotals(rows), entries: rows.map(moneyShape) }; });
     out.saved_day_summary = await q(async () => { const s = await db.prepare('SELECT summary, updated FROM au_day_summary WHERE day = ?').bind(d).first(); return s ? s.summary : null; });
     out.ads = await q(async () => { await ensureAds(db); return await db.prepare('SELECT kind, count FROM ads_days WHERE date = ?').bind(d).first(); });
+    out.ad_posts = await q(async () => { await ensureAds(db); return (await db.prepare('SELECT pkey, date, kind, title, platforms FROM ads_posts WHERE date = ? ORDER BY created_at').bind(d).all()).results.map(adPostShape); });
     out.files = await q(async () => (await db.prepare('SELECT id, name, type, size FROM files WHERE date = ?').bind(d).all()).results);
     return say(out);
   }
@@ -3315,6 +3364,41 @@ async function callToolInner(name, a, env) {
     await db.prepare('INSERT INTO ads_days (date, kind, count) VALUES (?,?,?) ON CONFLICT(date) DO UPDATE SET kind = excluded.kind, count = excluded.count').bind(d, a.kind, c).run();
     return say({ done: true, date: d, kind: a.kind, count: c });
   }
+  if (name === 'get_ad_posts') {
+    const from = needDate(a.from_date), to = needDate(a.to_date || a.from_date); if (!from || !to) return say('Dates must look like 2026-11-20.', true);
+    await ensureAds(db);
+    const { results } = await db.prepare('SELECT pkey, date, kind, title, caption, platforms FROM ads_posts WHERE date >= ? AND date <= ? ORDER BY date, created_at').bind(from, to).all();
+    return say(results.length ? results.map(adPostShape) : 'No ads posted from the dashboard between ' + from + ' and ' + to + '.');
+  }
+  if (name === 'add_ad_post') {
+    const k = String(a.key || '').trim().slice(0, 80); if (!k) return say('key is required (any unique text, e.g. the dashboard run id).', true);
+    const d = dayOrToday(a.date); if (!d) return say('date must look like 2026-11-20.', true);
+    if (!Array.isArray(a.platforms)) return say('platforms must be a list (an empty list deletes the post).', true);
+    await ensureAds(db);
+    const plats = [], seen = new Set();
+    for (const x of a.platforms.slice(0, 12)) {
+      const p = String((x && (x.platform || x.p)) || '').toLowerCase();
+      if (!AD_PLATFORMS.includes(p) || seen.has(p)) continue;
+      seen.add(p); plats.push({ p, url: String((x && x.url) || '').slice(0, 500), draft: !!(x && x.draft) });
+    }
+    if (!plats.length) {
+      const old = await db.prepare('SELECT date, title FROM ads_posts WHERE pkey = ?').bind(k).first();
+      if (!old) return say({ done: false, note: 'Nothing to delete: no platforms were given and no saved post has that key.' });
+      await db.prepare('DELETE FROM ads_posts WHERE pkey = ?').bind(k).run();
+      return say({ done: true, deleted: true, date: old.date, title: old.title, platforms: [] });
+    }
+    const kind = a.kind === 'video' ? 'video' : 'poster';
+    const title = String(a.title || '').trim().slice(0, 200), caption = String(a.caption || '').slice(0, 2000);
+    const thumb = typeof a.thumb === 'string' && a.thumb.length <= 160000 && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+\/=]+$/.test(a.thumb) ? a.thumb : '';
+    const now = new Date().toISOString();
+    await db.prepare("INSERT INTO ads_posts (pkey, date, kind, title, caption, thumb, platforms, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(pkey) DO UPDATE SET date = excluded.date, kind = excluded.kind, title = excluded.title, caption = excluded.caption, thumb = CASE WHEN excluded.thumb != '' THEN excluded.thumb ELSE ads_posts.thumb END, platforms = excluded.platforms, updated_at = excluded.updated_at").bind(k, d, kind, title, caption, thumb, JSON.stringify(plats), now, now).run();
+    // make sure the Ads calendar day shows it: an empty day gets marked; a day of the same kind never shows fewer than the posts saved for it
+    const n = Math.min(99, ((await db.prepare('SELECT COUNT(*) AS n FROM ads_posts WHERE date = ? AND kind = ?').bind(d, kind).first()) || {}).n || 1);
+    const cur = await db.prepare('SELECT kind, count FROM ads_days WHERE date = ?').bind(d).first();
+    if (!cur) await db.prepare('INSERT INTO ads_days (date, kind, count) VALUES (?,?,?)').bind(d, kind, n).run();
+    else if (cur.kind === kind && cur.count < n) await db.prepare('UPDATE ads_days SET count = ? WHERE date = ?').bind(n, d).run();
+    return say({ done: true, date: d, kind, title, platforms: plats.map((x) => ({ p: x.p, draft: x.draft })), ads_of_this_kind_that_day: n });
+  }
   if (name === 'list_files') {
     const d = a.date ? needDate(a.date) : null; if (a.date && !d) return say('date must look like 2026-11-20.', true);
     const q = d ? db.prepare('SELECT id, date, name, type, size, uploaded FROM files WHERE date = ? ORDER BY id').bind(d) : db.prepare('SELECT id, date, name, type, size, uploaded FROM files ORDER BY date DESC, id DESC LIMIT 100');
@@ -3368,7 +3452,7 @@ async function onRequest({ request, env }) {
 })();
 
 // version counter of THIS file (added into the number shown in the page corner; bump it only when this file changes)
-const FILE_VERSION = 11;
+const FILE_VERSION = 12;
 const M_version = { onRequest: () => new Response(JSON.stringify({ v: FILE_VERSION }), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } }) };
 
 // ================================ ROUTER ================================
